@@ -326,13 +326,58 @@ Implementation status (2026-09-18): the measured M2 path is MP4/H.264 input to v
 
 ### M3 — throughput, color, and browser robustness
 
-- Add a capability-driven output-profile selector to the shared job policy and reusable UI. A profile binds the container, video codec, audio codec/policy, extension, and muxer settings so the app never offers invalid combinations such as AAC inside WebM. Keep the current video-only WebM/VP8 profile, then add MP4 and additional WebM profiles only after their exact encoder and muxer configurations pass real-browser round-trip tests. Show unsupported profiles with the failed browser capability instead of silently falling back.
-- Move codecs and wgpu into a dedicated worker; keep frame handles inside it. Probe worker WebGPU and OffscreenCanvas before enabling this path; retain the measured main-thread path if needed.
-- Add bounded pipelining, texture pools, allocation and copy telemetry, optional GPU timestamp queries, and long-running tests. Separate CPU submission latency from GPU execution time.
-- Add direct external import where supported and measure both ingress and egress before claiming a gain.
-- Add a defined color pipeline, crop/orientation handling, variable frame-rate fixtures, and resolution-change policy. Reject HDR until implemented and tested.
-- Add streaming I/O, validate the broader input/output container and codec matrix exposed by the output-profile selector, and add device-loss recovery if justified.
-- Handle audio explicitly: passthrough only when compatible with the output container; otherwise a separately tested decode/encode path with A/V synchronization.
+M3 is split into ordered, independently releasable sub-milestones. Do not begin a later sub-milestone until the preceding acceptance gate is recorded in `docs/interop-report.md`. Each profile binds its container, video codec, audio codec/policy, extension, and muxer settings; the UI must never offer an invalid combination or silently substitute another profile.
+
+#### M3.1 — output-profile model and audio-preserving WebM
+
+- Add platform-neutral output-profile and audio-policy types to `media-core`, plus capability results that carry an exact unsupported reason.
+- Replace the fixed output label with a reusable profile selector. Retain an explicit video-only WebM/VP8 profile and add WebM/VP8/Opus as the preferred audio-preserving profile when the exact browser configuration is supported.
+- For MP4/AAC input, decode audio and encode Opus while video uses the existing wgpu path. Passthrough is allowed only when the source codec/configuration is already compatible with the chosen container.
+- Bound audio decode/encode callbacks independently, preserve integer timestamps and durations, define start-offset/end-of-stream policy, and clean up both tracks on cancellation or failure.
+
+**Acceptance gate:** the deterministic H.264/AAC fixture exports a WebM containing all 60 VP8 frames and an Opus track; independent inspection/player tests verify duration, seeking, audible output, and A/V synchronization near the beginning, midpoint, and end. Video-only selection, cancellation/restart, and the M1 probe still pass.
+
+#### M3.2 — real output-container choice
+
+- Probe an MP4/H.264/AAC encode profile using exact `VideoEncoder` and `AudioEncoder` configurations plus the selected muxer. Show it disabled with the failed capability when any required part is unavailable.
+- Enable MP4 only after the tested browser produces a finalized, seekable file with correct codec initialization records, keyframes, frame/sample counts, duration, and A/V synchronization.
+- Keep WebM and MP4 settings isolated behind concrete profiles; do not create an arbitrary container/codec mix-and-match UI.
+
+**Acceptance gate:** the selector offers both WebM and MP4 on a browser that passes both capability probes, or visibly explains why MP4 is unavailable. Every enabled profile passes independent player/inspector validation with no dropped video frames or audio samples outside the declared encoder-padding tolerance.
+
+#### M3.3 — worker migration
+
+- Move demux/codec orchestration and wgpu processing into one dedicated worker so frame handles remain in that execution context.
+- Probe worker WebGPU, WebCodecs, and `OffscreenCanvas` before enabling the worker path. Retain the measured main-thread implementation as an explicit compatibility fallback.
+- Use structured job commands and metadata/progress events only; do not send raw frames or GPU handles through Dioxus state.
+
+**Acceptance gate:** both worker and fallback paths pass every enabled output profile, cancellation/restart, lifecycle counters, and M1 correctness checks. The UI remains responsive during conversion, and fallback reasons are visible.
+
+#### M3.4 — bounded throughput and resource reuse
+
+- Add separately bounded decoder submissions, decoded callbacks, GPU processing, audio queues, encoder submissions, and mux writes.
+- Add device-generation-aware texture pools, allocation/live-resource telemetry, copy counters, and long-running tests. Separate CPU submission latency from GPU execution time; use GPU timestamp queries only when supported.
+- Compare the baseline external-image copy with direct external import only if a released API supports it. Measure both ingress and egress before claiming a gain.
+
+**Acceptance gate:** repeated short jobs and at least one long input show stable queue/resource high-water marks, zero application-owned live frames after cleanup, no premature texture reuse, and no regression in output correctness. Report throughput as measurements, not a real-time guarantee.
+
+#### M3.5 — geometry, timing, and color correctness
+
+- Define the SDR color pipeline and metadata policy, then implement crop, pixel-aspect ratio, rotation, and flip instead of rejecting them.
+- Add variable-frame-rate, non-zero-start, orientation, and color fixtures. Define and test the mid-stream resolution-change policy.
+- Continue rejecting HDR until transfer functions, gamut mapping, metadata, and output profiles are implemented and independently verified.
+
+**Acceptance gate:** metadata-rich fixtures pass orientation/crop, per-frame timestamp, duration, seek, representative color, and A/V synchronization checks in every enabled profile. Unsupported HDR and resolution changes fail clearly rather than producing altered output.
+
+#### M3.6 — streaming, compatibility matrix, and recovery
+
+- Replace the in-memory output target and 256 MiB input policy with bounded streaming where browser file APIs permit it; retain a clearly labeled memory fallback.
+- Expand the measured browser/input/output matrix one profile at a time. Additional WebM codecs such as VP9 or AV1 are added only as complete, capability-probed profiles.
+- Handle device loss and codec failure by stopping input, draining/closing owned resources, invalidating the device generation, and allowing a clean restart or documented fallback.
+
+**Acceptance gate:** an input larger than the former limit completes without retaining the entire input or output in application memory; the compatibility report lists exact tested browser/profile combinations; injected failure and available device-loss tests return owned resources to zero and permit restart.
+
+M3 is complete only when M3.1 through M3.6 pass. Partial completion must be reported by sub-milestone number and must not be presented as completion of all browser robustness work.
 
 ### M4 — native correctness using shared processing
 
