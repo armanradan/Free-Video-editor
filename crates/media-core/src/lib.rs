@@ -7,6 +7,7 @@ pub const INPUT_SIZE: Size = Size::new_unchecked(320, 180);
 pub const OUTPUT_SIZE: Size = Size::new_unchecked(160, 90);
 pub const FRAME_COUNT: u32 = 30;
 pub const FRAME_DURATION_US: i64 = 33_333;
+pub const MAX_BROWSER_INPUT_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Size {
@@ -25,6 +26,35 @@ impl Size {
         } else {
             Ok(Self { width, height })
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum ResizePreset {
+    Half,
+}
+
+impl ResizePreset {
+    pub fn output_size(self, input: Size) -> Result<Size, MediaError> {
+        match self {
+            Self::Half => {
+                let even_half = |value: u32| ((value / 2).max(2)) & !1;
+                Size::new(even_half(input.width), even_half(input.height))
+            }
+        }
+    }
+}
+
+pub fn validate_browser_input_size(bytes: u64) -> Result<(), MediaError> {
+    if bytes == 0 {
+        Err(MediaError::EmptyInput)
+    } else if bytes > MAX_BROWSER_INPUT_BYTES {
+        Err(MediaError::InputTooLarge {
+            actual: bytes,
+            maximum: MAX_BROWSER_INPUT_BYTES,
+        })
+    } else {
+        Ok(())
     }
 }
 
@@ -66,6 +96,8 @@ pub enum MediaError {
     InvalidSize { width: u32, height: u32 },
     InvalidTimeBase,
     TimestampOverflow,
+    EmptyInput,
+    InputTooLarge { actual: u64, maximum: u64 },
     Platform(String),
 }
 
@@ -75,6 +107,11 @@ impl fmt::Display for MediaError {
             Self::InvalidSize { width, height } => write!(f, "invalid frame size {width}x{height}"),
             Self::InvalidTimeBase => f.write_str("time-base terms must both be non-zero"),
             Self::TimestampOverflow => f.write_str("timestamp conversion overflowed"),
+            Self::EmptyInput => f.write_str("the selected file is empty"),
+            Self::InputTooLarge { actual, maximum } => write!(
+                f,
+                "selected file is {actual} bytes; M2 allows at most {maximum} bytes"
+            ),
             Self::Platform(message) => f.write_str(message),
         }
     }
@@ -99,6 +136,34 @@ mod tests {
         assert_eq!(
             base.ticks_to_microseconds(i64::MAX),
             Err(MediaError::TimestampOverflow)
+        );
+    }
+
+    #[test]
+    fn half_resize_produces_even_codec_dimensions() {
+        assert_eq!(
+            ResizePreset::Half
+                .output_size(Size::new(1_921, 1_081).unwrap())
+                .unwrap(),
+            Size::new(960, 540).unwrap()
+        );
+        assert_eq!(
+            ResizePreset::Half
+                .output_size(Size::new(1, 1).unwrap())
+                .unwrap(),
+            Size::new(2, 2).unwrap()
+        );
+    }
+
+    #[test]
+    fn browser_input_limit_is_explicit() {
+        assert!(validate_browser_input_size(MAX_BROWSER_INPUT_BYTES).is_ok());
+        assert_eq!(
+            validate_browser_input_size(MAX_BROWSER_INPUT_BYTES + 1),
+            Err(MediaError::InputTooLarge {
+                actual: MAX_BROWSER_INPUT_BYTES + 1,
+                maximum: MAX_BROWSER_INPUT_BYTES,
+            })
         );
     }
 }

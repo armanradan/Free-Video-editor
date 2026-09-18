@@ -9,6 +9,7 @@ rust-version.workspace = true
 dioxus = { workspace = true, features = ["web", "minimal", "asset", "document"] }
 js-sys.workspace = true
 media-web.workspace = true
+ui.workspace = true
 wasm-bindgen.workspace = true
 
 [features]

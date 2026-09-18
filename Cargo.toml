@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/web", "crates/media-core", "crates/media-gpu", "crates/media-web"]
+members = ["apps/web", "crates/media-core", "crates/media-gpu", "crates/media-web", "crates/ui"]
 resolver = "2"
 
 [workspace.package]
@@ -13,6 +13,7 @@ js-sys = "=0.3.105"
 media-core = { path = "crates/media-core" }
 media-gpu = { path = "crates/media-gpu" }
 media-web = { path = "crates/media-web" }
+ui = { path = "crates/ui" }
 serde = { version = "=1.0.229", features = ["derive"] }
 wasm-bindgen = "=0.2.128"
 wasm-bindgen-futures = "=0.4.78"

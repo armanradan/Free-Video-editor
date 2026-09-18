@@ -1,0 +1,7 @@
+{
+  "name": "diaxus-video-editor-web",
+  "private": true,
+  "dependencies": {
+    "mediabunny": "1.58.0"
+  }
+}

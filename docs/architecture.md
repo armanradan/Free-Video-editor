@@ -315,6 +315,8 @@ Do not impose a real-time throughput target on this correctness spike. Record a 
 
 ### M2 — smallest usable browser converter
 
+Implementation status (2026-09-18): the measured M2 path is MP4/H.264 input to video-only WebM/VP8 output using Mediabunny 1.58.0 for demux/mux and WebCodecs orchestration. The sole resize preset is half width and height with even codec dimensions. Input is capped at 256 MiB and output uses an in-memory buffer; audio is detected, prominently reported, and omitted. Rotation/flip metadata is rejected rather than silently lost. Streaming, audio processing, and broader format support remain M3 or later work.
+
 - One input/output container and codec combination, selected from measured support; video-only with a clear audio warning.
 - Integrate a proven demux/mux implementation. Handle codec initialization metadata, keyframes, timestamp rescaling, and output finalization.
 - File selection, one resize setting, progress, cancellation, and a downloadable playable output.

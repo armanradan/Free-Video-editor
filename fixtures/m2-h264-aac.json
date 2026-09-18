@@ -1,0 +1,24 @@
+{
+  "name": "m2-h264-aac.mp4",
+  "purpose": "M2 MP4/H.264 input with an AAC track that must be explicitly omitted",
+  "license": "CC0-1.0",
+  "generated_utc": "2026-09-18",
+  "generator": "FFmpeg 8.0.1 essentials build",
+  "command": "ffmpeg -y -f lavfi -i testsrc2=size=640x360:rate=30:duration=2 -f lavfi -i sine=frequency=880:sample_rate=48000:duration=2 -map 0:v:0 -map 1:a:0 -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -c:a aac -b:a 96k -movflags +faststart -metadata \"title=Diaxus M2 deterministic fixture\" fixtures/m2-h264-aac.mp4",
+  "container": "MP4",
+  "video": {
+    "codec": "H.264 High profile",
+    "width": 640,
+    "height": 360,
+    "frame_rate": "30/1",
+    "frame_count": 60
+  },
+  "audio": {
+    "codec": "AAC LC",
+    "sample_rate": 48000,
+    "channels": 1
+  },
+  "duration_seconds": 2.0,
+  "size_bytes": 279635,
+  "sha256": "5a7802b764ad928056d2777e2d25a86ec7fdb2c69696d70258b3ae5702fcb54b"
+}
