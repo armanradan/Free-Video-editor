@@ -14,12 +14,15 @@ mod browser {
     };
     use wasm_bindgen::{JsCast, prelude::*};
     use wasm_bindgen_futures::{JsFuture, future_to_promise};
-    use web_sys::{File, HtmlCanvasElement, HtmlInputElement, VideoFrame, VideoFrameInit};
+    use web_sys::{
+        File, HtmlCanvasElement, HtmlInputElement, OffscreenCanvas, VideoFrame, VideoFrameInit,
+    };
 
     thread_local! {
         static GENERATION: Cell<u32> = const { Cell::new(0) };
         static GPU_SESSION: RefCell<Option<Rc<GpuSession>>> = const { RefCell::new(None) };
         static BITMAP_COPIES: Cell<u32> = const { Cell::new(0) };
+        static REMOTE_GPU: RefCell<Option<String>> = const { RefCell::new(None) };
     }
 
     #[derive(Clone, Debug)]
@@ -39,6 +42,7 @@ mod browser {
     }
 
     #[wasm_bindgen(inline_js = r#"
+        export function runtimeModuleUrl() { return new URL('../../converter-web.js', import.meta.url).href; }
         export function invokeM1(fixture, manifest, processFrame, status, cancelled) {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
@@ -77,6 +81,8 @@ mod browser {
         }
     "#)]
     extern "C" {
+        #[wasm_bindgen(js_name = runtimeModuleUrl)]
+        fn runtime_module_url() -> String;
         #[wasm_bindgen(js_name = copyDecodedFrame, catch)]
         fn copy_decoded_frame(
             queue: &JsValue,
@@ -110,6 +116,112 @@ mod browser {
         ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = describeSelectedAdapter, catch)]
         fn describe_selected_adapter() -> Result<Promise, JsValue>;
+    }
+
+    #[wasm_bindgen(module = "/src/worker-host.js")]
+    extern "C" {
+        #[wasm_bindgen(js_name = setupRuntime)]
+        fn setup_runtime_js(m1: &str, pipeline: &str, wasm: &str);
+        #[wasm_bindgen(js_name = dispatchJob, catch)]
+        fn dispatch_job(
+            file: Option<File>,
+            operation: &str,
+            profile: &str,
+            status: &Function,
+            local: &Function,
+        ) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = cancelRemote)]
+        fn cancel_remote();
+    }
+
+    pub fn setup_runtime(m1: &str, pipeline: &str) {
+        setup_runtime_js(m1, pipeline, &runtime_module_url());
+    }
+
+    async fn dispatch(
+        file: Option<File>,
+        operation: &str,
+        profile: &str,
+        status: Function,
+    ) -> Result<JsValue, MediaError> {
+        let local = Closure::<dyn FnMut(JsValue, String, String, Function) -> Promise>::new(
+            |file: JsValue, operation: String, profile: String, status: Function| {
+                future_to_promise(execute_job(
+                    file.dyn_into::<File>().ok(),
+                    operation,
+                    profile,
+                    status,
+                ))
+            },
+        );
+        let result = JsFuture::from(
+            dispatch_job(
+                file,
+                operation,
+                profile,
+                &status,
+                local.as_ref().unchecked_ref(),
+            )
+            .map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)?;
+        if let Ok(label) = string_property(&result, "gpu", "") {
+            REMOTE_GPU.with(|slot| *slot.borrow_mut() = Some(label));
+        }
+        Ok(result)
+    }
+
+    // Worker exports use the same concrete implementation as the compatibility path.
+    #[wasm_bindgen]
+    pub async fn initialize_worker(canvas: OffscreenCanvas) -> Result<(), JsValue> {
+        let gpu = Rc::new(
+            GpuSession::new(ExportCanvas::Offscreen(canvas))
+                .await
+                .map_err(|e| JsValue::from_str(&e.to_string()))?,
+        );
+        gpu.configure(INPUT_SIZE, OUTPUT_SIZE);
+        let init = VideoFrameInit::new();
+        init.set_timestamp_f64(0.0);
+        gpu.canvas.capture(&init)?.close();
+        GPU_SESSION.with(|slot| *slot.borrow_mut() = Some(gpu));
+        Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn execute_job(
+        file: Option<File>,
+        operation: String,
+        profile: String,
+        status: Function,
+    ) -> Result<JsValue, JsValue> {
+        let result = match operation.as_str() {
+            "m1" => run_m1_local(status).await,
+            "probe" => match file {
+                Some(file) => probe_file(file).await,
+                None => Err(platform("no source file")),
+            },
+            "convert" => {
+                let profile = match profile.as_str() {
+                    "webm-vp8-opus" => OutputProfileId::WebmVp8Opus,
+                    "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
+                    "mp4-h264-aac" => OutputProfileId::Mp4H264Aac,
+                    _ => return Err(JsValue::from_str("unknown output profile")),
+                };
+                match file {
+                    Some(file) => convert_file(file, profile, status).await,
+                    None => Err(platform("no source file")),
+                }
+            }
+            _ => Err(platform("unknown media command")),
+        }
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        if let Some(gpu) =
+            GPU_SESSION.with(|slot| slot.borrow().as_ref().map(|gpu| gpu.adapter_label.clone()))
+        {
+            Reflect::set(&result, &"gpu".into(), &gpu.into())?;
+        }
+        Ok(result)
     }
 
     trait BrowserConversionBackend {
@@ -159,10 +271,19 @@ mod browser {
     }
 
     pub fn cancel() {
+        cancel_remote();
+        cancel_local();
+    }
+
+    #[wasm_bindgen]
+    pub fn cancel_local() {
         GENERATION.with(|value| value.set(value.get().wrapping_add(1)));
     }
 
     pub fn selected_gpu() -> Option<String> {
+        if let Some(label) = REMOTE_GPU.with(|slot| slot.borrow().clone()) {
+            return Some(label);
+        }
         GPU_SESSION.with(|slot| {
             slot.borrow()
                 .as_ref()
@@ -170,9 +291,14 @@ mod browser {
         })
     }
 
-    pub async fn run_m1(canvas_id: &str, status: Function) -> Result<String, MediaError> {
+    pub async fn run_m1(_canvas_id: &str, status: Function) -> Result<String, MediaError> {
+        let result = dispatch(None, "m1", "", status).await?;
+        string_property(&result, "summary", "probe returned no summary")
+    }
+
+    async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
-        let gpu = configured_gpu(canvas_id, INPUT_SIZE, OUTPUT_SIZE).await?;
+        let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE).await?;
         let process = process_callback(gpu);
         let cancelled = cancellation_callback(generation);
         let fixture =
@@ -189,21 +315,43 @@ mod browser {
         )
         .await
         .map_err(js_error)?;
-        Ok(format!(
+        let summary = format!(
             "{}\nAdditional VideoFrame→ImageBitmap compatibility conversions: {}.",
             string_property(&result, "summary", "probe returned no summary")?,
             BITMAP_COPIES.with(Cell::get)
-        ))
+        );
+        Reflect::set(&result, &"summary".into(), &summary.into()).map_err(js_error)?;
+        Ok(result)
     }
 
     pub async fn convert_m3(
         file_input_id: &str,
-        canvas_id: &str,
+        _canvas_id: &str,
         profile: OutputProfileId,
         status: Function,
     ) -> Result<ConversionResult, MediaError> {
-        let generation = begin_generation();
         let file = selected_file(file_input_id)?;
+        let result = dispatch(Some(file), "convert", profile.as_str(), status).await?;
+        Ok(ConversionResult {
+            summary: string_property(&result, "summary", "conversion returned no summary")?,
+            download_url: string_property(
+                &result,
+                "downloadUrl",
+                "conversion returned no download URL",
+            )?,
+            file_name: string_property(&result, "fileName", "conversion returned no filename")?,
+            frame_count: u32_property(&result, "frameCount")?,
+            duration_seconds: number_property(&result, "duration")?,
+            output_bytes: number_property(&result, "outputBytes")? as u64,
+        })
+    }
+
+    async fn convert_file(
+        file: File,
+        profile: OutputProfileId,
+        status: Function,
+    ) -> Result<JsValue, MediaError> {
+        let generation = begin_generation();
         validate_browser_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
         let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
@@ -214,7 +362,7 @@ mod browser {
             u32_property(&inspection, "height")?,
         )?;
         let output = ResizePreset::Half.output_size(input)?;
-        let gpu = configured_gpu(canvas_id, input, output).await?;
+        let gpu = configured_gpu(input, output).await?;
         let process = process_callback(gpu);
         let cancelled = cancellation_callback(generation);
         let result = JsFuture::from(
@@ -232,27 +380,30 @@ mod browser {
         .await
         .map_err(js_error)?;
         let bitmap_copies = BITMAP_COPIES.with(Cell::get);
-        Ok(ConversionResult {
-            summary: format!(
-                "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.",
-                string_property(&result, "summary", "conversion returned no summary")?
-            ),
-            download_url: string_property(
-                &result,
-                "downloadUrl",
-                "conversion returned no download URL",
-            )?,
-            file_name: string_property(&result, "fileName", "conversion returned no filename")?,
-            frame_count: u32_property(&result, "frameCount")?,
-            duration_seconds: number_property(&result, "duration")?,
-            output_bytes: number_property(&result, "outputBytes")? as u64,
-        })
+        let summary = format!(
+            "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.",
+            string_property(&result, "summary", "conversion returned no summary")?
+        );
+        Reflect::set(&result, &"summary".into(), &summary.into()).map_err(js_error)?;
+        Ok(result)
     }
 
     pub async fn probe_output_profiles(
         file_input_id: &str,
     ) -> Result<OutputProfileCapabilities, MediaError> {
         let file = selected_file(file_input_id)?;
+        let capabilities = dispatch(Some(file), "probe", "", Function::new_no_args("")).await?;
+        Ok(OutputProfileCapabilities {
+            mp4_supported: bool_property(&capabilities, "mp4Supported")?,
+            mp4_reason: string_property(
+                &capabilities,
+                "mp4Reason",
+                "MP4 capability probe returned no reason",
+            )?,
+        })
+    }
+
+    async fn probe_file(file: File) -> Result<JsValue, MediaError> {
         validate_browser_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
         let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
@@ -266,14 +417,7 @@ mod browser {
         let capabilities = JsFuture::from(backend.probe_profiles(&file, output).map_err(js_error)?)
             .await
             .map_err(js_error)?;
-        Ok(OutputProfileCapabilities {
-            mp4_supported: bool_property(&capabilities, "mp4Supported")?,
-            mp4_reason: string_property(
-                &capabilities,
-                "mp4Reason",
-                "MP4 capability probe returned no reason",
-            )?,
-        })
+        Ok(capabilities)
     }
 
     fn begin_generation() -> u32 {
@@ -310,24 +454,20 @@ mod browser {
         })
     }
 
-    async fn configured_gpu(
-        canvas_id: &str,
-        input: Size,
-        output: Size,
-    ) -> Result<Rc<GpuSession>, MediaError> {
-        let document = web_sys::window()
-            .and_then(|window| window.document())
-            .ok_or_else(|| platform("document is unavailable"))?;
-        let canvas = document
-            .get_element_by_id(canvas_id)
-            .ok_or_else(|| platform("export canvas was not mounted"))?
-            .dyn_into::<HtmlCanvasElement>()
-            .map_err(|_| platform("export element is not a canvas"))?;
+    async fn configured_gpu(input: Size, output: Size) -> Result<Rc<GpuSession>, MediaError> {
         let existing = GPU_SESSION.with(|slot| slot.borrow().clone());
         let gpu = if let Some(existing) = existing {
             existing
         } else {
-            let created = Rc::new(GpuSession::new(canvas).await?);
+            let document = web_sys::window()
+                .and_then(|w| w.document())
+                .ok_or_else(|| platform("document is unavailable"))?;
+            let canvas = document
+                .get_element_by_id("export-canvas")
+                .ok_or_else(|| platform("export canvas was not mounted"))?
+                .dyn_into::<HtmlCanvasElement>()
+                .map_err(|_| platform("export element is not a canvas"))?;
+            let created = Rc::new(GpuSession::new(ExportCanvas::Html(canvas)).await?);
             GPU_SESSION.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&created)));
             created
         };
@@ -357,7 +497,7 @@ mod browser {
     }
     struct GpuSession {
         adapter_label: String,
-        canvas: HtmlCanvasElement,
+        canvas: ExportCanvas,
         surface: wgpu::Surface<'static>,
         device: wgpu::Device,
         queue: wgpu::Queue,
@@ -366,6 +506,40 @@ mod browser {
         configured: RefCell<Option<ConfiguredResources>>,
     }
     struct OwnedVideoFrame(VideoFrame);
+    enum ExportCanvas {
+        Html(HtmlCanvasElement),
+        Offscreen(OffscreenCanvas),
+    }
+    impl ExportCanvas {
+        fn surface_target(&self) -> wgpu::SurfaceTarget<'static> {
+            match self {
+                Self::Html(canvas) => wgpu::SurfaceTarget::Canvas(canvas.clone()),
+                Self::Offscreen(canvas) => wgpu::SurfaceTarget::OffscreenCanvas(canvas.clone()),
+            }
+        }
+        fn resize(&self, size: Size) {
+            match self {
+                Self::Html(canvas) => {
+                    canvas.set_width(size.width);
+                    canvas.set_height(size.height);
+                }
+                Self::Offscreen(canvas) => {
+                    canvas.set_width(size.width);
+                    canvas.set_height(size.height);
+                }
+            }
+        }
+        fn capture(&self, init: &VideoFrameInit) -> Result<VideoFrame, JsValue> {
+            match self {
+                Self::Html(canvas) => {
+                    VideoFrame::new_with_html_canvas_element_and_video_frame_init(canvas, init)
+                }
+                Self::Offscreen(canvas) => {
+                    VideoFrame::new_with_offscreen_canvas_and_video_frame_init(canvas, init)
+                }
+            }
+        }
+    }
     struct OwnedBitmap(JsValue);
     impl Drop for OwnedBitmap {
         fn drop(&mut self) {
@@ -383,12 +557,12 @@ mod browser {
     }
 
     impl GpuSession {
-        async fn new(canvas: HtmlCanvasElement) -> Result<Self, MediaError> {
+        async fn new(canvas: ExportCanvas) -> Result<Self, MediaError> {
             let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
             descriptor.backends = wgpu::Backends::BROWSER_WEBGPU;
             let instance = wgpu::Instance::new(descriptor);
             let surface = instance
-                .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
+                .create_surface(canvas.surface_target())
                 .map_err(|error| platform(format!("WebGPU canvas surface failed: {error}")))?;
             let adapter = instance
                 .request_adapter(&wgpu::RequestAdapterOptions {
@@ -454,8 +628,7 @@ mod browser {
             {
                 return;
             }
-            self.canvas.set_width(output_size.width);
-            self.canvas.set_height(output_size.height);
+            self.canvas.resize(output_size);
             self.surface.configure(
                 &self.device,
                 &wgpu::SurfaceConfiguration {
@@ -501,7 +674,7 @@ mod browser {
         ) -> Result<JsValue, JsValue> {
             let decoded = OwnedVideoFrame(decoded);
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-            let ingress = {
+            let ingress = (|| {
                 let configured = self.configured.borrow();
                 let configured = configured
                     .as_ref()
@@ -519,9 +692,9 @@ mod browser {
                     &decoded.0,
                     configured.input_size.width,
                     configured.input_size.height,
-                )?
-            };
-            let bitmap = match JsFuture::from(ingress).await {
+                )
+            })();
+            let bitmap = match async { JsFuture::from(ingress?).await }.await {
                 Ok(bitmap) => bitmap,
                 Err(error) => {
                     let _ = scope.pop().await;
@@ -532,7 +705,7 @@ mod browser {
                 BITMAP_COPIES.with(|value| value.set(value.get() + 1));
             }
             let _bitmap = OwnedBitmap(bitmap);
-            let encoded_input = {
+            let encoded_input = (|| {
                 let configured = self.configured.borrow();
                 let configured = configured
                     .as_ref()
@@ -565,20 +738,24 @@ mod browser {
                 let init = VideoFrameInit::new();
                 init.set_timestamp_f64(timestamp as f64);
                 init.set_duration_f64(duration as f64);
-                VideoFrame::new_with_html_canvas_element_and_video_frame_init(&self.canvas, &init)?
-            };
+                self.canvas.capture(&init)
+            })();
+            // Even capture/acquisition errors must retire submitted GPU work before
+            // dropping decoded/bitmap guards or allowing the next job to reconfigure.
             let (sender, receiver) = futures_channel::oneshot::channel();
             self.queue.on_submitted_work_done(move || {
                 let _ = sender.send(());
             });
             let _ = receiver.await;
             if let Some(error) = scope.pop().await {
-                encoded_input.close();
+                if let Ok(frame) = encoded_input {
+                    frame.close();
+                }
                 return Err(JsValue::from_str(&format!(
                     "WebGPU validation failed: {error}"
                 )));
             }
-            Ok(encoded_input.into())
+            Ok(encoded_input?.into())
         }
     }
 
@@ -640,7 +817,7 @@ mod browser {
 #[cfg(target_arch = "wasm32")]
 pub use browser::{
     ConversionResult, OutputProfileCapabilities, cancel, convert_m3, probe_output_profiles, run_m1,
-    selected_gpu,
+    selected_gpu, setup_runtime,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}

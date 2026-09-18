@@ -3,7 +3,7 @@ name = "converter-web"
 asset_dir = "assets"
 
 [web.app]
-title = "Diaxus M3.2 browser video converter"
+title = "Diaxus M3.3 browser video converter"
 
 [web.resource]
 script = []

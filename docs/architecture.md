@@ -1,6 +1,6 @@
 # GPU video converter: architecture and development plan
 
-Status: proposed design, researched 2026-09-15. M1 was implemented and passed five consecutive full round trips plus cancel/restart in headless Edge on 2026-09-17. See [interop-report.md](interop-report.md).
+Status: design researched 2026-09-15; implementation through M3.3, with Firefox worker/fallback WebM validation on 2026-09-19. Chromium/MP4 worker validation remains pending. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations.
 
 ## 1. Architecture
 
@@ -10,7 +10,7 @@ Status: proposed design, researched 2026-09-15. M1 was implemented and passed fi
 2. Share media types, job policy, transformation descriptions, wgpu pipelines, and WGSL between browser and native builds.
 3. Put decoding, encoding, frame import/export, file access, and presentation behind platform boundaries.
 4. Treat codecs and GPU processors as separate services. A GPU shader does not replace a video encoder.
-5. Use one processing device and queue per execution context. Keep browser codecs and processing together, initially on the main thread and later in a dedicated worker.
+5. Use one processing device and queue per execution context. Keep browser codecs and processing together in a dedicated worker when its capability probe succeeds, with an explicit main-thread compatibility fallback.
 6. Target no application-managed CPU pixel round trips in the browser fast path. Track explicit copies and qualify claims about browser internals.
 7. Build a linear pipeline first. Defer a general render graph, plugins, timeline editing, and multi-job scheduling.
 
@@ -354,6 +354,16 @@ Implementation status (2026-09-18): `Mp4H264Aac` is implemented as a complete pr
 **Acceptance gate:** the selector offers both WebM and MP4 on a browser that passes both capability probes, or visibly explains why MP4 is unavailable. Every enabled profile passes independent player/inspector validation with no dropped video frames or audio samples outside the declared encoder-padding tolerance.
 
 #### M3.3 — worker migration
+
+Implementation status (2026-09-19, superseding the earlier M3.2 status): implemented and verified in Firefox 156 for every profile enabled there (WebM/VP8/Opus and video-only WebM), in both worker and explicit main-thread modes. MP4 remains unavailable there because the exact AAC encoder probe fails. Chromium launch is blocked in the validation environment, so Chromium/MP4 worker acceptance is pending; do not carry forward M3.2 results as proof of this new path. M3.4 has not started.
+
+The `media-web` module worker imports the same Dioxus-produced wasm bundle; app startup mounts Dioxus only when `document` exists. No second Rust build or duplicate processor is maintained. wasm-bindgen copies `worker-host.js` as a local module snippet; it resolves the pinned Dioxus `wasm/converter-web.js` layout relative to the inline binding. The hashed codec-script URLs are supplied by `asset!`, not guessed by the worker. Renaming the app or changing the bundler layout requires updating/testing that resolver. The worker pays for a second wasm instance including currently unused UI code; bundle splitting is not part of this correctness milestone.
+
+One platform-owned preview canvas is transferred once during startup. Rust creates the real device/surface on this OffscreenCanvas, probes VideoFrame capture, then reuses the same session for capability probes, conversion, and M1. The HTML canvas is retained separately for fallback. Both variants use the same resize pipeline, ingress, render/present/capture order and GPU-completion guards; raw frames never cross to the window or enter Dioxus signals. A completed compressed Blob crosses back to the window, which owns/revokes its download URL.
+
+Startup checks secure context, worker codec APIs, WebGPU, OffscreenCanvas, device/surface creation, and capture, with a 30-second startup timeout. Exact profile probes run in the selected execution context. Failure before startup selects the main-thread path with its reason displayed; `?execution=main` explicitly selects that path for comparison. Runtime job errors do not silently rerun on the main thread. Transport errors terminate the failed context, reject pending work, and permit a fresh worker on the next request. Commands are serialized and tagged; cancellation invalidates queued jobs and drains the active codec job. Late progress is ignored. Cancellation during startup prevents a job from starting once the bounded startup probe finishes. There is no general hung-codec/device watchdog yet.
+
+Application-held frame-reference/sample counts cover the conversion pumps and return to zero on completion and cancellation. Closed references retained until their `finally` block are conservatively counted; these are not internal codec queue or GPU-memory measurements. M1 retains its separate live-frame/callback instrumentation. Fine-grained bounds, pool telemetry and throughput work remain M3.4.
 
 - Move demux/codec orchestration and wgpu processing into one dedicated worker so frame handles remain in that execution context.
 - Probe worker WebGPU, WebCodecs, and `OffscreenCanvas` before enabling the worker path. Retain the measured main-thread implementation as an explicit compatibility fallback.

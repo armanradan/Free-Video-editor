@@ -333,3 +333,80 @@ The deterministic H.264/AAC input completed with 60/60 VP8 frames, 95 decoded au
 MP4 stayed disabled with the measured reason: AAC encoding unsupported at 48000 Hz with one channel. No codec/container substitution or browser-vendor block was added.
 
 Rust formatting, host core/GPU tests, wasm check/Clippy and locked Dioxus web build passed. A new Chromium regression browser launch was blocked by the execution policy, so the modified direct ingress path has not been revalidated there in this correction. Longer Firefox inputs, other Firefox versions/platforms, and arbitrary driver/device-loss stalls remain untested.
+
+---
+
+# M3.3 dedicated worker interoperability report
+
+Date: 2026-09-19
+Status: **Implemented; Firefox worker and main-thread fallback pass every profile enabled there. Chromium/MP4 worker validation remains pending. M3.4 not started.**
+
+## Implementation
+
+Demux, WebCodecs, the existing Rust/wgpu processor and output verification now execute in one dedicated module worker by default. The worker initializes the same wasm bundle emitted by `dx`; it never launches Dioxus. Its transferred OffscreenCanvas is also the preview surface. Window/worker commands carry File inputs and metadata; the only media returned is the finalized compressed Blob. No raw frames or GPU resources enter reactive UI state. The main window owns/revokes download URLs.
+
+Startup probes secure context, worker video/audio codec APIs, WebGPU, OffscreenCanvas, the real wgpu device/surface, and canvas VideoFrame capture. Exact output-profile probes run in the selected context. An unsupported/failed startup or 30-second startup timeout selects the original main-thread pipeline with a visible reason. `?execution=main` explicitly requests that compatibility path. There is no silent mid-job fallback or codec substitution. Tagged, serialized commands support cancellation, stale-progress rejection, failed-worker teardown and retry. Rust now also waits for submitted GPU work before releasing ingress guards when canvas capture fails.
+
+## Real-browser environment and configuration
+
+| Item | Observed/requested value |
+|---|---|
+| Browser | Firefox 156.0, build 20260909172920, normal rendering mode, isolated automation profile |
+| OS | Windows, browser platform version 10.0 |
+| Automation | Local WebDriver BiDi; in-app browser setup failed (`failed to write kernel assets`) |
+| GPU | `identity redacted by browser (BrowserWebGpu)` in both contexts; no exact adapter identification claimed |
+| Origin | `http://127.0.0.1:8084/`; fallback repeated with `?execution=main` |
+| Versions | Rust 1.98.1 GNU, edition 2024, Dioxus/CLI 0.7.10, wgpu 30.0.1, Mediabunny 1.58.0 |
+| Input | Deterministic `fixtures/m2-h264-aac.mp4`, 640×360 H.264, 60 frames, AAC mono; provenance in fixture README |
+| Conversion video settings | VP8, 320×180, Mediabunny `Quality("high")`, 2-second keyframe interval, `latencyMode: "quality"`, `hardwareAcceleration: "no-preference"` |
+| Conversion audio settings | Opus, 48,000 Hz, one channel, `Quality("high")`; video-only profile has no audio track |
+| M1 settings | VP8 decode 320×180, optimizeForLatency; encode 160×90, 500,000 bit/s, 30 fps, realtime, no-preference |
+| MP4 capability | Disabled in both contexts: `AAC encoding is unsupported at 48000 Hz with 1 channel(s).` |
+
+The conversion quality settings above are requested adapter settings, not independently measured encoder bitrates or proof of hardware execution.
+
+## Verified conversion and fallback results
+
+| Execution | Profile | Video frames / Opus packets | Bytes / duration | Elapsed including verification | Window 50 ms timer: ticks / max gap |
+|---|---|---|---|---|---|
+| Worker | VP8 + Opus | 60 / 102 | 102,243 / 2.034 s | 6,124 ms | 123 / 54 ms |
+| Worker | VP8 video-only | 60 / none | 62,666 / 2.000 s | 6,154 ms | 123 / 66 ms |
+| Main-thread fallback | VP8 + Opus | 60 / 102 | 102,243 / 2.034 s | 6,153 ms | 122 / 71 ms |
+| Main-thread fallback | VP8 video-only | 60 / none | 62,666 / 2.000 s | 6,241 ms | 123 / 86 ms |
+
+Both audio-preserving runs consumed all 95 decoded source audio samples. Final verification decoded non-silent audio near beginning/middle/end (peak 0.0574), checked track timing and dimensions, and reopened the completed container. Firefox's independent HTML video element loaded both profiles at 320×180 and sought successfully to 1.0169995 s (audio-preserving) or 1.000 s (video-only). Each profile in each context passed cancellation during conversion followed by immediate restart. Starting without a file produced an error and permitted subsequent normal conversion.
+
+Application-held conversion frame references/samples returned to **0/0** after success and cancellation; observed peaks were **2/2**. These counters conservatively include closed frame references retained until their cleanup block; they do not measure library-internal codec resources or GPU memory. Each successful conversion reported 60 additional VideoFrame→ImageBitmap compatibility conversions, 60 ingress image copies by the processing path, and no explicit CPU pixel readback in conversion. Hidden copies remain unknown.
+
+FFprobe 8.0.1 independently decoded/count-checked all four files: 60 VP8 frames each, exactly 102 Opus audio frames at 48 kHz mono in each audio-preserving file, and no audio stream in either video-only file. FFmpeg full audio/video decodes of both audio-preserving files completed with exit code zero. **The previously recorded `Error parsing Opus packet header` diagnostic still appears** during independent open/probing; this is not clean, warning-free FFmpeg interoperability.
+
+The window timer and working Cancel controls demonstrate event-loop responsiveness on this small fixture, not a frame-rate guarantee or statistically established speedup. End-to-end conversion remains roughly six seconds in both modes; worker migration has not removed per-frame synchronization or the Firefox bitmap compatibility path.
+
+## M1 regression and lifecycle checks
+
+- Five consecutive complete worker runs and five consecutive complete main-thread runs passed 30/30 decode → resize → encode → re-decode frames, 160×90 output, timestamps within ±1 µs, orientation and RGB markers, and zero application-owned live frames after cleanup.
+- Across these repeats: peak live frames 8, decoder submissions 4, decoded callback queue 6, encoder queue 0, verifier submissions 4, verifier callback queue up to 6. These are observed high-water marks, not newly introduced queue limits.
+- Worker M1 elapsed range: 3,088–3,119 ms; main-thread range: 3,046–3,119 ms. These include diagnostic verification and are not conversion-only throughput measurements.
+- Every full M1 run counted 30 ingress copies, 30 additional bitmap conversions, zero conversion readbacks and 30 separate test-only pixel readbacks.
+- M1 cancellation in each context reported cleanup live frames=0, followed by the five passing restarts above.
+
+## Build and automated checks
+
+- `cargo fmt --all -- --check`: passed.
+- `cargo check -p media-core -p media-gpu`: passed.
+- `cargo test -p media-core -p media-gpu`: passed, six core tests; GNU linker retained its existing `corrupt .drectve at end of def file` warning for the GPU test binary.
+- `cargo clippy -p media-core -p media-gpu -- -D warnings`: passed.
+- `cargo check --workspace --target wasm32-unknown-unknown`: passed.
+- `cargo clippy --workspace --target wasm32-unknown-unknown -- -D warnings`: passed.
+- `dx serve --web --locked --addr 127.0.0.1 --port 8084` and `dx build --web --locked`: passed; no separate worker build required.
+- `node --test tests/worker-transport.test.mjs`: five tests passed. These simulate command serialization/stale events, cancellation and restart, exact-reason startup fallback, runtime-crash teardown/retry without silent fallback, and explicit main-thread mode. These tests are **not** real-browser crash/device-loss evidence.
+- `node tests/firefox-worker-interop.mjs worker` and `node tests/firefox-worker-interop.mjs main`: passed. Local detailed logs and media are under ignored `tmp/m33-worker` and `tmp/m33-main`; the harness and aggregate evidence here are tracked.
+
+## Explicitly pending and limitations
+
+- A normal isolated Chromium launch was rejected by the execution environment. Chromium's direct VideoFrame ingress, worker OffscreenCanvas, and MP4/H.264/AAC through the new transport have **not** been revalidated; older M3.2 MP4 results do not prove these changes. Safari and other platforms are also untested.
+- Real browser fallback comparison used the explicit mode switch. Startup-capability failures, stale messages, and worker crashes were simulated in transport tests, not injected into a real GPU driver. Worker startup timeout behavior and deployment under restrictive CSP/non-root base paths were not runtime-tested.
+- Browser identity was redacted, so neither an exact GPU nor the codec acceleration implementation is established. Hardware-preference comparisons remain M3.4.
+- M1's verification and final container/audio verification are diagnostic paths, not fast-path pixel transfers. Conversion timings above include verification; no pure throughput gain is claimed.
+- Long-duration worker memory/queue behavior, arbitrary codec hangs, device loss, pooled texture reuse, higher throughput, streaming, geometry/color extensions, and native/FFmpeg work remain outside M3.3. The same wasm bundle is instantiated in both contexts; this duplicates wasm instance memory and is not a minimal worker download.
+- Human listening was not performed. The existing silent-source audio verifier limitation, multiple audio tracks, and the Opus header diagnostic are unchanged by worker migration.

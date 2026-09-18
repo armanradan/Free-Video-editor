@@ -61,9 +61,7 @@
       ]);
       if (!decoderSupport.supported) throw new Error(`VP8 decoder config unsupported: ${JSON.stringify(decoderConfig)}`);
       if (!encoderSupport.supported) throw new Error(`VP8 encoder config unsupported: ${JSON.stringify(encoderConfig)}`);
-      const canvas = document.getElementById("export-canvas");
-      if (!(canvas instanceof HTMLCanvasElement)) throw new Error("persistent HTMLCanvasElement is unavailable");
-      new VideoFrame(canvas, { timestamp: 0, duration: manifest.frame_duration_us }).close();
+      // Canvas capture is exercised by the Rust frame bridge (HTML or OffscreenCanvas).
       status("Capabilities passed. Decoding deterministic VP8 fixture…");
 
       const packets = parseIvf(fixture, manifest);

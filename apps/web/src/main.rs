@@ -8,11 +8,20 @@ const M1_SCRIPT: Asset = asset!("/assets/m1.js");
 const MEDIA_PIPELINE_SCRIPT: Asset = asset!("/assets/m2.js");
 
 fn main() {
-    dioxus::launch(App);
+    // The dedicated media worker initializes this same bundle, but never mounts UI.
+    if !js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("document"))
+        .unwrap_or(JsValue::UNDEFINED)
+        .is_undefined()
+    {
+        dioxus::launch(App);
+    }
 }
 
 #[component]
 fn App() -> Element {
+    use_effect(|| {
+        media_web::setup_runtime(&M1_SCRIPT.to_string(), &MEDIA_PIPELINE_SCRIPT.to_string())
+    });
     let mut status =
         use_signal(|| "Ready. Select an MP4 with H.264 video and AAC audio.".to_string());
     let mut running = use_signal(|| false);
@@ -23,6 +32,7 @@ fn App() -> Element {
     let mut profile = use_signal(|| OutputProfileId::PREFERRED);
     let mut mp4_supported = use_signal(|| false);
     let mut mp4_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
+    let mut probe_generation = use_signal(|| 0_u64);
 
     let convert = move |_| {
         running.set(true);
@@ -67,11 +77,17 @@ fn App() -> Element {
         });
     };
     let file_changed = move |_| {
+        let generation = probe_generation().wrapping_add(1);
+        probe_generation.set(generation);
         mp4_supported.set(false);
         mp4_reason.set("Checking the exact H.264/AAC encoder configuration…".to_string());
         status.set("Inspecting input and probing output profiles…".to_string());
         spawn(async move {
-            match media_web::probe_output_profiles("source-file").await {
+            let result = media_web::probe_output_profiles("source-file").await;
+            if probe_generation() != generation || running() {
+                return;
+            }
+            match result {
                 Ok(capabilities) => {
                     mp4_supported.set(capabilities.mp4_supported);
                     mp4_reason.set(capabilities.mp4_reason.clone());
@@ -128,7 +144,7 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M3.2" }
+            p { class: "eyebrow", "MILESTONE M3.3" }
             h1 { "Browser video converter" }
             p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → wgpu half-size resize → capability-checked WebM/VP8/Opus or MP4/H.264/AAC. A video-only WebM profile remains available." }
             ConverterControls {
@@ -145,10 +161,12 @@ fn App() -> Element {
             }
             section { class: "preview-panel",
                 div { h2 { "GPU output" } p { "The canvas shows the frame submitted to the encoder." } }
+                p { id: "execution-context", class: "note", "Execution: worker capabilities will be checked before processing." }
+                div { id: "worker-preview" }
                 canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
             }
             JobStatus { status: status(), selected_gpu: selected_gpu() }
-            p { class: "note", "Input is capped at 256 MiB and the finalized WebM is held in memory. Conversion performs no explicit CPU pixel readback; browser-internal copies and codec hardware execution remain unknown." }
+            p { class: "note", "Input is capped at 256 MiB and finalized output is held in memory. Conversion performs no explicit CPU pixel readback; browser-internal copies and codec hardware execution remain unknown." }
             details { class: "regression",
                 summary { "M1 deterministic regression probe" }
                 p { "Runs the original embedded 30-frame VP8 correctness fixture." }

@@ -18,7 +18,6 @@ import {
 } from "mediabunny";
 
 const MAX_INPUT_BYTES = 256 * 1024 * 1024;
-let currentDownloadUrl = null;
 
 function fail(message) {
   throw new Error(message);
@@ -371,6 +370,17 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
   let completed = false;
   let processed = 0;
   let audioSamples = 0;
+  // Application-held references only; codec/library-internal resources are opaque.
+  const retained = { frames: 0, samples: 0, peakFrames: 0, peakSamples: 0 };
+  const retain = kind => {
+    retained[kind]++;
+    const peak = kind === "frames" ? "peakFrames" : "peakSamples";
+    retained[peak] = Math.max(retained[peak], retained[kind]);
+  };
+  const release = (resource, kind) => {
+    if (resource) { resource.close(); retained[kind]--; }
+  };
+  const lifecycle = () => `Cleanup: ${retained.frames} application-held frame references, ${retained.samples} samples; peaks ${retained.peakFrames}/${retained.peakSamples} (library-internal resources not counted).`;
   const startedAt = performance.now();
   try {
     if (opened.width < outputWidth || opened.height < outputHeight) {
@@ -408,6 +418,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
     const pumpVideo = async () => {
       const sink = new VideoSampleSink(opened.track);
       for await (const sample of sink.samples()) {
+        retain("samples");
         let decodedFrame = null;
         let processedFrame = null;
         try {
@@ -417,8 +428,11 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
           const duration = reportedDuration > 0 ? reportedDuration : Math.round(1_000_000 / opened.averagePacketRate);
           const timestamp = sourceTimestamp - originUs;
           decodedFrame = sample.toVideoFrame();
+          retain("frames");
           processedFrame = await processFrame(decodedFrame, timestamp, duration);
+          retain("frames");
           const outputSample = new VideoSample(processedFrame);
+          retain("samples");
           try {
             await muxer.videoSource.add(outputSample);
           } catch (error) {
@@ -428,7 +442,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
               : `${outputWidth}×${outputHeight} ${profile.videoCodec.toUpperCase()} (encoder config was not emitted)`;
             fail(`${profile.videoCodec.toUpperCase()} encoder configuration failed (${configured}): ${errorMessage(error)}`);
           } finally {
-            outputSample.close();
+            release(outputSample, "samples");
           }
           processed += 1;
           lastVideoDurationSeconds = duration / 1_000_000;
@@ -436,9 +450,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
           const percent = opened.packetCount > 0 ? Math.min(99, Math.floor((processed / opened.packetCount) * 100)) : 0;
           status(`Converting ${percent}% — video ${processed}/${opened.packetCount || "?"}, audio ${audioSamples}/${opened.audio?.packetCount ?? 0}.`);
         } finally {
-          sample.close();
-          decodedFrame?.close();
-          processedFrame?.close();
+          release(sample, "samples");
+          release(decodedFrame, "frames");
+          release(processedFrame, "frames");
         }
       }
     };
@@ -447,6 +461,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
       if (!muxer.audioSource) return;
       const sink = new AudioSampleSink(opened.audio.track);
       for await (const sample of sink.samples()) {
+        retain("samples");
         try {
           ensureActive();
           const timestamp = asSafeMicroseconds(sample.microsecondTimestamp, "input audio timestamp") - originUs;
@@ -464,7 +479,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
           audioSamples += 1;
           audioEndSeconds = (timestamp + duration) / 1_000_000;
         } finally {
-          sample.close();
+          release(sample, "samples");
         }
       }
     };
@@ -529,15 +544,14 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
       fail(`Finalized ${profile.container.toUpperCase()} verification failed: ${errorMessage(error)}${environmentHint()}`);
     }
 
-    if (currentDownloadUrl) URL.revokeObjectURL(currentDownloadUrl);
-    currentDownloadUrl = URL.createObjectURL(new Blob([muxer.target.buffer], { type: profile.mimeType }));
     const base = file.name.replace(/\.[^.]+$/, "") || "converted";
     const elapsed = performance.now() - startedAt;
     return {
-      summary: profile.audioCodec
+      summary: (profile.audioCodec
         ? `PASS: ${processed} H.264 input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; decoded audio peak=${verified.audioPeak.toFixed(4)}; audio queue peak=1; conversion pixel readbacks=0.`
-        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`,
-      downloadUrl: currentDownloadUrl,
+        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`) + `\n${lifecycle()}`,
+      // Only compressed output leaves the execution context. The host owns its URL.
+      blob: new Blob([muxer.target.buffer], { type: profile.mimeType }),
       fileName: `${base}-${outputWidth}x${outputHeight}.${profile.extension}`,
       frameCount: processed,
       duration: verified.duration,
@@ -549,9 +563,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
     }
     const message = errorMessage(error);
     if (isEmbeddedElectronBrowser() && !message.includes("VS Code embedded browser")) {
-      throw new Error(`${message}${environmentHint()}`);
+      throw new Error(`${message}${environmentHint()}\n${lifecycle()}`);
     }
-    throw error;
+    throw new Error(`${message}\n${lifecycle()}`, { cause: error });
   } finally {
     opened.input.dispose();
   }

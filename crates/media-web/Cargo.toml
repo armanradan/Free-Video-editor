@@ -14,6 +14,6 @@ wasm-bindgen.workspace = true
 wasm-bindgen-futures.workspace = true
 web-sys = { workspace = true, features = [
     "Document", "DomException", "File", "FileList", "Gpu", "HtmlCanvasElement",
-    "HtmlInputElement", "Location", "Navigator", "VideoFrame", "VideoFrameInit", "Window",
+    "HtmlInputElement", "Location", "Navigator", "OffscreenCanvas", "VideoFrame", "VideoFrameInit", "Window",
 ] }
 wgpu.workspace = true
