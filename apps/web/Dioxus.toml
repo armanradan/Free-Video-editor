@@ -1,0 +1,14 @@
+[application]
+name = "converter-web"
+asset_dir = "assets"
+
+[web.app]
+title = "Diaxus M1 WebCodecs + wgpu probe"
+
+[web.resource]
+script = []
+style = []
+
+[web.resource.dev]
+script = []
+style = []

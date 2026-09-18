@@ -1,0 +1,287 @@
+{
+  "schema": 1,
+  "license": "CC0-1.0",
+  "generator": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "codec": "vp8",
+  "coded_width": 320,
+  "coded_height": 180,
+  "time_base": {
+    "numerator": 1,
+    "denominator": 30
+  },
+  "frame_count": 30,
+  "frame_duration_us": 33333,
+  "sha256": "dcb10a78baa7b70d270a9c6364d58195639c1776681b5d5d2de7ece04ae96b9f",
+  "packets": [
+    {
+      "index": 0,
+      "offset": 44,
+      "size": 1068,
+      "timestamp_ticks": 0,
+      "timestamp_us": 0,
+      "duration_us": 33333,
+      "keyframe": true
+    },
+    {
+      "index": 1,
+      "offset": 1124,
+      "size": 235,
+      "timestamp_ticks": 1,
+      "timestamp_us": 33333,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 2,
+      "offset": 1371,
+      "size": 396,
+      "timestamp_ticks": 2,
+      "timestamp_us": 66666,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 3,
+      "offset": 1779,
+      "size": 425,
+      "timestamp_ticks": 3,
+      "timestamp_us": 99999,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 4,
+      "offset": 2216,
+      "size": 297,
+      "timestamp_ticks": 4,
+      "timestamp_us": 133332,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 5,
+      "offset": 2525,
+      "size": 401,
+      "timestamp_ticks": 5,
+      "timestamp_us": 166665,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 6,
+      "offset": 2938,
+      "size": 430,
+      "timestamp_ticks": 6,
+      "timestamp_us": 199998,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 7,
+      "offset": 3380,
+      "size": 323,
+      "timestamp_ticks": 7,
+      "timestamp_us": 233331,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 8,
+      "offset": 3715,
+      "size": 519,
+      "timestamp_ticks": 8,
+      "timestamp_us": 266664,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 9,
+      "offset": 4246,
+      "size": 392,
+      "timestamp_ticks": 9,
+      "timestamp_us": 299997,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 10,
+      "offset": 4650,
+      "size": 616,
+      "timestamp_ticks": 10,
+      "timestamp_us": 333330,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 11,
+      "offset": 5278,
+      "size": 248,
+      "timestamp_ticks": 11,
+      "timestamp_us": 366663,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 12,
+      "offset": 5538,
+      "size": 398,
+      "timestamp_ticks": 12,
+      "timestamp_us": 399996,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 13,
+      "offset": 5948,
+      "size": 404,
+      "timestamp_ticks": 13,
+      "timestamp_us": 433329,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 14,
+      "offset": 6364,
+      "size": 285,
+      "timestamp_ticks": 14,
+      "timestamp_us": 466662,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 15,
+      "offset": 6661,
+      "size": 391,
+      "timestamp_ticks": 15,
+      "timestamp_us": 499995,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 16,
+      "offset": 7064,
+      "size": 526,
+      "timestamp_ticks": 16,
+      "timestamp_us": 533328,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 17,
+      "offset": 7602,
+      "size": 131,
+      "timestamp_ticks": 17,
+      "timestamp_us": 566661,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 18,
+      "offset": 7745,
+      "size": 516,
+      "timestamp_ticks": 18,
+      "timestamp_us": 599994,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 19,
+      "offset": 8273,
+      "size": 422,
+      "timestamp_ticks": 19,
+      "timestamp_us": 633327,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 20,
+      "offset": 8707,
+      "size": 724,
+      "timestamp_ticks": 20,
+      "timestamp_us": 666660,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 21,
+      "offset": 9443,
+      "size": 261,
+      "timestamp_ticks": 21,
+      "timestamp_us": 699993,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 22,
+      "offset": 9716,
+      "size": 298,
+      "timestamp_ticks": 22,
+      "timestamp_us": 733326,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 23,
+      "offset": 10026,
+      "size": 406,
+      "timestamp_ticks": 23,
+      "timestamp_us": 766659,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 24,
+      "offset": 10444,
+      "size": 397,
+      "timestamp_ticks": 24,
+      "timestamp_us": 799992,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 25,
+      "offset": 10853,
+      "size": 332,
+      "timestamp_ticks": 25,
+      "timestamp_us": 833325,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 26,
+      "offset": 11197,
+      "size": 514,
+      "timestamp_ticks": 26,
+      "timestamp_us": 866658,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 27,
+      "offset": 11723,
+      "size": 124,
+      "timestamp_ticks": 27,
+      "timestamp_us": 899991,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 28,
+      "offset": 11859,
+      "size": 561,
+      "timestamp_ticks": 28,
+      "timestamp_us": 933324,
+      "duration_us": 33333,
+      "keyframe": false
+    },
+    {
+      "index": 29,
+      "offset": 12432,
+      "size": 426,
+      "timestamp_ticks": 29,
+      "timestamp_us": 966657,
+      "duration_us": 33333,
+      "keyframe": false
+    }
+  ]
+}
