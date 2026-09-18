@@ -37,6 +37,8 @@ WebCodecs operates on compressed chunks and frames; container parsing/writing is
 
 ### Browser frame path
 
+Firefox compatibility correction (2026-09-19): direct VideoFrame copying is attempted through the processing queue/texture's released wgpu `as_webgpu` handles in a catchable browser adapter. If source conversion throws TypeError, use createImageBitmap(VideoFrame), copy that image on the same device, retain it through GPU completion, and close it explicitly. This fallback was validated in Firefox 156 with M1 correctness and M3.2 WebM conversion/cancel/restart. Count the additional bitmap conversion per frame; no CPU pixel readback is added and internal copies remain unknown. Other copy errors propagate as job failures. This avoids a wgpu JavaScript exception becoming an unrecoverable Rust panic.
+
 Baseline to prove first:
 
 ```text

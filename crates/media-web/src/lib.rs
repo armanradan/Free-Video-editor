@@ -19,6 +19,7 @@ mod browser {
     thread_local! {
         static GENERATION: Cell<u32> = const { Cell::new(0) };
         static GPU_SESSION: RefCell<Option<Rc<GpuSession>>> = const { RefCell::new(None) };
+        static BITMAP_COPIES: Cell<u32> = const { Cell::new(0) };
     }
 
     #[derive(Clone, Debug)]
@@ -42,6 +43,23 @@ mod browser {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
         export function inspectBrowserInput(file) { return globalThis.__DIAXUS_MEDIA_WEB__.inspect(file); }
+        export async function copyDecodedFrame(queue, texture, frame, width, height) {
+            const destination = { texture, colorSpace: 'srgb', premultipliedAlpha: false };
+            try {
+                queue.copyExternalImageToTexture({ source: frame }, destination, [width, height]);
+                return null;
+            } catch (directError) {
+                if (!(directError instanceof TypeError)) throw directError;
+                const bitmap = await createImageBitmap(frame);
+                try {
+                    queue.copyExternalImageToTexture({ source: bitmap }, destination, [width, height]);
+                    return bitmap;
+                } catch (error) {
+                    bitmap.close();
+                    throw new Error(`VideoFrame and ImageBitmap GPU ingress failed: ${error.message}`);
+                }
+            }
+        }
         export function probeBrowserProfiles(file, width, height) {
             return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height);
         }
@@ -59,6 +77,14 @@ mod browser {
         }
     "#)]
     extern "C" {
+        #[wasm_bindgen(js_name = copyDecodedFrame, catch)]
+        fn copy_decoded_frame(
+            queue: &JsValue,
+            texture: &JsValue,
+            frame: &VideoFrame,
+            width: u32,
+            height: u32,
+        ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = invokeM1, catch)]
         fn invoke_m1(
             fixture: js_sys::Uint8Array,
@@ -163,7 +189,11 @@ mod browser {
         )
         .await
         .map_err(js_error)?;
-        string_property(&result, "summary", "probe returned no summary")
+        Ok(format!(
+            "{}\nAdditional VideoFrame→ImageBitmap compatibility conversions: {}.",
+            string_property(&result, "summary", "probe returned no summary")?,
+            BITMAP_COPIES.with(Cell::get)
+        ))
     }
 
     pub async fn convert_m3(
@@ -201,8 +231,12 @@ mod browser {
         )
         .await
         .map_err(js_error)?;
+        let bitmap_copies = BITMAP_COPIES.with(Cell::get);
         Ok(ConversionResult {
-            summary: string_property(&result, "summary", "conversion returned no summary")?,
+            summary: format!(
+                "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.",
+                string_property(&result, "summary", "conversion returned no summary")?
+            ),
             download_url: string_property(
                 &result,
                 "downloadUrl",
@@ -243,6 +277,7 @@ mod browser {
     }
 
     fn begin_generation() -> u32 {
+        BITMAP_COPIES.with(|value| value.set(0));
         GENERATION.with(|value| {
             let next = value.get().wrapping_add(1);
             value.set(next);
@@ -331,6 +366,16 @@ mod browser {
         configured: RefCell<Option<ConfiguredResources>>,
     }
     struct OwnedVideoFrame(VideoFrame);
+    struct OwnedBitmap(JsValue);
+    impl Drop for OwnedBitmap {
+        fn drop(&mut self) {
+            if let Ok(close) = Reflect::get(&self.0, &JsValue::from_str("close"))
+                && let Some(close) = close.dyn_ref::<Function>()
+            {
+                let _ = close.call0(&self.0);
+            }
+        }
+    }
     impl Drop for OwnedVideoFrame {
         fn drop(&mut self) {
             self.0.close();
@@ -456,32 +501,42 @@ mod browser {
         ) -> Result<JsValue, JsValue> {
             let decoded = OwnedVideoFrame(decoded);
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+            let ingress = {
+                let configured = self.configured.borrow();
+                let configured = configured
+                    .as_ref()
+                    .ok_or_else(|| JsValue::from_str("GPU processor is not configured"))?;
+                copy_decoded_frame(
+                    self.queue
+                        .as_webgpu()
+                        .ok_or_else(|| JsValue::from_str("WebGPU queue unavailable"))?
+                        .as_ref(),
+                    configured
+                        .input
+                        .as_webgpu()
+                        .ok_or_else(|| JsValue::from_str("WebGPU texture unavailable"))?
+                        .as_ref(),
+                    &decoded.0,
+                    configured.input_size.width,
+                    configured.input_size.height,
+                )?
+            };
+            let bitmap = match JsFuture::from(ingress).await {
+                Ok(bitmap) => bitmap,
+                Err(error) => {
+                    let _ = scope.pop().await;
+                    return Err(error);
+                }
+            };
+            if !bitmap.is_null() {
+                BITMAP_COPIES.with(|value| value.set(value.get() + 1));
+            }
+            let _bitmap = OwnedBitmap(bitmap);
             let encoded_input = {
                 let configured = self.configured.borrow();
                 let configured = configured
                     .as_ref()
                     .ok_or_else(|| JsValue::from_str("GPU processor is not configured"))?;
-                let handle: JsValue = <VideoFrame as AsRef<JsValue>>::as_ref(&decoded.0).clone();
-                self.queue.copy_external_image_to_texture(
-                    &wgpu::CopyExternalImageSourceInfo {
-                        source: wgpu::ExternalImageSource::VideoFrame(handle.unchecked_into()),
-                        origin: wgpu::Origin2d::ZERO,
-                        flip_y: false,
-                    },
-                    wgpu::CopyExternalImageDestInfo {
-                        texture: &configured.input,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d::ZERO,
-                        aspect: wgpu::TextureAspect::All,
-                        color_space: wgpu::PredefinedColorSpace::Srgb,
-                        premultiplied_alpha: false,
-                    },
-                    wgpu::Extent3d {
-                        width: configured.input_size.width,
-                        height: configured.input_size.height,
-                        depth_or_array_layers: 1,
-                    },
-                );
                 let output = match self.surface.get_current_texture() {
                     wgpu::CurrentSurfaceTexture::Success(texture)
                     | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,

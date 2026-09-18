@@ -321,3 +321,15 @@ Both existing WebM profiles were rerun through the generalized adapter. WebM/VP8
 - Automated signal checks establish decodable non-silent audio, but human acoustic listening was not performed in the headless run.
 - Multiple audio tracks, language/disposition metadata, input codecs other than H.264/AAC, HDR, orientation/flip, and streaming output remain unsupported or untested.
 - Worker execution, main-thread responsiveness measurements, compatibility fallback behavior, and worker WebGPU/OffscreenCanvas probes are M3.3. No M3.3 implementation was started.
+
+## Firefox ingress correction — 2026-09-19
+
+Verified with installed Firefox 156.0 (build 20260909172920), Windows, a separate automation profile and WebDriver BiDi. Headless Firefox exposed navigator.gpu but returned null for the WebGPU canvas context; the successful run used normal rendering mode with no WebGPU preference overrides.
+
+Firefox rejected VideoFrame as the source of copyExternalImageToTexture. The old wgpu wrapper could panic on that JavaScript exception, leaving the processing future and UI waiting indefinitely, including after Cancel. The frame ingress now uses the released wgpu 30.0.1 queue/texture `as_webgpu` handles to catch the exception at the browser boundary on the same device. A TypeError triggers createImageBitmap(frame) followed by the same texture copy. Other errors propagate. The bitmap is retained with the decoded frame until GPU completion and closed by a Rust Drop guard. Shader processing and immediate render/present/capture ordering remain unchanged. There is no application pixel readback; each fallback frame adds one browser-managed bitmap conversion, explicitly reported in job results. Its internal copies and hardware execution are unknown.
+
+The deterministic H.264/AAC input completed with 60/60 VP8 frames, 95 decoded audio samples, 102 Opus packets, 320×180 geometry, 2.034 seconds, and 102,243 bytes. The recorded restart took 6,183 ms including verification; it used 60 bitmap compatibility conversions. Cancellation returned CANCELLED, and immediate restart succeeded. The HTML video element loaded the output and sought to 1.0169995 seconds. M1 passed all 30 frame timestamp, orientation, and RGB-marker checks, with zero application-owned live frames at cleanup. FFprobe independently decoded 60 VP8 frames and 102 audio frames at 48 kHz mono; the previously documented Opus packet-header warning remains.
+
+MP4 stayed disabled with the measured reason: AAC encoding unsupported at 48000 Hz with one channel. No codec/container substitution or browser-vendor block was added.
+
+Rust formatting, host core/GPU tests, wasm check/Clippy and locked Dioxus web build passed. A new Chromium regression browser launch was blocked by the execution policy, so the modified direct ingress path has not been revalidated there in this correction. Longer Firefox inputs, other Firefox versions/platforms, and arbitrary driver/device-loss stalls remain untested.
