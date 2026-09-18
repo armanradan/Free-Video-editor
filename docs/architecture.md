@@ -326,11 +326,12 @@ Implementation status (2026-09-18): the measured M2 path is MP4/H.264 input to v
 
 ### M3 — throughput, color, and browser robustness
 
+- Add a capability-driven output-profile selector to the shared job policy and reusable UI. A profile binds the container, video codec, audio codec/policy, extension, and muxer settings so the app never offers invalid combinations such as AAC inside WebM. Keep the current video-only WebM/VP8 profile, then add MP4 and additional WebM profiles only after their exact encoder and muxer configurations pass real-browser round-trip tests. Show unsupported profiles with the failed browser capability instead of silently falling back.
 - Move codecs and wgpu into a dedicated worker; keep frame handles inside it. Probe worker WebGPU and OffscreenCanvas before enabling this path; retain the measured main-thread path if needed.
 - Add bounded pipelining, texture pools, allocation and copy telemetry, optional GPU timestamp queries, and long-running tests. Separate CPU submission latency from GPU execution time.
 - Add direct external import where supported and measure both ingress and egress before claiming a gain.
 - Add a defined color pipeline, crop/orientation handling, variable frame-rate fixtures, and resolution-change policy. Reject HDR until implemented and tested.
-- Add streaming I/O, broader browser/codec matrix, and device-loss recovery if justified.
+- Add streaming I/O, validate the broader input/output container and codec matrix exposed by the output-profile selector, and add device-loss recovery if justified.
 - Handle audio explicitly: passthrough only when compatible with the output container; otherwise a separately tested decode/encode path with A/V synchronization.
 
 ### M4 — native correctness using shared processing

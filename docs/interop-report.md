@@ -203,7 +203,7 @@ Verified with the Rust 1.98.1 GNU Windows host toolchain:
 
 ## Explicitly untested or unsupported
 
-- Input other than MP4/H.264 and output other than WebM/VP8 are rejected or not offered.
+- Input other than MP4/H.264 and output other than WebM/VP8 are rejected or not offered. A capability-driven output-profile selector, including additional MP4/WebM profiles, is now an explicit M3 deliverable.
 - Audio is not copied or transcoded; it is detected, reported, and omitted.
 - Files larger than 256 MiB are rejected because compressed output is still buffered in memory. Streaming I/O is not implemented.
 - Rotation and horizontal-flip metadata are rejected. HDR, crop, non-square pixels, resolution changes, and defined wide-color processing remain untested.
