@@ -330,12 +330,16 @@ M3 is split into ordered, independently releasable sub-milestones. Do not begin 
 
 #### M3.1 — output-profile model and audio-preserving WebM
 
+Implementation status (2026-09-18): the preferred `WebmVp8Opus` profile and the explicit `WebmVp8VideoOnly` profile are implemented. `media-core` owns the profile/audio policy and exact-reason capability result; `media-web` owns the exercised local `BrowserConversionBackend` contract and its `WebCodecsMediabunnyBackend`; JavaScript at that boundary contains the concrete Mediabunny input/output adapters and the browser job orchestrator. Audio and video pumps run concurrently with awaited per-track backpressure, one shared integer-microsecond origin, ordered end-of-stream finalization, and sibling failure/cancellation cleanup. The more granular `DecoderBackend`/`EncoderBackend`/`FrameBridge` examples above remain design sketches until an actual alternative backend requires those seams; promoting them now would create unexercised interfaces, contrary to the repository rule. M3.2 has not started.
+
 - Add platform-neutral output-profile and audio-policy types to `media-core`, plus capability results that carry an exact unsupported reason.
+- Turn the existing `DecoderBackend`, `EncoderBackend`, packet/track, and `FrameBridge` sketches into the smallest real contracts needed by a second codec implementation. Keep command/event draining, ownership, cancellation, timestamps, and capability reporting independent of WebCodecs, FFmpeg, containers, Dioxus, and wgpu. Browser futures may remain non-`Send`; do not introduce Tokio, threads, or unsafe `Send`/`Sync` implementations.
+- Split the current hard-coded M2 runner into a browser job orchestrator plus concrete `WebCodecs` codec and Mediabunny container adapters. Preserve the proven M2 behavior before adding another backend; avoid an abstract factory hierarchy or interfaces without an exercised implementation.
 - Replace the fixed output label with a reusable profile selector. Retain an explicit video-only WebM/VP8 profile and add WebM/VP8/Opus as the preferred audio-preserving profile when the exact browser configuration is supported.
 - For MP4/AAC input, decode audio and encode Opus while video uses the existing wgpu path. Passthrough is allowed only when the source codec/configuration is already compatible with the chosen container.
 - Bound audio decode/encode callbacks independently, preserve integer timestamps and durations, define start-offset/end-of-stream policy, and clean up both tracks on cancellation or failure.
 
-**Acceptance gate:** the deterministic H.264/AAC fixture exports a WebM containing all 60 VP8 frames and an Opus track; independent inspection/player tests verify duration, seeking, audible output, and A/V synchronization near the beginning, midpoint, and end. Video-only selection, cancellation/restart, and the M1 probe still pass.
+**Acceptance gate:** the deterministic H.264/AAC fixture exports a WebM containing all 60 VP8 frames and an Opus track; independent inspection/player tests verify duration, seeking, audible output, and A/V synchronization near the beginning, midpoint, and end. The WebCodecs/Mediabunny implementation runs through the new backend/orchestrator contracts; video-only selection, cancellation/restart, and the M1 probe still pass without duplicated job policy.
 
 #### M3.2 — real output-container choice
 
@@ -357,9 +361,11 @@ M3 is split into ordered, independently releasable sub-milestones. Do not begin 
 
 - Add separately bounded decoder submissions, decoded callbacks, GPU processing, audio queues, encoder submissions, and mux writes.
 - Add device-generation-aware texture pools, allocation/live-resource telemetry, copy counters, and long-running tests. Separate CPU submission latency from GPU execution time; use GPU timestamp queries only when supported.
+- Compare WebCodecs `hardwareAcceleration: "no-preference"` with `"prefer-hardware"` for every enabled output profile using exact decoder and encoder capability probes. Keep `"no-preference"` as the compatibility baseline; use `"prefer-hardware"` only when the complete profile remains supported and measured results justify it. Fall back visibly rather than failing the job or silently changing codecs.
+- Measure end-to-end throughput, startup latency, CPU load, power where observable, output correctness, and stability. Treat the preference as a browser hint: neither successful configuration nor the displayed wgpu adapter proves which codec implementation or GPU WebCodecs used.
 - Compare the baseline external-image copy with direct external import only if a released API supports it. Measure both ingress and egress before claiming a gain.
 
-**Acceptance gate:** repeated short jobs and at least one long input show stable queue/resource high-water marks, zero application-owned live frames after cleanup, no premature texture reuse, and no regression in output correctness. Report throughput as measurements, not a real-time guarantee.
+**Acceptance gate:** repeated short jobs and at least one long input show stable queue/resource high-water marks, zero application-owned live frames after cleanup, no premature texture reuse, and no regression in output correctness. The interoperability report records both hardware-preference configurations for each enabled profile, including unsupported results and measured tradeoffs; any automatic preference decision has a tested `"no-preference"` fallback. Report throughput as measurements, not a real-time or hardware-execution guarantee.
 
 #### M3.5 — geometry, timing, and color correctness
 
@@ -377,15 +383,23 @@ M3 is split into ordered, independently releasable sub-milestones. Do not begin 
 
 **Acceptance gate:** an input larger than the former limit completes without retaining the entire input or output in application memory; the compatibility report lists exact tested browser/profile combinations; injected failure and available device-loss tests return owned resources to zero and permit restart.
 
-M3 is complete only when M3.1 through M3.6 pass. Partial completion must be reported by sub-milestone number and must not be presented as completion of all browser robustness work.
+#### M3.7 — conditional FFmpeg WASM backend spike
+
+- Add FFmpeg WASM only when a measured browser compatibility gap or requested codec/profile justifies its download size, startup cost, memory use, and maintenance burden. Implement it as an alternative browser codec/container backend, preferably in a worker, behind the M3.1 contracts; do not put it in `media-native` or duplicate shared job policy.
+- Keep the shared wgpu processor only when the FFmpeg WASM frame bridge can be implemented correctly. Count and report every explicit WASM-memory copy, CPU pixel upload, and GPU readback; a software encoder path that requires GPU readback is a compatibility fallback and must not inherit the WebCodecs path's no-explicit-readback claim.
+- Select backends from exact profile capabilities and an explicit user/developer preference. Never silently switch codecs, containers, quality settings, or processing implementations when falling back.
+
+**Acceptance gate:** at least one justified output profile completes through both WebCodecs and FFmpeg WASM using the same job/profile policy; independent output checks pass; cancellation returns owned frames and WASM resources to zero; startup, throughput, peak memory, bundle/download size, and copy counts are recorded side by side. If the spike is not justified or fails its resource/correctness gate, document the result and retain WebCodecs without blocking M4.
+
+Core M3 browser robustness is complete when M3.1 through M3.6 pass. M3.7 is a conditional compatibility extension and is not required to begin M4. Partial completion must be reported by sub-milestone number and must not be presented as completion of all browser robustness work.
 
 ### M4 — native correctness using shared processing
 
-- Choose one OS and one codec library first. Implement `media-native` and a headless conversion harness before UI integration.
+- Choose one OS and one codec library first. Implement native FFmpeg (or the selected native library) behind the M3.1 codec/container/backend contracts in `media-native`, and add a headless conversion harness before UI integration. Reuse shared job/profile policy rather than forking the browser orchestrator.
 - Enumerate native wgpu adapters and expose stable descriptors (name, vendor/device IDs, device type, backend, and PCI bus identity when available). Allow the harness to select an exact adapter; never identify adapters by enumeration index alone.
 - Persist a preferred adapter descriptor, re-resolve it on each launch, and report a clear fallback when it is disconnected or no longer compatible. Adapter selection must happen before codec/surface/device creation.
 - Treat an adapter change as a new device generation: stop accepting work, cancel and drain the active job, retire old textures only after submitted work completes, then recreate the device, queue, pools, pipelines, codec bridges, and preview surfaces. Resources from different generations are never interchangeable.
-- Use the same `media-core` rules, resize shader, and GPU processor. A software codec path with counted frame transfers is acceptable to establish correctness.
+- Use the same `media-core` rules, resize shader, GPU processor, ownership/drain semantics, and capability model. A software codec path with counted CPU↔GPU frame transfers is acceptable to establish correctness.
 - Verify native output against the same fixtures and timing/color expectations. Keep platform feature flags isolated from WASM builds.
 
 ### M5 — Dioxus Native/Blitz and hardware interop

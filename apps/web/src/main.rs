@@ -1,10 +1,11 @@
 use dioxus::prelude::*;
+use media_core::OutputProfileId;
 use ui::{ConverterControls, JobStatus};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const M1_SCRIPT: Asset = asset!("/assets/m1.js");
-const M2_SCRIPT: Asset = asset!("/assets/m2.js");
+const MEDIA_PIPELINE_SCRIPT: Asset = asset!("/assets/m2.js");
 
 fn main() {
     dioxus::launch(App);
@@ -12,24 +13,26 @@ fn main() {
 
 #[component]
 fn App() -> Element {
-    let mut status = use_signal(|| {
-        "Ready. Select an MP4 with H.264 video; audio is intentionally omitted in M2.".to_string()
-    });
+    let mut status =
+        use_signal(|| "Ready. Select an MP4 with H.264 video and AAC audio.".to_string());
     let mut running = use_signal(|| false);
     let selected_gpu =
         use_signal(|| "Selected GPU: determined when processing starts.".to_string());
     let mut download_url = use_signal(String::new);
     let mut download_name = use_signal(String::new);
+    let mut profile = use_signal(|| OutputProfileId::PREFERRED);
 
     let convert = move |_| {
         running.set(true);
         download_url.set(String::new());
         status.set("Inspecting MP4 container and exact H.264 configuration…".to_string());
+        let selected_profile = profile();
         spawn(async move {
             let callback = status_callback(status);
-            let result = media_web::convert_m2(
+            let result = media_web::convert_m3(
                 "source-file",
                 "export-canvas",
+                selected_profile,
                 callback
                     .as_ref()
                     .unchecked_ref::<js_sys::Function>()
@@ -52,6 +55,12 @@ fn App() -> Element {
                 Err(error) => status.set(display_error(error.to_string())),
             }
             running.set(false);
+        });
+    };
+    let profile_changed = move |event: FormEvent| {
+        profile.set(match event.value().as_str() {
+            "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
+            _ => OutputProfileId::WebmVp8Opus,
         });
     };
     let cancel = move |_| {
@@ -85,12 +94,20 @@ fn App() -> Element {
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
         document::Script { src: M1_SCRIPT }
-        document::Script { src: M2_SCRIPT }
+        document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M2" }
+            p { class: "eyebrow", "MILESTONE M3.1" }
             h1 { "Browser video converter" }
-            p { class: "lede", "MP4/H.264 → WebCodecs decode → wgpu half-size resize → WebCodecs VP8 → WebM. Video only; every audio track is omitted." }
-            ConverterControls { running: running(), download_url: download_url(), download_name: download_name(), on_convert: convert, on_cancel: cancel }
+            p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → wgpu half-size resize → WebCodecs VP8 + Opus → WebM. A video-only WebM profile remains available." }
+            ConverterControls {
+                running: running(),
+                download_url: download_url(),
+                download_name: download_name(),
+                profile: profile(),
+                on_profile_change: profile_changed,
+                on_convert: convert,
+                on_cancel: cancel,
+            }
             section { class: "preview-panel",
                 div { h2 { "GPU output" } p { "The canvas shows the frame submitted to the encoder." } }
                 canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }

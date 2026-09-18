@@ -10,6 +10,56 @@ pub const FRAME_DURATION_US: i64 = 33_333;
 pub const MAX_BROWSER_INPUT_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OutputProfileId {
+    WebmVp8Opus,
+    WebmVp8VideoOnly,
+}
+
+impl OutputProfileId {
+    pub const PREFERRED: Self = Self::WebmVp8Opus;
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::WebmVp8Opus => "webm-vp8-opus",
+            Self::WebmVp8VideoOnly => "webm-vp8-video-only",
+        }
+    }
+
+    pub const fn audio_policy(self) -> AudioPolicy {
+        match self {
+            Self::WebmVp8Opus => AudioPolicy::Transcode(AudioCodec::Opus),
+            Self::WebmVp8VideoOnly => AudioPolicy::Omit,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum AudioCodec {
+    Opus,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum AudioPolicy {
+    Omit,
+    Transcode(AudioCodec),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Capability {
+    Supported,
+    Unsupported { reason: String },
+}
+
+impl Capability {
+    pub fn unsupported(reason: impl Into<String>) -> Self {
+        Self::Unsupported {
+            reason: reason.into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Size {
     pub width: u32,
     pub height: u32,
@@ -164,6 +214,29 @@ mod tests {
                 actual: MAX_BROWSER_INPUT_BYTES + 1,
                 maximum: MAX_BROWSER_INPUT_BYTES,
             })
+        );
+    }
+
+    #[test]
+    fn preferred_profile_preserves_audio_by_transcoding_to_opus() {
+        assert_eq!(OutputProfileId::PREFERRED, OutputProfileId::WebmVp8Opus);
+        assert_eq!(
+            OutputProfileId::PREFERRED.audio_policy(),
+            AudioPolicy::Transcode(AudioCodec::Opus)
+        );
+        assert_eq!(
+            OutputProfileId::WebmVp8VideoOnly.audio_policy(),
+            AudioPolicy::Omit
+        );
+    }
+
+    #[test]
+    fn unsupported_capability_retains_the_exact_reason() {
+        assert_eq!(
+            Capability::unsupported("Opus encoder unavailable"),
+            Capability::Unsupported {
+                reason: "Opus encoder unavailable".to_string()
+            }
         );
     }
 }

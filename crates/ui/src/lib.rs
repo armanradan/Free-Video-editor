@@ -1,12 +1,15 @@
 #![forbid(unsafe_code)]
 
 use dioxus::prelude::*;
+use media_core::OutputProfileId;
 
 #[component]
 pub fn ConverterControls(
     running: bool,
     download_url: String,
     download_name: String,
+    profile: OutputProfileId,
+    on_profile_change: EventHandler<FormEvent>,
     on_convert: EventHandler<MouseEvent>,
     on_cancel: EventHandler<MouseEvent>,
 ) -> Element {
@@ -22,6 +25,22 @@ pub fn ConverterControls(
             label { r#for: "resize-preset", "Resize" }
             select { id: "resize-preset", disabled: running,
                 option { value: "half", "50% width and height" }
+            }
+            label { r#for: "output-profile", "Output profile" }
+            select {
+                id: "output-profile",
+                disabled: running,
+                onchange: move |event| on_profile_change.call(event),
+                option {
+                    value: OutputProfileId::WebmVp8Opus.as_str(),
+                    selected: profile == OutputProfileId::WebmVp8Opus,
+                    "WebM — VP8 + Opus (preserve audio)"
+                }
+                option {
+                    value: OutputProfileId::WebmVp8VideoOnly.as_str(),
+                    selected: profile == OutputProfileId::WebmVp8VideoOnly,
+                    "WebM — VP8 video only"
+                }
             }
         }
         div { class: "actions",

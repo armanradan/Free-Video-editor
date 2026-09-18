@@ -4,7 +4,8 @@
 mod browser {
     use js_sys::{Function, Promise, Reflect};
     use media_core::{
-        INPUT_SIZE, MediaError, OUTPUT_SIZE, ResizePreset, Size, validate_browser_input_size,
+        INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId, ResizePreset, Size,
+        validate_browser_input_size,
     };
     use media_gpu::ResizePipeline;
     use std::{
@@ -34,9 +35,9 @@ mod browser {
         export function invokeM1(fixture, manifest, processFrame, status, cancelled) {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
-        export function inspectM2(file) { return globalThis.__DIAXUS_M2__.inspect(file); }
-        export function invokeM2(file, width, height, processFrame, status, cancelled) {
-            return globalThis.__DIAXUS_M2__.run(file, width, height, processFrame, status, cancelled);
+        export function inspectBrowserInput(file) { return globalThis.__DIAXUS_MEDIA_WEB__.inspect(file); }
+        export function invokeBrowserJob(file, width, height, profile, processFrame, status, cancelled) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, processFrame, status, cancelled);
         }
         export async function describeSelectedAdapter() {
             const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
@@ -57,19 +58,61 @@ mod browser {
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue>;
-        #[wasm_bindgen(js_name = inspectM2, catch)]
-        fn inspect_m2(file: &File) -> Result<Promise, JsValue>;
-        #[wasm_bindgen(js_name = invokeM2, catch)]
-        fn invoke_m2(
+        #[wasm_bindgen(js_name = inspectBrowserInput, catch)]
+        fn inspect_browser_input(file: &File) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = invokeBrowserJob, catch)]
+        fn invoke_browser_job(
             file: &File,
             width: u32,
             height: u32,
+            profile: &str,
             process_frame: &Function,
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = describeSelectedAdapter, catch)]
         fn describe_selected_adapter() -> Result<Promise, JsValue>;
+    }
+
+    trait BrowserConversionBackend {
+        fn inspect(&self, file: &File) -> Result<Promise, JsValue>;
+        fn run(
+            &self,
+            file: &File,
+            output: Size,
+            profile: OutputProfileId,
+            process_frame: &Function,
+            status: &Function,
+            cancelled: &Function,
+        ) -> Result<Promise, JsValue>;
+    }
+
+    struct WebCodecsMediabunnyBackend;
+
+    impl BrowserConversionBackend for WebCodecsMediabunnyBackend {
+        fn inspect(&self, file: &File) -> Result<Promise, JsValue> {
+            inspect_browser_input(file)
+        }
+
+        fn run(
+            &self,
+            file: &File,
+            output: Size,
+            profile: OutputProfileId,
+            process_frame: &Function,
+            status: &Function,
+            cancelled: &Function,
+        ) -> Result<Promise, JsValue> {
+            invoke_browser_job(
+                file,
+                output.width,
+                output.height,
+                profile.as_str(),
+                process_frame,
+                status,
+                cancelled,
+            )
+        }
     }
 
     pub fn cancel() {
@@ -106,15 +149,17 @@ mod browser {
         string_property(&result, "summary", "probe returned no summary")
     }
 
-    pub async fn convert_m2(
+    pub async fn convert_m3(
         file_input_id: &str,
         canvas_id: &str,
+        profile: OutputProfileId,
         status: Function,
     ) -> Result<ConversionResult, MediaError> {
         let generation = begin_generation();
         let file = selected_file(file_input_id)?;
         validate_browser_input_size(file.size() as u64)?;
-        let inspection = JsFuture::from(inspect_m2(&file).map_err(js_error)?)
+        let backend = WebCodecsMediabunnyBackend;
+        let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
             .await
             .map_err(js_error)?;
         let input = Size::new(
@@ -126,15 +171,16 @@ mod browser {
         let process = process_callback(gpu);
         let cancelled = cancellation_callback(generation);
         let result = JsFuture::from(
-            invoke_m2(
-                &file,
-                output.width,
-                output.height,
-                process.as_ref().unchecked_ref(),
-                &status,
-                cancelled.as_ref().unchecked_ref(),
-            )
-            .map_err(js_error)?,
+            backend
+                .run(
+                    &file,
+                    output,
+                    profile,
+                    process.as_ref().unchecked_ref(),
+                    &status,
+                    cancelled.as_ref().unchecked_ref(),
+                )
+                .map_err(js_error)?,
         )
         .await
         .map_err(js_error)?;
@@ -487,7 +533,7 @@ mod browser {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use browser::{ConversionResult, cancel, convert_m2, run_m1, selected_gpu};
+pub use browser::{ConversionResult, cancel, convert_m3, run_m1, selected_gpu};
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}
 #[cfg(not(target_arch = "wasm32"))]
