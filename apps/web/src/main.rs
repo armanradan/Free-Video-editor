@@ -21,6 +21,8 @@ fn App() -> Element {
     let mut download_url = use_signal(String::new);
     let mut download_name = use_signal(String::new);
     let mut profile = use_signal(|| OutputProfileId::PREFERRED);
+    let mut mp4_supported = use_signal(|| false);
+    let mut mp4_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
 
     let convert = move |_| {
         running.set(true);
@@ -60,7 +62,37 @@ fn App() -> Element {
     let profile_changed = move |event: FormEvent| {
         profile.set(match event.value().as_str() {
             "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
+            "mp4-h264-aac" if mp4_supported() => OutputProfileId::Mp4H264Aac,
             _ => OutputProfileId::WebmVp8Opus,
+        });
+    };
+    let file_changed = move |_| {
+        mp4_supported.set(false);
+        mp4_reason.set("Checking the exact H.264/AAC encoder configuration…".to_string());
+        status.set("Inspecting input and probing output profiles…".to_string());
+        spawn(async move {
+            match media_web::probe_output_profiles("source-file").await {
+                Ok(capabilities) => {
+                    mp4_supported.set(capabilities.mp4_supported);
+                    mp4_reason.set(capabilities.mp4_reason.clone());
+                    if !capabilities.mp4_supported && profile() == OutputProfileId::Mp4H264Aac {
+                        profile.set(OutputProfileId::PREFERRED);
+                    }
+                    status.set(if capabilities.mp4_supported {
+                        "Ready. WebM/VP8/Opus and MP4/H.264/AAC are supported for this input."
+                            .to_string()
+                    } else {
+                        format!(
+                            "Ready. WebM profiles are available; MP4 is unavailable: {}",
+                            capabilities.mp4_reason
+                        )
+                    });
+                }
+                Err(error) => {
+                    mp4_reason.set("Input inspection failed.".to_string());
+                    status.set(display_error(error.to_string()));
+                }
+            }
         });
     };
     let cancel = move |_| {
@@ -96,14 +128,17 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M3.1" }
+            p { class: "eyebrow", "MILESTONE M3.2" }
             h1 { "Browser video converter" }
-            p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → wgpu half-size resize → WebCodecs VP8 + Opus → WebM. A video-only WebM profile remains available." }
+            p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → wgpu half-size resize → capability-checked WebM/VP8/Opus or MP4/H.264/AAC. A video-only WebM profile remains available." }
             ConverterControls {
                 running: running(),
                 download_url: download_url(),
                 download_name: download_name(),
                 profile: profile(),
+                mp4_supported: mp4_supported(),
+                mp4_reason: mp4_reason(),
+                on_file_change: file_changed,
                 on_profile_change: profile_changed,
                 on_convert: convert,
                 on_cancel: cancel,

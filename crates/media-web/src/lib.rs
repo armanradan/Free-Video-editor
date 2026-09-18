@@ -31,11 +31,20 @@ mod browser {
         pub output_bytes: u64,
     }
 
+    #[derive(Clone, Debug)]
+    pub struct OutputProfileCapabilities {
+        pub mp4_supported: bool,
+        pub mp4_reason: String,
+    }
+
     #[wasm_bindgen(inline_js = r#"
         export function invokeM1(fixture, manifest, processFrame, status, cancelled) {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
         export function inspectBrowserInput(file) { return globalThis.__DIAXUS_MEDIA_WEB__.inspect(file); }
+        export function probeBrowserProfiles(file, width, height) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height);
+        }
         export function invokeBrowserJob(file, width, height, profile, processFrame, status, cancelled) {
             return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, processFrame, status, cancelled);
         }
@@ -60,6 +69,9 @@ mod browser {
         ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = inspectBrowserInput, catch)]
         fn inspect_browser_input(file: &File) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = probeBrowserProfiles, catch)]
+        fn probe_browser_profiles(file: &File, width: u32, height: u32)
+        -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = invokeBrowserJob, catch)]
         fn invoke_browser_job(
             file: &File,
@@ -85,6 +97,7 @@ mod browser {
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue>;
+        fn probe_profiles(&self, file: &File, output: Size) -> Result<Promise, JsValue>;
     }
 
     struct WebCodecsMediabunnyBackend;
@@ -112,6 +125,10 @@ mod browser {
                 status,
                 cancelled,
             )
+        }
+
+        fn probe_profiles(&self, file: &File, output: Size) -> Result<Promise, JsValue> {
+            probe_browser_profiles(file, output.width, output.height)
         }
     }
 
@@ -195,6 +212,33 @@ mod browser {
             frame_count: u32_property(&result, "frameCount")?,
             duration_seconds: number_property(&result, "duration")?,
             output_bytes: number_property(&result, "outputBytes")? as u64,
+        })
+    }
+
+    pub async fn probe_output_profiles(
+        file_input_id: &str,
+    ) -> Result<OutputProfileCapabilities, MediaError> {
+        let file = selected_file(file_input_id)?;
+        validate_browser_input_size(file.size() as u64)?;
+        let backend = WebCodecsMediabunnyBackend;
+        let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
+            .await
+            .map_err(js_error)?;
+        let input = Size::new(
+            u32_property(&inspection, "width")?,
+            u32_property(&inspection, "height")?,
+        )?;
+        let output = ResizePreset::Half.output_size(input)?;
+        let capabilities = JsFuture::from(backend.probe_profiles(&file, output).map_err(js_error)?)
+            .await
+            .map_err(js_error)?;
+        Ok(OutputProfileCapabilities {
+            mp4_supported: bool_property(&capabilities, "mp4Supported")?,
+            mp4_reason: string_property(
+                &capabilities,
+                "mp4Reason",
+                "MP4 capability probe returned no reason",
+            )?,
         })
     }
 
@@ -500,6 +544,12 @@ mod browser {
             Err(platform(format!("invalid {name}")))
         }
     }
+    fn bool_property(value: &JsValue, name: &str) -> Result<bool, MediaError> {
+        Reflect::get(value, &JsValue::from_str(name))
+            .map_err(js_error)?
+            .as_bool()
+            .ok_or_else(|| platform(format!("invalid {name}")))
+    }
     fn u32_property(value: &JsValue, name: &str) -> Result<u32, MediaError> {
         let number = number_property(value, name)?;
         if number.fract() == 0.0 && number <= u32::MAX as f64 {
@@ -533,7 +583,10 @@ mod browser {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub use browser::{ConversionResult, cancel, convert_m3, run_m1, selected_gpu};
+pub use browser::{
+    ConversionResult, OutputProfileCapabilities, cancel, convert_m3, probe_output_profiles, run_m1,
+    selected_gpu,
+};
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}
 #[cfg(not(target_arch = "wasm32"))]

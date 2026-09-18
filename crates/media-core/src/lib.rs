@@ -14,6 +14,7 @@ pub const MAX_BROWSER_INPUT_BYTES: u64 = 256 * 1024 * 1024;
 pub enum OutputProfileId {
     WebmVp8Opus,
     WebmVp8VideoOnly,
+    Mp4H264Aac,
 }
 
 impl OutputProfileId {
@@ -23,6 +24,7 @@ impl OutputProfileId {
         match self {
             Self::WebmVp8Opus => "webm-vp8-opus",
             Self::WebmVp8VideoOnly => "webm-vp8-video-only",
+            Self::Mp4H264Aac => "mp4-h264-aac",
         }
     }
 
@@ -30,13 +32,41 @@ impl OutputProfileId {
         match self {
             Self::WebmVp8Opus => AudioPolicy::Transcode(AudioCodec::Opus),
             Self::WebmVp8VideoOnly => AudioPolicy::Omit,
+            Self::Mp4H264Aac => AudioPolicy::Transcode(AudioCodec::Aac),
+        }
+    }
+
+    pub const fn container(self) -> ContainerFormat {
+        match self {
+            Self::WebmVp8Opus | Self::WebmVp8VideoOnly => ContainerFormat::WebM,
+            Self::Mp4H264Aac => ContainerFormat::Mp4,
+        }
+    }
+
+    pub const fn video_codec(self) -> VideoCodec {
+        match self {
+            Self::WebmVp8Opus | Self::WebmVp8VideoOnly => VideoCodec::Vp8,
+            Self::Mp4H264Aac => VideoCodec::H264,
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum ContainerFormat {
+    WebM,
+    Mp4,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum VideoCodec {
+    Vp8,
+    H264,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum AudioCodec {
     Opus,
+    Aac,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -228,6 +258,15 @@ mod tests {
             OutputProfileId::WebmVp8VideoOnly.audio_policy(),
             AudioPolicy::Omit
         );
+        assert_eq!(
+            OutputProfileId::Mp4H264Aac.audio_policy(),
+            AudioPolicy::Transcode(AudioCodec::Aac)
+        );
+        assert_eq!(
+            OutputProfileId::Mp4H264Aac.container(),
+            ContainerFormat::Mp4
+        );
+        assert_eq!(OutputProfileId::Mp4H264Aac.video_codec(), VideoCodec::H264);
     }
 
     #[test]

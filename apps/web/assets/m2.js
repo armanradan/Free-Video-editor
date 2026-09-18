@@ -5,6 +5,7 @@ import {
   BufferTarget,
   Input,
   MP4,
+  Mp4OutputFormat,
   Output,
   Quality,
   VideoSample,
@@ -88,7 +89,7 @@ class MediabunnyInputAdapter {
   ]);
   if (rotation !== 0 || flip) {
     input.dispose();
-    fail("M3.1 supports unrotated, unflipped MP4 video only; orientation transforms remain scheduled for a later M3 slice.");
+    fail("M3.2 supports unrotated, unflipped MP4 video only; orientation transforms remain scheduled for a later M3 slice.");
   }
   const audioTrack = audioTracks[0] ?? null;
   let audio = null;
@@ -140,14 +141,79 @@ async function inspect(file) {
 }
 
 const OUTPUT_PROFILES = Object.freeze({
-  "webm-vp8-opus": { audio: "opus", label: "VP8 + Opus" },
-  "webm-vp8-video-only": { audio: null, label: "VP8 video only" },
+  "webm-vp8-opus": {
+    container: "webm", videoCodec: "vp8", audioCodec: "opus",
+    label: "WebM/VP8/Opus", extension: "webm", mimeType: "video/webm",
+  },
+  "webm-vp8-video-only": {
+    container: "webm", videoCodec: "vp8", audioCodec: null,
+    label: "WebM/VP8 video only", extension: "webm", mimeType: "video/webm",
+  },
+  "mp4-h264-aac": {
+    container: "mp4", videoCodec: "avc", audioCodec: "aac",
+    label: "MP4/H.264/AAC", extension: "mp4", mimeType: "video/mp4",
+  },
 });
 
 function resolveProfile(id) {
   const profile = OUTPUT_PROFILES[id];
   if (!profile) fail(`Unknown output profile: ${id}.`);
   return profile;
+}
+
+async function probeProfile(profile, opened, outputWidth, outputHeight) {
+  if (profile.audioCodec && !opened.audio) {
+    return { supported: false, reason: `${profile.label} requires an input audio track.` };
+  }
+  if (profile.audioCodec && !opened.audio.canDecode) {
+    return { supported: false, reason: `The primary ${opened.audio.codec ?? "unknown"} audio track cannot be decoded.` };
+  }
+  try {
+    const videoSupported = await canEncodeVideo(profile.videoCodec, {
+      width: outputWidth,
+      height: outputHeight,
+      frameRate: opened.averagePacketRate,
+      quality: new Quality("high"),
+      latencyMode: "quality",
+      hardwareAcceleration: "no-preference",
+    });
+    if (!videoSupported) {
+      return {
+        supported: false,
+        reason: `${profile.videoCodec.toUpperCase()} encoding is unsupported at ${outputWidth}×${outputHeight} and ${opened.averagePacketRate.toFixed(3)} fps.`,
+      };
+    }
+  } catch (error) {
+    return { supported: false, reason: `${profile.videoCodec.toUpperCase()} capability probe failed: ${errorMessage(error)}` };
+  }
+  if (profile.audioCodec) {
+    try {
+      const audioSupported = await canEncodeAudio(profile.audioCodec, {
+        numberOfChannels: opened.audio.numberOfChannels,
+        sampleRate: 48_000,
+        quality: new Quality("high"),
+      });
+      if (!audioSupported) {
+        return {
+          supported: false,
+          reason: `${profile.audioCodec.toUpperCase()} encoding is unsupported at 48000 Hz with ${opened.audio.numberOfChannels} channel(s).`,
+        };
+      }
+    } catch (error) {
+      return { supported: false, reason: `${profile.audioCodec.toUpperCase()} capability probe failed: ${errorMessage(error)}` };
+    }
+  }
+  return { supported: true, reason: "Supported for the selected input and exact output configuration." };
+}
+
+async function probeProfiles(file, outputWidth, outputHeight) {
+  const opened = await MediabunnyInputAdapter.open(file);
+  try {
+    const mp4 = await probeProfile(OUTPUT_PROFILES["mp4-h264-aac"], opened, outputWidth, outputHeight);
+    return { mp4Supported: mp4.supported, mp4Reason: mp4.reason };
+  } finally {
+    opened.input.dispose();
+  }
 }
 
 function peakAmplitude(sample) {
@@ -161,17 +227,17 @@ function peakAmplitude(sample) {
   return peak;
 }
 
-async function verifyWebM(buffer, expected) {
+async function verifyOutput(buffer, expected) {
   const input = new Input({
-    formats: [WEBM],
-    source: new BlobSource(new Blob([buffer], { type: "video/webm" })),
+    formats: expected.container === "mp4" ? [MP4] : [WEBM],
+    source: new BlobSource(new Blob([buffer], { type: expected.mimeType })),
   });
   try {
-    if (!(await input.canRead())) fail("Finalized WebM could not be reopened by the container inspector.");
+    if (!(await input.canRead())) fail(`Finalized ${expected.container.toUpperCase()} could not be reopened by the container inspector.`);
     const videoTrack = await input.getPrimaryVideoTrack();
-    if (!videoTrack) fail("Finalized WebM has no video track.");
+    if (!videoTrack) fail(`Finalized ${expected.container.toUpperCase()} has no video track.`);
     if (!(await videoTrack.canDecode())) {
-      fail(`This browser cannot re-decode the finalized VP8 track.${environmentHint()}`);
+      fail(`This browser cannot re-decode the finalized ${expected.videoCodecLabel} track.${environmentHint()}`);
     }
     const [codec, width, height, videoDuration, metadataDuration, stats, videoFirst] = await Promise.all([
       videoTrack.getCodec(),
@@ -182,23 +248,25 @@ async function verifyWebM(buffer, expected) {
       videoTrack.computePacketStats(),
       videoTrack.getFirstTimestamp(),
     ]);
-    if (codec !== "vp8") fail(`Finalized WebM codec is ${codec ?? "unknown"}, expected VP8.`);
+    if (codec !== expected.videoCodec) {
+      fail(`Finalized ${expected.container.toUpperCase()} video codec is ${codec ?? "unknown"}, expected ${expected.videoCodecLabel}.`);
+    }
     if (width !== expected.width || height !== expected.height) {
-      fail(`Finalized WebM is ${width}×${height}, expected ${expected.width}×${expected.height}.`);
+      fail(`Finalized output is ${width}×${height}, expected ${expected.width}×${expected.height}.`);
     }
     if (stats.packetCount !== expected.frameCount) {
-      fail(`Finalized WebM contains ${stats.packetCount} packets for ${expected.frameCount} decoded input frames.`);
+      fail(`Finalized output contains ${stats.packetCount} video packets for ${expected.frameCount} decoded input frames.`);
     }
     const tolerance = Math.max(0.050, expected.lastVideoDurationSeconds + 0.010);
     if (Math.abs(videoDuration - expected.videoEndSeconds) > tolerance) {
-      fail(`Finalized WebM video duration ${videoDuration.toFixed(6)}s differs from processed coverage ${expected.videoEndSeconds.toFixed(6)}s.`);
+      fail(`Finalized video duration ${videoDuration.toFixed(6)}s differs from processed coverage ${expected.videoEndSeconds.toFixed(6)}s.`);
     }
 
     // Exercise random-access decode at the midpoint. Independent ffprobe/player
     // validation is still required for the recorded M2 interoperability result.
     const midpoint = Math.max(0, videoDuration / 2);
     const sample = await new VideoSampleSink(videoTrack).getSample(midpoint);
-    if (!sample) fail("Finalized WebM could not seek/decode at its midpoint.");
+    if (!sample) fail("Finalized output could not seek/decode video at its midpoint.");
     sample.close();
 
     const audioTracks = await input.getAudioTracks();
@@ -209,7 +277,7 @@ async function verifyWebM(buffer, expected) {
     const audioTrack = audioTracks[0];
     if (!audioTrack) fail("Audio-preserving profile produced no audio track.");
     if (!(await audioTrack.canDecode())) {
-      fail(`This browser encoded the Opus track but cannot re-decode it for verification.${environmentHint()}`);
+      fail(`This browser encoded the ${expected.audioCodecLabel} track but cannot re-decode it for verification.${environmentHint()}`);
     }
     const [audioCodec, channels, sampleRate, audioDuration, audioStats, audioFirst] = await Promise.all([
       audioTrack.getCodec(),
@@ -219,25 +287,27 @@ async function verifyWebM(buffer, expected) {
       audioTrack.computePacketStats(),
       audioTrack.getFirstTimestamp(),
     ]);
-    if (audioCodec !== "opus") fail(`Finalized WebM audio codec is ${audioCodec ?? "unknown"}, expected Opus.`);
+    if (audioCodec !== expected.audioCodec) {
+      fail(`Finalized output audio codec is ${audioCodec ?? "unknown"}, expected ${expected.audioCodecLabel}.`);
+    }
     if (channels !== expected.audioChannels || sampleRate !== 48_000) {
-      fail(`Finalized Opus is ${channels} channel(s) at ${sampleRate} Hz; expected ${expected.audioChannels} at 48000 Hz.`);
+      fail(`Finalized ${expected.audioCodecLabel} is ${channels} channel(s) at ${sampleRate} Hz; expected ${expected.audioChannels} at 48000 Hz.`);
     }
     if (Math.abs(videoFirst - expected.videoFirstSeconds) > tolerance || Math.abs(audioFirst - expected.audioFirstSeconds) > tolerance) {
       fail(`Output A/V start offsets changed: video=${videoFirst.toFixed(6)}s audio=${audioFirst.toFixed(6)}s.`);
     }
     if (Math.abs(audioDuration - expected.audioEndSeconds) > 0.075) {
-      fail(`Finalized Opus duration ${audioDuration.toFixed(6)}s differs from decoded audio coverage ${expected.audioEndSeconds.toFixed(6)}s.`);
+      fail(`Finalized ${expected.audioCodecLabel} duration ${audioDuration.toFixed(6)}s differs from decoded audio coverage ${expected.audioEndSeconds.toFixed(6)}s.`);
     }
     const audioSink = new AudioSampleSink(audioTrack);
     const points = [audioFirst + 0.01, (audioFirst + audioDuration) / 2, Math.max(audioFirst, audioDuration - 0.05)];
     let audioPeak = 0;
     for (const point of points) {
       const audioSample = await audioSink.getSample(point);
-      if (!audioSample) fail(`Finalized Opus could not decode near ${point.toFixed(3)}s.`);
+      if (!audioSample) fail(`Finalized ${expected.audioCodecLabel} could not decode near ${point.toFixed(3)}s.`);
       try { audioPeak = Math.max(audioPeak, peakAmplitude(audioSample)); } finally { audioSample.close(); }
     }
-    if (audioPeak < 0.00001) fail("Decoded Opus samples at beginning/middle/end were silent.");
+    if (audioPeak < 0.00001) fail(`Decoded ${expected.audioCodecLabel} samples at beginning/middle/end were silent.`);
     return {
       duration: Math.max(metadataDuration ?? 0, videoDuration, audioDuration),
       packetCount: stats.packetCount,
@@ -249,16 +319,19 @@ async function verifyWebM(buffer, expected) {
   }
 }
 
-class MediabunnyWebMOutputAdapter {
+class MediabunnyOutputAdapter {
   constructor(profile, audioConfig) {
     this.target = new BufferTarget();
     this.videoPackets = 0;
     this.audioPackets = 0;
     this.videoEncoderConfig = null;
     this.audioEncoderConfig = null;
-    this.output = new Output({ format: new WebMOutputFormat(), target: this.target });
+    const format = profile.container === "mp4"
+      ? new Mp4OutputFormat({ fastStart: "in-memory" })
+      : new WebMOutputFormat();
+    this.output = new Output({ format, target: this.target });
     this.videoSource = new VideoSampleSource({
-      codec: "vp8",
+      codec: profile.videoCodec,
       quality: new Quality("high"),
       keyFrameInterval: 2,
       latencyMode: "quality",
@@ -267,17 +340,17 @@ class MediabunnyWebMOutputAdapter {
       onEncoderConfig: (config) => { this.videoEncoderConfig = config; },
       onEncodedPacket: () => { this.videoPackets += 1; },
     });
-    this.output.addVideoTrack(this.videoSource, { name: "M3.1 resized video" });
+    this.output.addVideoTrack(this.videoSource, { name: "M3 resized video" });
     this.audioSource = null;
-    if (profile.audio === "opus") {
+    if (profile.audioCodec) {
       this.audioSource = new AudioSampleSource({
-        codec: "opus",
+        codec: profile.audioCodec,
         quality: new Quality("high"),
         transform: { sampleRate: 48_000, numberOfChannels: audioConfig.numberOfChannels },
         onEncoderConfig: (config) => { this.audioEncoderConfig = config; },
         onEncodedPacket: () => { this.audioPackets += 1; },
       });
-      this.output.addAudioTrack(this.audioSource, { name: "M3.1 transcoded audio" });
+      this.output.addAudioTrack(this.audioSource, { name: "M3 transcoded audio" });
     }
   }
 
@@ -303,42 +376,11 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
     if (opened.width < outputWidth || opened.height < outputHeight) {
       fail("The half-size preset must not upscale the source.");
     }
-    let vp8Supported;
-    try {
-      vp8Supported = await canEncodeVideo("vp8", {
-        width: outputWidth,
-        height: outputHeight,
-        frameRate: opened.averagePacketRate,
-        quality: new Quality("high"),
-        latencyMode: "quality",
-        hardwareAcceleration: "no-preference",
-      });
-    } catch (error) {
-      fail(`VP8 capability probe failed for ${outputWidth}×${outputHeight} at ${opened.averagePacketRate.toFixed(3)} fps: ${errorMessage(error)}`);
+    const profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight);
+    if (!profileCapability.supported) {
+      fail(`${profile.label} is unavailable for this input: ${profileCapability.reason}`);
     }
-    if (!vp8Supported) {
-      fail(`This browser cannot encode VP8 at ${outputWidth}×${outputHeight} and ${opened.averagePacketRate.toFixed(3)} fps with the selected quality settings.`);
-    }
-    if (profile.audio === "opus") {
-      if (!opened.audio) fail("The VP8 + Opus profile requires an input audio track; choose the video-only profile for silent input.");
-      if (!opened.audio.canDecode) {
-        fail(`This browser cannot decode the primary ${opened.audio.codec ?? "unknown"} audio track with its exact configuration.`);
-      }
-      let opusSupported;
-      try {
-        opusSupported = await canEncodeAudio("opus", {
-          numberOfChannels: opened.audio.numberOfChannels,
-          sampleRate: 48_000,
-          quality: new Quality("high"),
-        });
-      } catch (error) {
-        fail(`Opus capability probe failed for 48000 Hz and ${opened.audio.numberOfChannels} channel(s): ${errorMessage(error)}`);
-      }
-      if (!opusSupported) {
-        fail(`This browser cannot encode Opus at 48000 Hz with ${opened.audio.numberOfChannels} channel(s); choose the video-only profile.`);
-      }
-    }
-    const selectedTracks = profile.audio === "opus" ? [opened.track, opened.audio.track] : [opened.track];
+    const selectedTracks = profile.audioCodec ? [opened.track, opened.audio.track] : [opened.track];
     const originSeconds = await opened.input.getFirstTimestamp(selectedTracks);
     const originUs = asSafeMicroseconds(Math.round(originSeconds * 1_000_000), "input origin");
     const videoFirstSeconds = (asSafeMicroseconds(Math.round(await opened.track.getFirstTimestamp() * 1_000_000), "video start") - originUs) / 1_000_000;
@@ -347,11 +389,11 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
       : 0;
     status(`Demuxed MP4/H.264: ${opened.width}×${opened.height}, ${opened.packetCount} video packets; profile ${profile.label}.`);
 
-    muxer = new MediabunnyWebMOutputAdapter(profile, opened.audio);
+    muxer = new MediabunnyOutputAdapter(profile, opened.audio);
     try {
       await muxer.start();
     } catch (error) {
-      fail(`WebM muxer initialization failed: ${errorMessage(error)}`);
+      fail(`${profile.container.toUpperCase()} muxer initialization failed: ${errorMessage(error)}`);
     }
     outputStarted = true;
 
@@ -383,8 +425,8 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
             const config = muxer.videoEncoderConfig;
             const configured = config
               ? `${config.codec}, ${config.width}×${config.height}, ${config.bitrate ?? "auto"} bit/s, hardware=${config.hardwareAcceleration ?? "no-preference"}`
-              : `${outputWidth}×${outputHeight} VP8 (encoder config was not emitted)`;
-            fail(`VP8 encoder configuration failed (${configured}): ${errorMessage(error)}`);
+              : `${outputWidth}×${outputHeight} ${profile.videoCodec.toUpperCase()} (encoder config was not emitted)`;
+            fail(`${profile.videoCodec.toUpperCase()} encoder configuration failed (${configured}): ${errorMessage(error)}`);
           } finally {
             outputSample.close();
           }
@@ -416,8 +458,8 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
             const config = muxer.audioEncoderConfig;
             const configured = config
               ? `${config.codec}, ${config.sampleRate} Hz, ${config.numberOfChannels} channel(s), ${config.bitrate ?? "auto"} bit/s`
-              : `Opus, 48000 Hz, ${opened.audio.numberOfChannels} channel(s) (encoder config was not emitted)`;
-            fail(`Opus encoder configuration failed (${configured}): ${errorMessage(error)}`);
+              : `${profile.audioCodec.toUpperCase()}, 48000 Hz, ${opened.audio.numberOfChannels} channel(s) (encoder config was not emitted)`;
+            fail(`${profile.audioCodec.toUpperCase()} encoder configuration failed (${configured}): ${errorMessage(error)}`);
           }
           audioSamples += 1;
           audioEndSeconds = (timestamp + duration) / 1_000_000;
@@ -447,50 +489,56 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
     if (rejected) throw rejected.reason;
 
     if (cancelled()) throw new Error("CANCELLED: conversion stopped by user");
-    status(`Finalizing WebM after ${processed} video frames and ${audioSamples} audio samples…`);
+    status(`Finalizing ${profile.container.toUpperCase()} after ${processed} video frames and ${audioSamples} audio samples…`);
     try {
       await muxer.finalize();
     } catch (error) {
-      fail(`WebM encoder drain/finalization failed: ${errorMessage(error)}${environmentHint()}`);
+      fail(`${profile.container.toUpperCase()} encoder drain/finalization failed: ${errorMessage(error)}${environmentHint()}`);
     }
     completed = true;
-    if (!muxer.target.buffer) fail("WebM finalization produced no output buffer.");
+    if (!muxer.target.buffer) fail(`${profile.container.toUpperCase()} finalization produced no output buffer.`);
     if (muxer.videoPackets !== processed) {
       fail(`Video encoder emitted ${muxer.videoPackets} packets for ${processed} processed frames.`);
     }
-    if (profile.audio === "opus" && muxer.audioPackets === 0) {
-      fail("Opus encoder emitted no packets.");
+    if (profile.audioCodec && muxer.audioPackets === 0) {
+      fail(`${profile.audioCodec.toUpperCase()} encoder emitted no packets.`);
     }
 
-    status("Inspecting finalized WebM and decoding video/audio at beginning, midpoint, and end…");
+    status(`Inspecting finalized ${profile.container.toUpperCase()} and decoding video/audio at beginning, midpoint, and end…`);
     let verified;
     try {
-      verified = await verifyWebM(muxer.target.buffer, {
+      verified = await verifyOutput(muxer.target.buffer, {
+        container: profile.container,
+        mimeType: profile.mimeType,
+        videoCodec: profile.videoCodec,
+        videoCodecLabel: profile.videoCodec === "avc" ? "H.264" : "VP8",
+        audioCodec: profile.audioCodec,
+        audioCodecLabel: profile.audioCodec === "aac" ? "AAC" : "Opus",
         width: outputWidth,
         height: outputHeight,
         frameCount: processed,
         videoEndSeconds,
         lastVideoDurationSeconds,
         videoFirstSeconds,
-        hasAudio: profile.audio === "opus",
+        hasAudio: Boolean(profile.audioCodec),
         audioChannels: opened.audio?.numberOfChannels ?? 0,
         audioFirstSeconds,
         audioEndSeconds,
       });
     } catch (error) {
-      fail(`Finalized WebM verification failed: ${errorMessage(error)}${environmentHint()}`);
+      fail(`Finalized ${profile.container.toUpperCase()} verification failed: ${errorMessage(error)}${environmentHint()}`);
     }
 
     if (currentDownloadUrl) URL.revokeObjectURL(currentDownloadUrl);
-    currentDownloadUrl = URL.createObjectURL(new Blob([muxer.target.buffer], { type: "video/webm" }));
+    currentDownloadUrl = URL.createObjectURL(new Blob([muxer.target.buffer], { type: profile.mimeType }));
     const base = file.name.replace(/\.[^.]+$/, "") || "converted";
     const elapsed = performance.now() - startedAt;
     return {
-      summary: profile.audio === "opus"
-        ? `PASS: ${processed} H.264 frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} VP8 + Opus WebM in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; ${verified.audioPackets} Opus packets; decoded audio peak=${verified.audioPeak.toFixed(4)}; audio queue peak=1; conversion pixel readbacks=0.`
-        : `PASS: ${processed} H.264 frames → ${outputWidth}×${outputHeight} VP8 video-only WebM in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`,
+      summary: profile.audioCodec
+        ? `PASS: ${processed} H.264 input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; decoded audio peak=${verified.audioPeak.toFixed(4)}; audio queue peak=1; conversion pixel readbacks=0.`
+        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`,
       downloadUrl: currentDownloadUrl,
-      fileName: `${base}-${outputWidth}x${outputHeight}.webm`,
+      fileName: `${base}-${outputWidth}x${outputHeight}.${profile.extension}`,
       frameCount: processed,
       duration: verified.duration,
       outputBytes: muxer.target.buffer.byteLength,
@@ -512,6 +560,10 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
 class WebCodecsMediabunnyBackend {
   inspect(file) {
     return inspect(file);
+  }
+
+  probeProfiles(file, outputWidth, outputHeight) {
+    return probeProfiles(file, outputWidth, outputHeight);
   }
 
   run(file, outputWidth, outputHeight, profileId, processFrame, status, cancelled) {
