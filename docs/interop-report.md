@@ -476,12 +476,12 @@ Status: **acceptance passed for the tested Firefox/Chromium environments; M3.5 w
 - The UI and platform-neutral job policy expose `no-preference` (default compatibility baseline) and `prefer-hardware`. The chosen value crosses the worker boundary and is applied to the exact input decoder and selected output encoder probes. A requested hardware preference is used only if the complete video profile passes. Otherwise the app visibly reports the failed exact configuration and uses `no-preference`; it never changes codec or container.
 - Conversion now reports live/peak/total/discarded counts for decoded video, GPU work, video encoder callbacks, video packet callbacks, decoded audio, audio encoder callbacks, and audio packet callbacks. Completion and cancellation settle application-owned callback counts back to zero.
 - The pinned Mediabunny implementation bounds its combined decoder packet/callback queue at 40 before decoded output and 8 while producing decoded samples, and waits when the WebCodecs encoder queue reaches 4. Application decoded-frame, GPU, and source-add stages are serial, audio submissions are serial, and mux writes are promise-serialized. These are separate bounds; codec/library-internal memory is not claimed as observable.
-- The wgpu execution context owns a device-generation-tagged, single-slot input texture pool. Each use holds an explicit lease through submitted-work completion and output capture. A concurrent lease or generation mismatch fails rather than reusing the texture. Telemetry reports allocation/reuse, leases, ingress copies, canvas captures, CPU bridge/submission time, and submitted-work completion waits. The latter includes synchronization and is explicitly not pure GPU execution time.
+- The wgpu execution context owns a device-generation-tagged, four-slot input texture ring. Each slot holds an explicit lease plus its decoded frame and optional compatibility bitmap through submitted-work completion. Reuse first retires the slot's previous completion callback; job completion and cancellation drain every remaining slot before cleanup. Telemetry reports allocation/reuse, leases, ingress copies, canvas captures, CPU bridge/submission time, cumulative overlapping completion latency, actual slot-reuse wait, and final-drain wait. Completion latency is explicitly not pure GPU execution time.
 - Worker initialization time is measured once and reported separately from conversion. The existing application frame/sample ownership counters and cancellation/restart checks remain in place.
 
-## Verified short-job matrix
+## Initial single-slot short-job baseline
 
-The final-code worker checks used Edge 153.0.4234.32 on Windows x64 with `intel / gen-12lp (BrowserWebGpu)` and Firefox 156.0 with browser-redacted adapter identity. The deterministic 60-frame H.264/AAC fixture was converted, re-decoded in the browser, loaded and midpoint-seeked in an HTML media element, cancelled and restarted for every enabled profile/preference combination. Five repeated M1 image/timestamp checks also passed in each final worker run.
+The initial single-slot worker checks used Edge 153.0.4234.32 on Windows x64 with `intel / gen-12lp (BrowserWebGpu)` and Firefox 156.0 with browser-redacted adapter identity. The deterministic 60-frame H.264/AAC fixture was converted, re-decoded in the browser, loaded and midpoint-seeked in an HTML media element, cancelled and restarted for every enabled profile/preference combination. Five repeated M1 image/timestamp checks also passed in each worker run. The later four-slot comparison supersedes these numbers for current performance while retaining them as the measured baseline.
 
 | Browser | Enabled profiles | Requested preference | Selected preference | Result |
 |---|---|---|---|---|
@@ -492,11 +492,11 @@ The final-code worker checks used Edge 153.0.4234.32 on Windows x64 with `intel 
 
 The hardware-request rows are **baseline fallback runs**, not measurements of hardware-preferred encoding. Timing differences are warm-cache/run variation and do not justify an automatic preference. Firefox continued to disable MP4 because its exact AAC encoder probe fails, independent of the video acceleration setting.
 
-Across final short worker conversions, each stage ended with zero live application-owned items. GPU leases ended at `0/1` live/peak, there were 60 ingress copies and 60 canvas captures, and one input texture slot was reused for all 60 frames after size configuration. Edge used direct VideoFrame ingress with zero additional bitmap conversions. Firefox used its documented VideoFrame→ImageBitmap compatibility conversion 60 times. Edge worker initialization measured 353.0 ms and Firefox 673.0 ms in these runs; that context was reused by every conversion command.
+Across these baseline short worker conversions, each stage ended with zero live application-owned items. GPU leases ended at `0/1` live/peak, there were 60 ingress copies and 60 canvas captures, and one input texture slot was reused for all 60 frames after size configuration. Edge used direct VideoFrame ingress with zero additional bitmap conversions. Firefox used its documented VideoFrame→ImageBitmap compatibility conversion 60 times. Edge worker initialization measured 353.0 ms and Firefox 673.0 ms in these runs; that context was reused by every conversion command.
 
 Before the final worker smoke, the same two acceleration requests × three profiles also passed the explicit main-thread and injected automatic-fallback paths in Edge. Together with the worker path, `tests/inspect-chromium-outputs.mjs` independently inspected all 18 short outputs using FFprobe/FFmpeg 8.0.1: every file fully decoded with 60 video frames; audio-preserving files retained the expected AAC or Opus audio, video-only files had none, and MP4 retained fast-start layout. The existing Mediabunny Opus packet-header warning remains even though full decoding succeeds.
 
-## Verified long run
+## Initial single-slot long run
 
 `tests/chromium-long-run.mjs` used the local 70,439,352-byte `tmp/user-test/Input.mp4` in the Edge dedicated worker with the `no-preference` WebM/VP8/Opus profile:
 
@@ -506,7 +506,7 @@ Before the final worker smoke, the same two acceleration requests × three profi
 - Stage peaks: decoded video 1, GPU 1, video encoder callbacks 3, video packets 1, decoded audio 1, audio encoder callbacks 1, and audio packets 1. Every stage ended at zero live items. Application frame/sample ownership ended at 0/0 with peaks 2/3.
 - GPU pool: 2 lifetime allocations across initial/configured sizes, 3,529 job reuses, leases `0/1`, 3,530 ingress copies, 3,530 canvas captures, and zero bitmap fallbacks. Reported CPU bridge/submission time was 1,966.7 ms; submitted-work waits were 41,723.3 ms and are not interpreted as pure GPU time.
 
-The final strict lease/generation guard was subsequently exercised by the complete short Edge and Firefox matrices. The long run establishes stable observable high-water marks and cleanup for the same pool path; it is not a browser-process heap or driver-memory profile.
+This baseline long run established stable observable high-water marks and cleanup for the original slot path; it was not a browser-process heap or driver-memory profile. The four-slot implementation was separately rerun below.
 
 ## Checks
 
@@ -515,6 +515,28 @@ The final strict lease/generation guard was subsequently exercised by the comple
 - JavaScript syntax checks and `node tests/worker-transport.test.mjs`: passed (5 tests).
 - `dx build --platform web`: passed with Dioxus CLI 0.7.10.
 - Final `node tests/chromium-worker-interop.mjs` and `node tests/firefox-worker-interop.mjs worker`: passed. Earlier M3.4 Edge main/fallback matrices and independent inspection also passed. Evidence and generated media remain under ignored `tmp/m33-chromium-*`, `tmp/m34-firefox-worker`, and `tmp/m34-long`.
+
+## Four-slot synchronization follow-up
+
+The single-slot measurements isolated the Firefox bottleneck: about 1.1–1.3 seconds was spent in VideoFrame→ImageBitmap ingress/submission and about 4.6–4.8 seconds in 60 serial submitted-work waits. The processor now retains at most four submissions and retires a slot only before its next reuse. This changes synchronization and resource ownership only; codecs, quality settings, shader, copy path, capture ordering, and output profiles are unchanged.
+
+Final four-slot worker results for the same deterministic input:
+
+| Browser | Profile/request | Single-slot baseline | Four-slot result | Observed change |
+|---|---|---:|---:|---:|
+| Firefox 156 | WebM/VP8/Opus, baseline | 6,213 ms | 1,410 ms | 77.3% lower elapsed time |
+| Firefox 156 | WebM/VP8/video-only, baseline | 6,187 ms | 1,298 ms | 79.0% lower elapsed time |
+| Firefox 156 | WebM/VP8/Opus, hardware request falling back to baseline | 6,151 ms | 1,172 ms | 80.9% lower elapsed time |
+| Firefox 156 | WebM/VP8/video-only, hardware request falling back to baseline | 6,173 ms | 1,757 ms | 71.5% lower elapsed time |
+| Edge 153 | WebM/VP8/Opus, baseline | 407.0 ms | 325.8 ms | 20.0% lower elapsed time |
+| Edge 153 | WebM/VP8/video-only, baseline | 422.2 ms | 356.1 ms | 15.7% lower elapsed time |
+| Edge 153 | MP4/H.264/AAC, baseline | 700.1 ms | 298.3 ms | 57.4% lower elapsed time |
+
+These are individual acceptance runs rather than a statistical benchmark. The hardware-request rows still selected `no-preference`, so their variation is not a hardware-acceleration result. Firefox's four-slot worker reported lease peaks of 4, only 0–2 ms total slot-reuse wait, 0–18 ms final-drain wait, and zero live leases after each complete job. Its explicit main-thread path also passed both profiles × both requests in 1,260–1,581 ms, including cancellation/restart, playback/seek, and five M1 rounds. Edge reported a lease peak of 4 and at most 1.2 ms slot-reuse wait in the final worker matrix.
+
+Browser re-decode, playback/seek, cancellation/restart, and five repeated deterministic M1 image/timestamp runs passed in both browsers. FFprobe/FFmpeg independently decoded all six newly generated Edge worker outputs with exactly 60 video frames and the expected AAC, Opus, or absent audio; the known Opus warning remains. This verifies that returning captured frames before each individual completion callback did not reorder or corrupt the tested output.
+
+The 147.3-second Edge test was repeated with the ring: 3,530/3,530 frames, 6,343 decoded audio samples, 7,365 Opus packets, 32,138,436 bytes, and full browser verification passed in 46,406.5 ms versus the 47,058.3 ms single-slot run. Leases ended at `0/4`; slot-reuse wait totaled 82.0 ms, final drain 0.1 ms, and the 50 ms heartbeat's maximum gap was 57.4 ms. This only modestly improved the long Edge run, showing that its long-input bottleneck lies elsewhere; the large Firefox short-job gain specifically confirms that per-frame synchronization dominated the earlier Firefox result.
 
 ## Explicitly untested or unavailable
 

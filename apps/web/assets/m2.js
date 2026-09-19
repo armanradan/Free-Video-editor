@@ -625,7 +625,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         ? `PASS: ${processed} H.264 input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; decoded audio peak=${verified.audioPeak.toFixed(4)}; audio queue peak=1; conversion pixel readbacks=0.`
         : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`)
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; exact decoder+encoder probes passed${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
-        + `\nBounds: Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; application decoded/GPU/source-add stages are serial; WebCodecs encoder queue ≤4; mux writes are serialized.`
+        + `\nBounds: Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; decoded/source-add calls are serial with ≤4 retained GPU submissions; WebCodecs encoder queue ≤4; mux writes are serialized.`
         + `\n${telemetry.report()}\n${lifecycle()}`,
       // Only compressed output leaves the execution context. The host owns its URL.
       blob: new Blob([muxer.target.buffer], { type: profile.mimeType }),

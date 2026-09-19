@@ -108,7 +108,7 @@
           metrics.peakEncoderQueue = Math.max(metrics.peakEncoderQueue, encoder.encodeQueueSize);
           close(output);
           metrics.processed++;
-          status(`Processed ${metrics.processed}/${manifest.frame_count} frames (one GPU frame in flight).`);
+          status(`Processed ${metrics.processed}/${manifest.frame_count} frames (bounded GPU submissions).`);
         } catch (error) {
           if (output) close(output);
           else close(frame);

@@ -2,7 +2,7 @@
 
 Dioxus Web controls an MP4/H.264 converter with shared Rust/wgpu half-size resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, and capability-gated MP4/H.264/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
 
-`media-core` owns platform-neutral policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.4 adds exact codec-acceleration selection/fallback, stage high-water telemetry, a generation-aware texture slot, and long-run validation; M3.5 has not started.
+`media-core` owns platform-neutral policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.4 adds exact codec-acceleration selection/fallback, stage high-water telemetry, a generation-aware four-slot texture ring, and long-run validation; M3.5 has not started.
 
 ## Prerequisites
 

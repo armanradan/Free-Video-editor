@@ -116,8 +116,10 @@ try {
     assert.match(summary, /^PASS: 60 H.264 input frames/);
     assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
     assert.match(summary, new RegExp(`Codec acceleration: requested=${acceleration}, selected=(?:${acceleration}|no-preference)`));
-    assert.match(summary, /GPU telemetry: device generation \d+; single-slot input texture pool ready=true/);
-    assert.match(summary, /leases live\/peak=0\/1; ingress copies=60; canvas captures=60/);
+    assert.match(summary, /GPU telemetry: device generation \d+; bounded input texture pool slots=4/);
+    const leasePeak = Number(summary.match(/leases live\/peak=0\/(\d+)/)?.[1]);
+    assert.ok(leasePeak >= 1 && leasePeak <= 4, `unexpected GPU lease peak ${leasePeak}`);
+    assert.match(summary, /ingress copies=60; canvas captures=60/);
     const responsiveness = await evaluate('clearInterval(__heartbeatTimer); __heartbeat');
     assert.ok(responsiveness.ticks > 0, "window timers should run during conversion");
     const output = await evaluate(`(async()=>{

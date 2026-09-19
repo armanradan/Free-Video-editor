@@ -10,6 +10,8 @@ mod browser {
     use media_gpu::ResizePipeline;
     use std::{
         cell::{Cell, RefCell},
+        future::Future,
+        pin::Pin,
         rc::Rc,
     };
     use wasm_bindgen::{JsCast, prelude::*};
@@ -17,6 +19,8 @@ mod browser {
     use web_sys::{
         File, HtmlCanvasElement, HtmlInputElement, OffscreenCanvas, VideoFrame, VideoFrameInit,
     };
+
+    const GPU_POOL_SIZE: usize = 4;
 
     thread_local! {
         static GENERATION: Cell<u32> = const { Cell::new(0) };
@@ -194,7 +198,8 @@ mod browser {
                 .await
                 .map_err(|e| JsValue::from_str(&e.to_string()))?,
         );
-        gpu.configure(INPUT_SIZE, OUTPUT_SIZE);
+        gpu.configure(INPUT_SIZE, OUTPUT_SIZE)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let init = VideoFrameInit::new();
         init.set_timestamp_f64(0.0);
         gpu.canvas.capture(&init)?.close();
@@ -324,11 +329,11 @@ mod browser {
     async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
         let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE).await?;
-        let process = process_callback(gpu);
+        let process = process_callback(Rc::clone(&gpu));
         let cancelled = cancellation_callback(generation);
         let fixture =
             js_sys::Uint8Array::from(include_bytes!("../../../fixtures/m1-vp8.ivf").as_slice());
-        let result = JsFuture::from(
+        let job_result = JsFuture::from(
             invoke_m1(
                 fixture,
                 include_str!("../../../fixtures/m1-vp8.json"),
@@ -338,8 +343,8 @@ mod browser {
             )
             .map_err(js_error)?,
         )
-        .await
-        .map_err(js_error)?;
+        .await;
+        let result = settle_gpu_job(&gpu, job_result).await?;
         let summary = format!(
             "{}\nAdditional VideoFrame→ImageBitmap compatibility conversions: {}.\n{}",
             string_property(&result, "summary", "probe returned no summary")?,
@@ -398,9 +403,9 @@ mod browser {
         )?;
         let output = ResizePreset::Half.output_size(input)?;
         let gpu = configured_gpu(input, output).await?;
-        let process = process_callback(gpu);
+        let process = process_callback(Rc::clone(&gpu));
         let cancelled = cancellation_callback(generation);
-        let result = JsFuture::from(
+        let job_result = JsFuture::from(
             backend
                 .run(
                     &file,
@@ -415,8 +420,8 @@ mod browser {
                 )
                 .map_err(js_error)?,
         )
-        .await
-        .map_err(js_error)?;
+        .await;
+        let result = settle_gpu_job(&gpu, job_result).await?;
         let bitmap_copies = BITMAP_COPIES.with(Cell::get);
         let summary = format!(
             "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\n{}",
@@ -518,7 +523,7 @@ mod browser {
             GPU_SESSION.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&created)));
             created
         };
-        gpu.configure(input, output);
+        gpu.configure(input, output)?;
         Ok(gpu)
     }
 
@@ -538,11 +543,23 @@ mod browser {
     }
 
     struct ConfiguredResources {
-        input: wgpu::Texture,
+        slots: Vec<InputTextureSlot>,
+        next_slot: Cell<usize>,
         input_size: Size,
         output_size: Size,
         device_generation: u32,
+    }
+    struct InputTextureSlot {
+        input: wgpu::Texture,
         uses: Cell<u64>,
+        pending: RefCell<Option<PendingSubmission>>,
+    }
+    struct PendingSubmission {
+        completion: futures_channel::oneshot::Receiver<f64>,
+        error: Pin<Box<dyn Future<Output = Option<wgpu::Error>>>>,
+        _lease: ProcessingLease,
+        _decoded: OwnedVideoFrame,
+        _bitmap: OwnedBitmap,
     }
     struct GpuSession {
         device_generation: u32,
@@ -565,7 +582,9 @@ mod browser {
         peak_leases: u32,
         texture_reuses: u64,
         cpu_submission_ms: f64,
-        gpu_completion_wait_ms: f64,
+        gpu_completion_latency_ms: f64,
+        pool_wait_ms: f64,
+        final_drain_wait_ms: f64,
     }
     impl ProcessingMetrics {
         const ZERO: Self = Self {
@@ -575,7 +594,9 @@ mod browser {
             peak_leases: 0,
             texture_reuses: 0,
             cpu_submission_ms: 0.0,
-            gpu_completion_wait_ms: 0.0,
+            gpu_completion_latency_ms: 0.0,
+            pool_wait_ms: 0.0,
+            final_drain_wait_ms: 0.0,
         };
     }
     struct ProcessingLease;
@@ -583,9 +604,9 @@ mod browser {
         fn new() -> Result<Self, JsValue> {
             PROCESSING_METRICS.with(|metrics| {
                 let mut value = metrics.get();
-                if value.live_leases != 0 {
+                if value.live_leases as usize >= GPU_POOL_SIZE {
                     return Err(JsValue::from_str(
-                        "GPU input texture pool is busy; concurrent reuse was rejected",
+                        "GPU input texture pool is full; unretired reuse was rejected",
                     ));
                 }
                 value.live_leases += 1;
@@ -724,14 +745,24 @@ mod browser {
             })
         }
 
-        fn configure(&self, input_size: Size, output_size: Size) {
+        fn configure(&self, input_size: Size, output_size: Size) -> Result<(), MediaError> {
             if self
                 .configured
                 .borrow()
                 .as_ref()
                 .is_some_and(|c| c.input_size == input_size && c.output_size == output_size)
             {
-                return;
+                return Ok(());
+            }
+            if self.configured.borrow().as_ref().is_some_and(|configured| {
+                configured
+                    .slots
+                    .iter()
+                    .any(|slot| slot.pending.borrow().is_some())
+            }) {
+                return Err(platform(
+                    "cannot reconfigure GPU textures while submissions are in flight",
+                ));
             }
             self.canvas.resize(output_size);
             self.surface.configure(
@@ -748,31 +779,38 @@ mod browser {
                     desired_maximum_frame_latency: 2,
                 },
             );
-            let input = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("decoded VideoFrame texture"),
-                size: wgpu::Extent3d {
-                    width: input_size.width,
-                    height: input_size.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::COPY_DST
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
-            });
+            let slots = (0..GPU_POOL_SIZE)
+                .map(|_| InputTextureSlot {
+                    input: self.device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("decoded VideoFrame texture pool slot"),
+                        size: wgpu::Extent3d {
+                            width: input_size.width,
+                            height: input_size.height,
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        usage: wgpu::TextureUsages::COPY_DST
+                            | wgpu::TextureUsages::TEXTURE_BINDING
+                            | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                        view_formats: &[],
+                    }),
+                    uses: Cell::new(0),
+                    pending: RefCell::new(None),
+                })
+                .collect();
             self.texture_allocations
-                .set(self.texture_allocations.get() + 1);
+                .set(self.texture_allocations.get() + GPU_POOL_SIZE as u64);
             *self.configured.borrow_mut() = Some(ConfiguredResources {
-                input,
+                slots,
+                next_slot: Cell::new(0),
                 input_size,
                 output_size,
                 device_generation: self.device_generation,
-                uses: Cell::new(0),
             });
+            Ok(())
         }
 
         async fn process(
@@ -781,7 +819,34 @@ mod browser {
             timestamp: i64,
             duration: i64,
         ) -> Result<JsValue, JsValue> {
-            let _lease = ProcessingLease::new()?;
+            let slot_index = {
+                let configured = self.configured.borrow();
+                let configured = configured
+                    .as_ref()
+                    .ok_or_else(|| JsValue::from_str("GPU processor is not configured"))?;
+                if configured.device_generation != self.device_generation {
+                    return Err(JsValue::from_str(
+                        "GPU resource belongs to a different device generation",
+                    ));
+                }
+                let index = configured.next_slot.get();
+                configured
+                    .next_slot
+                    .set((index + 1) % configured.slots.len());
+                index
+            };
+            let previous = {
+                let configured = self.configured.borrow();
+                configured.as_ref().unwrap().slots[slot_index]
+                    .pending
+                    .borrow_mut()
+                    .take()
+            };
+            if let Some(previous) = previous {
+                Self::retire_submission(previous, false).await?;
+            }
+
+            let lease = ProcessingLease::new()?;
             let submission_started = performance_now();
             let decoded = OwnedVideoFrame(decoded);
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
@@ -795,7 +860,8 @@ mod browser {
                         "GPU resource belongs to a different device generation",
                     ));
                 }
-                let uses = configured.uses.get();
+                let slot = &configured.slots[slot_index];
+                let uses = slot.uses.get();
                 if uses > 0 {
                     PROCESSING_METRICS.with(|metrics| {
                         let mut value = metrics.get();
@@ -803,7 +869,7 @@ mod browser {
                         metrics.set(value);
                     });
                 }
-                configured.uses.set(uses + 1);
+                slot.uses.set(uses + 1);
                 PROCESSING_METRICS.with(|metrics| {
                     let mut value = metrics.get();
                     value.ingress_copies += 1;
@@ -814,7 +880,7 @@ mod browser {
                         .as_webgpu()
                         .ok_or_else(|| JsValue::from_str("WebGPU queue unavailable"))?
                         .as_ref(),
-                    configured
+                    configured.slots[slot_index]
                         .input
                         .as_webgpu()
                         .ok_or_else(|| JsValue::from_str("WebGPU texture unavailable"))?
@@ -834,7 +900,7 @@ mod browser {
             if !bitmap.is_null() {
                 BITMAP_COPIES.with(|value| value.set(value.get() + 1));
             }
-            let _bitmap = OwnedBitmap(bitmap);
+            let bitmap = OwnedBitmap(bitmap);
             let encoded_input = (|| {
                 let configured = self.configured.borrow();
                 let configured = configured
@@ -849,7 +915,9 @@ mod browser {
                         )));
                     }
                 };
-                let source = configured.input.create_view(&Default::default());
+                let source = configured.slots[slot_index]
+                    .input
+                    .create_view(&Default::default());
                 let target = output.texture.create_view(&Default::default());
                 let mut encoder =
                     self.device
@@ -888,23 +956,104 @@ mod browser {
                 metrics.set(value);
             });
             self.queue.on_submitted_work_done(move || {
-                let _ = sender.send(());
+                let _ = sender.send(performance_now() - completion_wait_started);
             });
-            let _ = receiver.await;
-            PROCESSING_METRICS.with(|metrics| {
-                let mut value = metrics.get();
-                value.gpu_completion_wait_ms += performance_now() - completion_wait_started;
-                metrics.set(value);
-            });
-            if let Some(error) = scope.pop().await {
+            let pending = PendingSubmission {
+                completion: receiver,
+                error: Box::pin(scope.pop()),
+                _lease: lease,
+                _decoded: decoded,
+                _bitmap: bitmap,
+            };
+            let replaced = {
+                let configured = self.configured.borrow();
+                configured.as_ref().unwrap().slots[slot_index]
+                    .pending
+                    .replace(Some(pending))
+            };
+            if let Some(replaced) = replaced {
+                let _ = Self::retire_submission(replaced, false).await;
                 if let Ok(frame) = encoded_input {
                     frame.close();
                 }
+                return Err(JsValue::from_str(
+                    "GPU texture slot still held an unretired submission",
+                ));
+            }
+            Ok(encoded_input?.into())
+        }
+
+        async fn retire_submission(
+            pending: PendingSubmission,
+            final_drain: bool,
+        ) -> Result<(), JsValue> {
+            let wait_started = performance_now();
+            let completion = pending.completion.await;
+            let validation_error = pending.error.await;
+            let waited = performance_now() - wait_started;
+            PROCESSING_METRICS.with(|metrics| {
+                let mut value = metrics.get();
+                if let Ok(completion_latency) = completion.as_ref() {
+                    value.gpu_completion_latency_ms += *completion_latency;
+                }
+                if final_drain {
+                    value.final_drain_wait_ms += waited;
+                } else {
+                    value.pool_wait_ms += waited;
+                }
+                metrics.set(value);
+            });
+            if let Some(error) = validation_error {
                 return Err(JsValue::from_str(&format!(
                     "WebGPU validation failed: {error}"
                 )));
             }
-            Ok(encoded_input?.into())
+            completion.map_err(|_| {
+                JsValue::from_str("GPU completion callback was dropped before signaling")
+            })?;
+            Ok(())
+        }
+
+        async fn drain_pending(&self) -> Result<(), JsValue> {
+            let pending = {
+                let configured = self.configured.borrow();
+                configured
+                    .as_ref()
+                    .map(|configured| {
+                        configured
+                            .slots
+                            .iter()
+                            .filter_map(|slot| slot.pending.borrow_mut().take())
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            };
+            let mut first_error = None;
+            for pending in pending {
+                if let Err(error) = Self::retire_submission(pending, true).await
+                    && first_error.is_none()
+                {
+                    first_error = Some(error);
+                }
+            }
+            first_error.map_or(Ok(()), Err)
+        }
+    }
+
+    async fn settle_gpu_job(
+        gpu: &GpuSession,
+        job_result: Result<JsValue, JsValue>,
+    ) -> Result<JsValue, MediaError> {
+        let drain_result = gpu.drain_pending().await;
+        match (job_result, drain_result) {
+            (Ok(result), Ok(())) => Ok(result),
+            (Err(job), Ok(())) => Err(js_error(job)),
+            (Ok(_), Err(drain)) => Err(js_error(drain)),
+            (Err(job), Err(drain)) => Err(platform(format!(
+                "{}; GPU drain also failed: {}",
+                js_error(job),
+                js_error(drain)
+            ))),
         }
     }
 
@@ -915,20 +1064,25 @@ mod browser {
                 (
                     gpu.device_generation,
                     gpu.texture_allocations.get(),
-                    gpu.configured.borrow().is_some(),
+                    gpu.configured
+                        .borrow()
+                        .as_ref()
+                        .map_or(0, |configured| configured.slots.len()),
                 )
             })
         });
-        let (generation, allocations, pool_ready) = session.unwrap_or((0, 0, false));
+        let (generation, allocations, pool_slots) = session.unwrap_or((0, 0, 0));
         format!(
-            "GPU telemetry: device generation {generation}; single-slot input texture pool ready={pool_ready}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; CPU submission/bridge={:.1} ms; submitted-work completion waits={:.1} ms (not pure GPU execution; timestamp queries unavailable/not requested).",
+            "GPU telemetry: device generation {generation}; bounded input texture pool slots={pool_slots}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; CPU submission/bridge={:.1} ms; cumulative submitted-work completion latency={:.1} ms; slot-reuse wait={:.1} ms; final-drain wait={:.1} ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
             metrics.texture_reuses,
             metrics.live_leases,
             metrics.peak_leases,
             metrics.ingress_copies,
             metrics.canvas_captures,
             metrics.cpu_submission_ms,
-            metrics.gpu_completion_wait_ms,
+            metrics.gpu_completion_latency_ms,
+            metrics.pool_wait_ms,
+            metrics.final_drain_wait_ms,
         )
     }
 

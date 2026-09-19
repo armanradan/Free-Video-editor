@@ -46,6 +46,14 @@ try {
   const status = 'document.querySelector("#status").textContent';
   const terminal = () => waitFor(`!document.querySelector("#convert").disabled && /^(PASS|FAILED|CANCELLED):/.test(${status}) && ${status}`, 45_000);
   const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const armCancel = prefix => evaluate(`{
+    const observer = new MutationObserver(()=>{
+      if (document.querySelector("#status").textContent.startsWith(${JSON.stringify(prefix)})) {
+        observer.disconnect(); document.querySelector("#cancel").click();
+      }
+    });
+    observer.observe(document.querySelector("#status"), {subtree:true,childList:true,characterData:true});
+  }`);
   await send("browsingContext.navigate", {
     context, url: `http://127.0.0.1:8084/${mode === "main" ? "?execution=main" : ""}`, wait: "complete",
   });
@@ -76,8 +84,10 @@ try {
     assert.match(summary, /^PASS: 60 H.264 input frames/);
     assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
     assert.match(summary, new RegExp(`Codec acceleration: requested=${acceleration}, selected=(?:${acceleration}|no-preference)`));
-    assert.match(summary, /GPU telemetry: device generation \d+; single-slot input texture pool ready=true/);
-    assert.match(summary, /leases live\/peak=0\/1; ingress copies=60; canvas captures=60/);
+    assert.match(summary, /GPU telemetry: device generation \d+; bounded input texture pool slots=4/);
+    const leasePeak = Number(summary.match(/leases live\/peak=0\/(\d+)/)?.[1]);
+    assert.ok(leasePeak >= 1 && leasePeak <= 4, `unexpected GPU lease peak ${leasePeak}`);
+    assert.match(summary, /ingress copies=60; canvas captures=60/);
     const responsiveness = JSON.parse(await evaluate('clearInterval(__heartbeatTimer); JSON.stringify(__heartbeat)'));
     assert.ok(responsiveness.ticks > 0, "window timers must continue during conversion");
     const output = JSON.parse(await evaluate(`(async()=>{ const a=document.querySelector("#download"); const bytes=new Uint8Array(await (await fetch(a.href)).arrayBuffer()); let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return JSON.stringify({name:a.download,data:btoa(binary)}) })()`));
@@ -89,9 +99,8 @@ try {
     console.log(JSON.stringify(evidence.profiles.at(-1)));
     }
   }
+  await armCancel("Processed");
   await click(".regression button");
-  await delay(250);
-  await click("#cancel");
   evidence.m1Cancellation = await terminal();
   assert.match(evidence.m1Cancellation, /^CANCELLED:/);
   assert.match(evidence.m1Cancellation, /live frames=0/);

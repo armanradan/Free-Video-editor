@@ -74,7 +74,8 @@ try {
   assert.match(evidence.summary, /^PASS:/);
   assert.match(evidence.summary, /Codec acceleration: requested=no-preference, selected=no-preference/);
   assert.match(evidence.summary, /Cleanup: 0 application-held frame references, 0 samples/);
-  assert.match(evidence.summary, /leases live\/peak=0\/1/);
+  const leasePeak = Number(evidence.summary.match(/leases live\/peak=0\/(\d+)/)?.[1]);
+  assert.ok(leasePeak >= 1 && leasePeak <= 4, `unexpected GPU lease peak ${leasePeak}`);
   const frames = Number(evidence.summary.match(/PASS: (\d+) H\.264/)?.[1]);
   assert.ok(frames > 1000, `Expected a long run, got ${frames} frames`);
   const stageFrames = Number(evidence.summary.match(/decoded-video 0\/1\/(\d+)/)?.[1]);
