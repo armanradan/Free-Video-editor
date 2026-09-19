@@ -48,4 +48,21 @@ node tests/firefox-worker-interop.mjs main
 
 It tests every enabled profile, cancellation/restart, output loading/seeking, window timer responsiveness, M1 cancellation and five repeated M1 marker checks. Generated outputs/evidence go under ignored `tmp/m33-*`. The transport unit tests simulate unsupported startup, cancellation, stale messages, and worker crashes; they are not browser interoperability evidence.
 
-See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and untested behavior](docs/interop-report.md). Firefox worker/fallback WebM is verified; Chromium/MP4 worker validation remains pending.
+For Chromium validation, start an isolated browser debugging session yourself (the harness never launches a browser). For example, from the repository root on Windows with Edge installed:
+
+```powershell
+& 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe' --remote-debugging-port=9227 --user-data-dir="$PWD\tmp\edge-m33-validation" --no-first-run about:blank
+```
+
+With the app served on port 8084, run:
+
+```powershell
+node tests/chromium-worker-interop.mjs worker
+node tests/chromium-worker-interop.mjs main
+node tests/chromium-worker-interop.mjs fallback
+node tests/inspect-chromium-outputs.mjs
+```
+
+The last command requires FFmpeg/FFprobe on PATH. The Chromium harness creates and closes only its own test tab; `fallback` injects a test-only worker-constructor failure to exercise automatic fallback. It requires all three profiles, including MP4, to pass before reporting completion. It saves partial failure evidence as well as successful results under ignored `tmp/m33-chromium-*`. Close the isolated debugging browser when finished; do not use your everyday profile for these tests.
+
+See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.3 acceptance is complete for the tested Firefox/Chromium matrix; this does not claim universal browser or codec support.

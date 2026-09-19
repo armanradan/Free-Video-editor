@@ -1,6 +1,6 @@
 # GPU video converter: architecture and development plan
 
-Status: design researched 2026-09-15; implementation through M3.3, with Firefox worker/fallback WebM validation on 2026-09-19. Chromium/MP4 worker validation remains pending. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations.
+Status: design researched 2026-09-15; M3.3 acceptance passed on 2026-09-19 for Firefox's enabled WebM profiles and all three profiles in Chromium, through worker and fallback paths. M3.4 has not started. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations.
 
 ## 1. Architecture
 
@@ -355,7 +355,7 @@ Implementation status (2026-09-18): `Mp4H264Aac` is implemented as a complete pr
 
 #### M3.3 — worker migration
 
-Implementation status (2026-09-19, superseding the earlier M3.2 status): implemented and verified in Firefox 156 for every profile enabled there (WebM/VP8/Opus and video-only WebM), in both worker and explicit main-thread modes. MP4 remains unavailable there because the exact AAC encoder probe fails. Chromium launch is blocked in the validation environment, so Chromium/MP4 worker acceptance is pending; do not carry forward M3.2 results as proof of this new path. M3.4 has not started.
+Implementation status (2026-09-19, superseding the earlier M3.2 status): acceptance passed in Firefox 156 for both enabled WebM profiles and in Edge/Chromium 153 for all three profiles, including MP4/H.264/AAC. Worker and explicit main-thread paths passed conversion, cancellation/restart, lifecycle counters, playback and five repeated M1 correctness checks per path. A real Chromium test also injected worker-constructor failure and verified visible automatic fallback with all three profiles. Independent FFmpeg inspection passed frame/audio counts, audio seeks and MP4 fast-start layout; the pre-existing Opus header warning remains documented. The user supplied an isolated Chromium debugging session to resolve the earlier launch restriction. Firefox still disables MP4 because its exact AAC encoder probe fails. M3.4 has not started.
 
 The `media-web` module worker imports the same Dioxus-produced wasm bundle; app startup mounts Dioxus only when `document` exists. No second Rust build or duplicate processor is maintained. wasm-bindgen copies `worker-host.js` as a local module snippet; it resolves the pinned Dioxus `wasm/converter-web.js` layout relative to the inline binding. The hashed codec-script URLs are supplied by `asset!`, not guessed by the worker. Renaming the app or changing the bundler layout requires updating/testing that resolver. The worker pays for a second wasm instance including currently unused UI code; bundle splitting is not part of this correctness milestone.
 

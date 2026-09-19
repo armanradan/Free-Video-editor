@@ -339,7 +339,7 @@ Rust formatting, host core/GPU tests, wasm check/Clippy and locked Dioxus web bu
 # M3.3 dedicated worker interoperability report
 
 Date: 2026-09-19
-Status: **Implemented; Firefox worker and main-thread fallback pass every profile enabled there. Chromium/MP4 worker validation remains pending. M3.4 not started.**
+Initial status: **Firefox worker and main-thread fallback passed every profile enabled there; Chromium/MP4 validation was pending.** The completion section below closes that gap. M3.4 has not started.
 
 ## Implementation
 
@@ -410,3 +410,58 @@ The window timer and working Cancel controls demonstrate event-loop responsivene
 - M1's verification and final container/audio verification are diagnostic paths, not fast-path pixel transfers. Conversion timings above include verification; no pure throughput gain is claimed.
 - Long-duration worker memory/queue behavior, arbitrary codec hangs, device loss, pooled texture reuse, higher throughput, streaming, geometry/color extensions, and native/FFmpeg work remain outside M3.3. The same wasm bundle is instantiated in both contexts; this duplicates wasm instance memory and is not a minimal worker download.
 - Human listening was not performed. The existing silent-source audio verifier limitation, multiple audio tracks, and the Opus header diagnostic are unchanged by worker migration.
+
+## M3.3 completion — Chromium/MP4 validation, 2026-09-19
+
+**Acceptance gate passed for the tested browser/profile matrix.** This section supersedes the earlier Chromium/MP4 pending status. No runtime implementation changes were necessary in this completion pass; reusable Chromium and independent output-inspection harnesses were added. M3.4 remains unstarted.
+
+The user started an isolated Edge session with local debugging port 9227, resolving the browser-launch restriction. The in-app browser bridge remained unavailable (`privileged native pipe bridge is not available; browser-client is not trusted`). Tests connected to the user-provided session, created/closed their own tabs, and did not inspect or change the everyday browser profile.
+
+Environment: Microsoft Edge 153.0.4234.32, normal rendering mode, Windows x64, WebGPU adapter `intel / gen-12lp (BrowserWebGpu)`, app served at `http://127.0.0.1:8084/`. Dependency/toolchain versions and deterministic fixtures are unchanged. All three exact profile probes passed in the worker and main-thread contexts. The acceleration preference remains `no-preference`; adapter identity does not identify the codec engine.
+
+### Real-browser results
+
+Each of three modes tested **all three profiles**, cancellation during frame processing followed by immediate restart, zero application-held frame references/samples after cleanup, HTML media-element loading and midpoint seeking, M1 cancellation and **five consecutive complete M1 rounds**:
+
+1. Dedicated worker: OffscreenCanvas and direct VideoFrame ingress.
+2. Explicit compatibility path: `?execution=main`.
+3. Automatic compatibility path: a test-only replacement Worker constructor throws `Injected worker startup failure for interoperability test`; the app displays that exact reason and runs the unchanged main-thread implementation. This is a real-browser transport/startup-failure test, not a GPU-driver failure or a claim that the browser lacks workers.
+
+Final foreground-tab measurements (`document.visibilityState` recorded as `visible` for every conversion):
+
+| Mode | Profile | Elapsed including verification | 50 ms timer ticks / max gap |
+|---|---|---|---|
+| Worker | WebM/VP8/Opus | 405.2 ms | 8 / 53.0 ms |
+| Worker | WebM/VP8/video-only | 384.5 ms | 7 / 53.3 ms |
+| Worker | MP4/H.264/AAC | 830.4 ms | 17 / 61.0 ms |
+| Explicit main | WebM/VP8/Opus | 417.5 ms | 8 / 59.6 ms |
+| Explicit main | WebM/VP8/video-only | 408.0 ms | 8 / 56.4 ms |
+| Explicit main | MP4/H.264/AAC | 431.9 ms | 9 / 51.4 ms |
+| Automatic fallback | WebM/VP8/Opus | 419.9 ms | 8 / 63.3 ms |
+| Automatic fallback | WebM/VP8/video-only | 370.3 ms | 7 / 57.1 ms |
+| Automatic fallback | MP4/H.264/AAC | 382.1 ms | 7 / 52.1 ms |
+
+An earlier run without explicit tab foregrounding observed a 1,025.5 ms timer gap during the first automatic-fallback conversion; visibility was not recorded in that run, so its cause is not established. The harness now brings its own tab forward and records visibility. These small, variable measurements establish continued window event handling and working cancellation, not a statistically established speed advantage or background-tab responsiveness guarantee.
+
+All nine final outputs retained **60/60 video frames** at 320×180. WebM/Opus used all 95 decoded source audio samples and emitted 102 Opus packets (97,164 bytes, 2.040 s); video-only WebM had no audio (62,512 bytes, 2.000 s). MP4 used all 95 decoded source audio samples and emitted 95 AAC packets (101,653 bytes, 2.026667 s). Browser audio verification near beginning/middle/end measured peaks 0.0424 for Opus and 0.1478 for AAC. HTML midpoint seeks reached 1.02 s, 1.00 s, and 1.013333 s respectively.
+
+Application-held frame-reference/sample peaks were 2/2 in each final conversion; cleanup was 0/0 after completion and cancellation. There were **zero additional bitmap compatibility conversions**, confirming the direct VideoFrame ingress branch was exercised in Chromium. Each processed frame still uses the baseline external-image texture copy; zero explicit conversion pixel readbacks is not proof of zero internal copies.
+
+All 15 final M1 rounds passed 30/30 decode → resize → encode → re-decode frames, 160×90 geometry, timestamps within ±1 µs, orientation and RGB markers. Each reported zero live frames after cleanup, 30 ingress copies, zero bitmap conversions, and 30 separate verification readbacks. Peak metrics were live frames 8, decoder submissions 4, decoded callbacks 6, encoder submissions 1, verifier submissions 4, verifier callbacks 5. M1 elapsed ranges including verification were worker 212.0–471.3 ms, explicit main 228.6–470.6 ms, automatic fallback 213.1–235.9 ms. M1 cancellation in each mode returned live frames=0 and restart succeeded.
+
+### Independent inspection
+
+`tests/inspect-chromium-outputs.mjs` used FFprobe/FFmpeg 8.0.1 to verify all nine files. Each decoded completely with exit code zero and exactly 60 video frames. The six audio-preserving outputs also decoded 50 ms audio segments at 0.1, 1.0 and 1.8 seconds with a finite, non-silent peak. Video-only files contained no audio stream.
+
+MP4 results in all three modes: H.264 High profile (`avc1`, 38-byte codec initialization data), AAC-LC (`mp4a`, 2-byte codec initialization data), mono 48 kHz, 95 decoded audio frames. The `moov` box precedes `mdat` (offsets 28 and 1,947), verifying fast-start layout. Video starts at 0.021337 s and lasts 2.000 s; AAC starts at 0.000 s and lasts 2.026667 s. The measured 21.337 ms track-start offset is within the existing 50 ms verification tolerance; this is not a sample-exact synchronization claim. Independent AAC seek peaks were -17.8, -17.8 and -17.9 dB. MP4 probing and full decoding emitted no warnings.
+
+WebM outputs retained VP8 and the expected Opus/no-audio tracks; each audio-preserving output independently decoded 102 Opus frames at 48 kHz mono. The pre-existing **Opus packet-header warning remains** during FFmpeg open/probing despite complete successful decode. It remains a compatibility finding for later investigation, not a worker migration failure or a warning-free interoperability claim.
+
+### Reproduction, checks and remaining scope
+
+- `node tests/chromium-worker-interop.mjs worker`, `main`, and `fallback`: passed; both an initial run and a final visibility-instrumented run completed in each mode. Final detailed results/media are under ignored `tmp/m33-chromium-*`.
+- `node tests/inspect-chromium-outputs.mjs`: all nine outputs passed independent checks; detailed metadata/warnings are saved beside browser evidence.
+- Five transport unit tests, Rust formatting, wasm workspace check/Clippy, six core host tests and the locked Dioxus web build passed. The pre-existing GNU GPU-test linker warning is unchanged.
+- The earlier Firefox worker/main results remain valid for its two enabled WebM profiles; Firefox still cannot enable this AAC profile. The unsupported reason is expected capability behavior, not a remaining M3.3 implementation task.
+- No human listening, arbitrary worker runtime crash/device-loss injection, startup-timeout test, Safari/other-OS test, or restrictive-CSP/subpath deployment validation was added. Transport runtime-crash handling remains unit-tested; driver recovery and broader compatibility are later milestones.
+- Long-run memory/queue profiling, resource pools, hardware-preference comparisons, geometry/color work and streaming remain M3.4–M3.6. Completion here is scoped to the M3.3 acceptance gate, not completion of M3 overall.
