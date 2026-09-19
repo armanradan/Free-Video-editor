@@ -4,8 +4,8 @@
 mod browser {
     use js_sys::{Function, Promise, Reflect};
     use media_core::{
-        INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId, ResizePreset, Size,
-        validate_browser_input_size,
+        CodecAcceleration, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId, ResizePreset,
+        Size, validate_browser_input_size,
     };
     use media_gpu::ResizePipeline;
     use std::{
@@ -20,8 +20,10 @@ mod browser {
 
     thread_local! {
         static GENERATION: Cell<u32> = const { Cell::new(0) };
+        static NEXT_DEVICE_GENERATION: Cell<u32> = const { Cell::new(0) };
         static GPU_SESSION: RefCell<Option<Rc<GpuSession>>> = const { RefCell::new(None) };
         static BITMAP_COPIES: Cell<u32> = const { Cell::new(0) };
+        static PROCESSING_METRICS: Cell<ProcessingMetrics> = const { Cell::new(ProcessingMetrics::ZERO) };
         static REMOTE_GPU: RefCell<Option<String>> = const { RefCell::new(None) };
     }
 
@@ -43,6 +45,7 @@ mod browser {
 
     #[wasm_bindgen(inline_js = r#"
         export function runtimeModuleUrl() { return new URL('../../converter-web.js', import.meta.url).href; }
+        export function performanceNow() { return performance.now(); }
         export function invokeM1(fixture, manifest, processFrame, status, cancelled) {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
@@ -67,8 +70,8 @@ mod browser {
         export function probeBrowserProfiles(file, width, height) {
             return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height);
         }
-        export function invokeBrowserJob(file, width, height, profile, processFrame, status, cancelled) {
-            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, processFrame, status, cancelled);
+        export function invokeBrowserJob(file, width, height, profile, acceleration, processFrame, status, cancelled) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, processFrame, status, cancelled);
         }
         export async function describeSelectedAdapter() {
             const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
@@ -83,6 +86,8 @@ mod browser {
     extern "C" {
         #[wasm_bindgen(js_name = runtimeModuleUrl)]
         fn runtime_module_url() -> String;
+        #[wasm_bindgen(js_name = performanceNow)]
+        fn performance_now() -> f64;
         #[wasm_bindgen(js_name = copyDecodedFrame, catch)]
         fn copy_decoded_frame(
             queue: &JsValue,
@@ -110,6 +115,7 @@ mod browser {
             width: u32,
             height: u32,
             profile: &str,
+            acceleration: &str,
             process_frame: &Function,
             status: &Function,
             cancelled: &Function,
@@ -127,6 +133,7 @@ mod browser {
             file: Option<File>,
             operation: &str,
             profile: &str,
+            acceleration: &str,
             status: &Function,
             local: &Function,
         ) -> Result<Promise, JsValue>;
@@ -142,14 +149,20 @@ mod browser {
         file: Option<File>,
         operation: &str,
         profile: &str,
+        acceleration: &str,
         status: Function,
     ) -> Result<JsValue, MediaError> {
-        let local = Closure::<dyn FnMut(JsValue, String, String, Function) -> Promise>::new(
-            |file: JsValue, operation: String, profile: String, status: Function| {
+        let local = Closure::<dyn FnMut(JsValue, String, String, String, Function) -> Promise>::new(
+            |file: JsValue,
+             operation: String,
+             profile: String,
+             acceleration: String,
+             status: Function| {
                 future_to_promise(execute_job(
                     file.dyn_into::<File>().ok(),
                     operation,
                     profile,
+                    acceleration,
                     status,
                 ))
             },
@@ -159,6 +172,7 @@ mod browser {
                 file,
                 operation,
                 profile,
+                acceleration,
                 &status,
                 local.as_ref().unchecked_ref(),
             )
@@ -193,6 +207,7 @@ mod browser {
         file: Option<File>,
         operation: String,
         profile: String,
+        acceleration: String,
         status: Function,
     ) -> Result<JsValue, JsValue> {
         let result = match operation.as_str() {
@@ -208,8 +223,12 @@ mod browser {
                     "mp4-h264-aac" => OutputProfileId::Mp4H264Aac,
                     _ => return Err(JsValue::from_str("unknown output profile")),
                 };
+                let acceleration = match acceleration.as_str() {
+                    "prefer-hardware" => CodecAcceleration::PreferHardware,
+                    _ => CodecAcceleration::NoPreference,
+                };
                 match file {
-                    Some(file) => convert_file(file, profile, status).await,
+                    Some(file) => convert_file(file, profile, acceleration, status).await,
                     None => Err(platform("no source file")),
                 }
             }
@@ -229,8 +248,7 @@ mod browser {
         fn run(
             &self,
             file: &File,
-            output: Size,
-            profile: OutputProfileId,
+            request: ConversionRequest,
             process_frame: &Function,
             status: &Function,
             cancelled: &Function,
@@ -240,6 +258,13 @@ mod browser {
 
     struct WebCodecsMediabunnyBackend;
 
+    #[derive(Clone, Copy)]
+    struct ConversionRequest {
+        output: Size,
+        profile: OutputProfileId,
+        acceleration: CodecAcceleration,
+    }
+
     impl BrowserConversionBackend for WebCodecsMediabunnyBackend {
         fn inspect(&self, file: &File) -> Result<Promise, JsValue> {
             inspect_browser_input(file)
@@ -248,17 +273,17 @@ mod browser {
         fn run(
             &self,
             file: &File,
-            output: Size,
-            profile: OutputProfileId,
+            request: ConversionRequest,
             process_frame: &Function,
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue> {
             invoke_browser_job(
                 file,
-                output.width,
-                output.height,
-                profile.as_str(),
+                request.output.width,
+                request.output.height,
+                request.profile.as_str(),
+                request.acceleration.as_str(),
                 process_frame,
                 status,
                 cancelled,
@@ -292,7 +317,7 @@ mod browser {
     }
 
     pub async fn run_m1(_canvas_id: &str, status: Function) -> Result<String, MediaError> {
-        let result = dispatch(None, "m1", "", status).await?;
+        let result = dispatch(None, "m1", "", "", status).await?;
         string_property(&result, "summary", "probe returned no summary")
     }
 
@@ -316,9 +341,10 @@ mod browser {
         .await
         .map_err(js_error)?;
         let summary = format!(
-            "{}\nAdditional VideoFrame→ImageBitmap compatibility conversions: {}.",
+            "{}\nAdditional VideoFrame→ImageBitmap compatibility conversions: {}.\n{}",
             string_property(&result, "summary", "probe returned no summary")?,
-            BITMAP_COPIES.with(Cell::get)
+            BITMAP_COPIES.with(Cell::get),
+            gpu_telemetry()
         );
         Reflect::set(&result, &"summary".into(), &summary.into()).map_err(js_error)?;
         Ok(result)
@@ -328,10 +354,18 @@ mod browser {
         file_input_id: &str,
         _canvas_id: &str,
         profile: OutputProfileId,
+        acceleration: CodecAcceleration,
         status: Function,
     ) -> Result<ConversionResult, MediaError> {
         let file = selected_file(file_input_id)?;
-        let result = dispatch(Some(file), "convert", profile.as_str(), status).await?;
+        let result = dispatch(
+            Some(file),
+            "convert",
+            profile.as_str(),
+            acceleration.as_str(),
+            status,
+        )
+        .await?;
         Ok(ConversionResult {
             summary: string_property(&result, "summary", "conversion returned no summary")?,
             download_url: string_property(
@@ -349,6 +383,7 @@ mod browser {
     async fn convert_file(
         file: File,
         profile: OutputProfileId,
+        acceleration: CodecAcceleration,
         status: Function,
     ) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
@@ -369,8 +404,11 @@ mod browser {
             backend
                 .run(
                     &file,
-                    output,
-                    profile,
+                    ConversionRequest {
+                        output,
+                        profile,
+                        acceleration,
+                    },
                     process.as_ref().unchecked_ref(),
                     &status,
                     cancelled.as_ref().unchecked_ref(),
@@ -381,8 +419,9 @@ mod browser {
         .map_err(js_error)?;
         let bitmap_copies = BITMAP_COPIES.with(Cell::get);
         let summary = format!(
-            "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.",
-            string_property(&result, "summary", "conversion returned no summary")?
+            "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\n{}",
+            string_property(&result, "summary", "conversion returned no summary")?,
+            gpu_telemetry()
         );
         Reflect::set(&result, &"summary".into(), &summary.into()).map_err(js_error)?;
         Ok(result)
@@ -392,7 +431,14 @@ mod browser {
         file_input_id: &str,
     ) -> Result<OutputProfileCapabilities, MediaError> {
         let file = selected_file(file_input_id)?;
-        let capabilities = dispatch(Some(file), "probe", "", Function::new_no_args("")).await?;
+        let capabilities = dispatch(
+            Some(file),
+            "probe",
+            "",
+            "no-preference",
+            Function::new_no_args(""),
+        )
+        .await?;
         Ok(OutputProfileCapabilities {
             mp4_supported: bool_property(&capabilities, "mp4Supported")?,
             mp4_reason: string_property(
@@ -422,6 +468,7 @@ mod browser {
 
     fn begin_generation() -> u32 {
         BITMAP_COPIES.with(|value| value.set(0));
+        PROCESSING_METRICS.with(|value| value.set(ProcessingMetrics::ZERO));
         GENERATION.with(|value| {
             let next = value.get().wrapping_add(1);
             value.set(next);
@@ -494,8 +541,12 @@ mod browser {
         input: wgpu::Texture,
         input_size: Size,
         output_size: Size,
+        device_generation: u32,
+        uses: Cell<u64>,
     }
     struct GpuSession {
+        device_generation: u32,
+        texture_allocations: Cell<u64>,
         adapter_label: String,
         canvas: ExportCanvas,
         surface: wgpu::Surface<'static>,
@@ -506,6 +557,53 @@ mod browser {
         configured: RefCell<Option<ConfiguredResources>>,
     }
     struct OwnedVideoFrame(VideoFrame);
+    #[derive(Clone, Copy)]
+    struct ProcessingMetrics {
+        ingress_copies: u64,
+        canvas_captures: u64,
+        live_leases: u32,
+        peak_leases: u32,
+        texture_reuses: u64,
+        cpu_submission_ms: f64,
+        gpu_completion_wait_ms: f64,
+    }
+    impl ProcessingMetrics {
+        const ZERO: Self = Self {
+            ingress_copies: 0,
+            canvas_captures: 0,
+            live_leases: 0,
+            peak_leases: 0,
+            texture_reuses: 0,
+            cpu_submission_ms: 0.0,
+            gpu_completion_wait_ms: 0.0,
+        };
+    }
+    struct ProcessingLease;
+    impl ProcessingLease {
+        fn new() -> Result<Self, JsValue> {
+            PROCESSING_METRICS.with(|metrics| {
+                let mut value = metrics.get();
+                if value.live_leases != 0 {
+                    return Err(JsValue::from_str(
+                        "GPU input texture pool is busy; concurrent reuse was rejected",
+                    ));
+                }
+                value.live_leases += 1;
+                value.peak_leases = value.peak_leases.max(value.live_leases);
+                metrics.set(value);
+                Ok(Self)
+            })
+        }
+    }
+    impl Drop for ProcessingLease {
+        fn drop(&mut self) {
+            PROCESSING_METRICS.with(|metrics| {
+                let mut value = metrics.get();
+                value.live_leases = value.live_leases.saturating_sub(1);
+                metrics.set(value);
+            });
+        }
+    }
     enum ExportCanvas {
         Html(HtmlCanvasElement),
         Offscreen(OffscreenCanvas),
@@ -558,6 +656,11 @@ mod browser {
 
     impl GpuSession {
         async fn new(canvas: ExportCanvas) -> Result<Self, MediaError> {
+            let device_generation = NEXT_DEVICE_GENERATION.with(|generation| {
+                let next = generation.get().wrapping_add(1);
+                generation.set(next);
+                next
+            });
             let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
             descriptor.backends = wgpu::Backends::BROWSER_WEBGPU;
             let instance = wgpu::Instance::new(descriptor);
@@ -608,6 +711,8 @@ mod browser {
                 .ok_or_else(|| platform("canvas reported no texture formats"))?;
             let pipeline = ResizePipeline::new(&device, surface_format);
             Ok(Self {
+                device_generation,
+                texture_allocations: Cell::new(0),
                 adapter_label,
                 canvas,
                 surface,
@@ -659,10 +764,14 @@ mod browser {
                     | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
+            self.texture_allocations
+                .set(self.texture_allocations.get() + 1);
             *self.configured.borrow_mut() = Some(ConfiguredResources {
                 input,
                 input_size,
                 output_size,
+                device_generation: self.device_generation,
+                uses: Cell::new(0),
             });
         }
 
@@ -672,6 +781,8 @@ mod browser {
             timestamp: i64,
             duration: i64,
         ) -> Result<JsValue, JsValue> {
+            let _lease = ProcessingLease::new()?;
+            let submission_started = performance_now();
             let decoded = OwnedVideoFrame(decoded);
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
             let ingress = (|| {
@@ -679,6 +790,25 @@ mod browser {
                 let configured = configured
                     .as_ref()
                     .ok_or_else(|| JsValue::from_str("GPU processor is not configured"))?;
+                if configured.device_generation != self.device_generation {
+                    return Err(JsValue::from_str(
+                        "GPU resource belongs to a different device generation",
+                    ));
+                }
+                let uses = configured.uses.get();
+                if uses > 0 {
+                    PROCESSING_METRICS.with(|metrics| {
+                        let mut value = metrics.get();
+                        value.texture_reuses += 1;
+                        metrics.set(value);
+                    });
+                }
+                configured.uses.set(uses + 1);
+                PROCESSING_METRICS.with(|metrics| {
+                    let mut value = metrics.get();
+                    value.ingress_copies += 1;
+                    metrics.set(value);
+                });
                 copy_decoded_frame(
                     self.queue
                         .as_webgpu()
@@ -738,15 +868,34 @@ mod browser {
                 let init = VideoFrameInit::new();
                 init.set_timestamp_f64(timestamp as f64);
                 init.set_duration_f64(duration as f64);
-                self.canvas.capture(&init)
+                let frame = self.canvas.capture(&init);
+                if frame.is_ok() {
+                    PROCESSING_METRICS.with(|metrics| {
+                        let mut value = metrics.get();
+                        value.canvas_captures += 1;
+                        metrics.set(value);
+                    });
+                }
+                frame
             })();
             // Even capture/acquisition errors must retire submitted GPU work before
             // dropping decoded/bitmap guards or allowing the next job to reconfigure.
             let (sender, receiver) = futures_channel::oneshot::channel();
+            let completion_wait_started = performance_now();
+            PROCESSING_METRICS.with(|metrics| {
+                let mut value = metrics.get();
+                value.cpu_submission_ms += completion_wait_started - submission_started;
+                metrics.set(value);
+            });
             self.queue.on_submitted_work_done(move || {
                 let _ = sender.send(());
             });
             let _ = receiver.await;
+            PROCESSING_METRICS.with(|metrics| {
+                let mut value = metrics.get();
+                value.gpu_completion_wait_ms += performance_now() - completion_wait_started;
+                metrics.set(value);
+            });
             if let Some(error) = scope.pop().await {
                 if let Ok(frame) = encoded_input {
                     frame.close();
@@ -757,6 +906,30 @@ mod browser {
             }
             Ok(encoded_input?.into())
         }
+    }
+
+    fn gpu_telemetry() -> String {
+        let metrics = PROCESSING_METRICS.with(Cell::get);
+        let session = GPU_SESSION.with(|slot| {
+            slot.borrow().as_ref().map(|gpu| {
+                (
+                    gpu.device_generation,
+                    gpu.texture_allocations.get(),
+                    gpu.configured.borrow().is_some(),
+                )
+            })
+        });
+        let (generation, allocations, pool_ready) = session.unwrap_or((0, 0, false));
+        format!(
+            "GPU telemetry: device generation {generation}; single-slot input texture pool ready={pool_ready}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; CPU submission/bridge={:.1} ms; submitted-work completion waits={:.1} ms (not pure GPU execution; timestamp queries unavailable/not requested).",
+            metrics.texture_reuses,
+            metrics.live_leases,
+            metrics.peak_leases,
+            metrics.ingress_copies,
+            metrics.canvas_captures,
+            metrics.cpu_submission_ms,
+            metrics.gpu_completion_wait_ms,
+        )
     }
 
     fn string_property(value: &JsValue, name: &str, missing: &str) -> Result<String, MediaError> {

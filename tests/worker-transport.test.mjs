@@ -56,8 +56,8 @@ test("worker transports commands and metadata; queued jobs are serialized", asyn
   const { module, sent, workers, nodes } = await fixture({ hold: true });
   const statuses = [];
   const local = () => { throw Error("unexpected fallback"); };
-  const first = module.dispatchJob(null, "m1", "", value => statuses.push(value), local);
-  const second = module.dispatchJob(null, "m1", "", () => {}, local);
+  const first = module.dispatchJob(null, "m1", "", "", value => statuses.push(value), local);
+  const second = module.dispatchJob(null, "m1", "", "", () => {}, local);
   await until(() => sent.length === 2);
   assert.deepEqual(sent.map(item => item.message.operation), ["init", "m1"]);
   assert.equal(sent[0].transfer.length, 1);
@@ -75,7 +75,7 @@ test("worker transports commands and metadata; queued jobs are serialized", asyn
 
 test("cancellation drains current command, rejects queued stale commands, permits restart", async () => {
   const { module, sent, workers } = await fixture({ hold: true });
-  const run = () => module.dispatchJob(null, "m1", "", () => {}, () => assert.fail("fallback"));
+  const run = () => module.dispatchJob(null, "m1", "", "", () => {}, () => assert.fail("fallback"));
   const first = run();
   const queued = run();
   const rejected = [assert.rejects(first, /CANCELLED/), assert.rejects(queued, /CANCELLED/)];
@@ -92,10 +92,11 @@ test("cancellation drains current command, rejects queued stale commands, permit
 test("startup failure gives exact visible fallback and preserves profile", async () => {
   const { module, workers, nodes } = await fixture({ initError: "worker WebGPU is unavailable" });
   let calls = 0;
-  const result = await module.dispatchJob(null, "convert", "mp4-h264-aac", () => {}, async (_, operation, profile) => {
+  const result = await module.dispatchJob(null, "convert", "mp4-h264-aac", "prefer-hardware", () => {}, async (_, operation, profile, acceleration) => {
     calls++;
     assert.equal(operation, "convert");
     assert.equal(profile, "mp4-h264-aac");
+    assert.equal(acceleration, "prefer-hardware");
     return { summary: "PASS" };
   });
   assert.equal(calls, 1);
@@ -106,7 +107,7 @@ test("startup failure gives exact visible fallback and preserves profile", async
 
 test("runtime crash rejects job without silently rerunning it; retry creates new worker", async () => {
   const { module, workers } = await fixture({ crash: true });
-  const run = () => module.dispatchJob(null, "m1", "", () => {}, () => assert.fail("must not fallback mid-job"));
+  const run = () => module.dispatchJob(null, "m1", "", "", () => {}, () => assert.fail("must not fallback mid-job"));
   await assert.rejects(run(), /injected runtime failure/);
   assert.equal(workers[0].terminated, true);
   assert.match((await run()).summary, /dedicated worker/);
@@ -115,7 +116,7 @@ test("runtime crash rejects job without silently rerunning it; retry creates new
 
 test("explicit main-thread mode bypasses worker creation", async () => {
   const { module, workers } = await fixture({ mode: "main" });
-  const result = await module.dispatchJob(null, "m1", "", () => {}, async () => ({ summary: "PASS" }));
+  const result = await module.dispatchJob(null, "m1", "", "", () => {}, async () => ({ summary: "PASS" }));
   assert.equal(workers.length, 0);
   assert.match(result.summary, /explicitly requested/);
 });

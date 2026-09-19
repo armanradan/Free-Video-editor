@@ -1,8 +1,8 @@
-# Diaxus GPU video converter — M3.3
+# Diaxus GPU video converter — M3.4
 
 Dioxus Web controls an MP4/H.264 converter with shared Rust/wgpu half-size resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, and capability-gated MP4/H.264/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
 
-`media-core` owns platform-neutral policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.4 performance work has not started.
+`media-core` owns platform-neutral policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.4 adds exact codec-acceleration selection/fallback, stage high-water telemetry, a generation-aware texture slot, and long-run validation; M3.5 has not started.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ npm ci
 dx serve --web --locked
 ```
 
-The toolchain file selects Rust; no `RUSTUP_TOOLCHAIN` environment override is needed. Select an MP4, choose an available profile, and convert. The execution label reports worker/fallback mode. For a deliberate fallback comparison open the same URL with `?execution=main`; remove it and reload to use automatic worker selection.
+The toolchain file selects Rust; no `RUSTUP_TOOLCHAIN` environment override is needed. Select an MP4, choose an available profile and codec-acceleration preference, and convert. `Compatibility baseline` is the default. `Prefer hardware` is used only if the exact decoder and encoder configuration both pass; otherwise the result shows the reason for falling back to the unchanged codec/profile. The execution label reports worker/fallback mode. For a deliberate fallback comparison open the same URL with `?execution=main`; remove it and reload to use automatic worker selection.
 
 Worker code uses the same wasm bundle produced by `dx`; there is no manual worker build. Keep the complete generated `public` directory, including wasm snippets, when deploying. Input is capped at 256 MiB and compressed output remains in memory. This is not a streaming converter, and successful GPU processing does not prove hardware codec execution.
 
@@ -61,8 +61,9 @@ node tests/chromium-worker-interop.mjs worker
 node tests/chromium-worker-interop.mjs main
 node tests/chromium-worker-interop.mjs fallback
 node tests/inspect-chromium-outputs.mjs
+node tests/chromium-long-run.mjs
 ```
 
-The last command requires FFmpeg/FFprobe on PATH. The Chromium harness creates and closes only its own test tab; `fallback` injects a test-only worker-constructor failure to exercise automatic fallback. It requires all three profiles, including MP4, to pass before reporting completion. It saves partial failure evidence as well as successful results under ignored `tmp/m33-chromium-*`. Close the isolated debugging browser when finished; do not use your everyday profile for these tests.
+The independent output inspector requires FFmpeg/FFprobe on PATH. The Chromium harness creates and closes only its own test tab; `fallback` injects a test-only worker-constructor failure to exercise automatic fallback. It tests both acceleration requests for all three profiles, including MP4. The long-run harness uses `tmp/user-test/Input.mp4`, keeps the produced Blob in the browser, and records evidence under ignored `tmp/m34-long`; it requires that local test input to exist. Other generated outputs/evidence remain under ignored `tmp/m33-chromium-*`. Close the isolated debugging browser when finished; do not use your everyday profile for these tests.
 
-See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.3 acceptance is complete for the tested Firefox/Chromium matrix; this does not claim universal browser or codec support.
+See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.4 acceptance is complete for the tested Firefox/Chromium matrix and long input; this does not claim universal browser support, codec hardware execution, real-time throughput, or stable memory outside application-visible ownership counters.

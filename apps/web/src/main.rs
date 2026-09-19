@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use media_core::OutputProfileId;
+use media_core::{CodecAcceleration, OutputProfileId};
 use ui::{ConverterControls, JobStatus};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 
@@ -30,6 +30,7 @@ fn App() -> Element {
     let mut download_url = use_signal(String::new);
     let mut download_name = use_signal(String::new);
     let mut profile = use_signal(|| OutputProfileId::PREFERRED);
+    let mut acceleration = use_signal(CodecAcceleration::default);
     let mut mp4_supported = use_signal(|| false);
     let mut mp4_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
     let mut probe_generation = use_signal(|| 0_u64);
@@ -39,12 +40,14 @@ fn App() -> Element {
         download_url.set(String::new());
         status.set("Inspecting MP4 container and exact H.264 configuration…".to_string());
         let selected_profile = profile();
+        let selected_acceleration = acceleration();
         spawn(async move {
             let callback = status_callback(status);
             let result = media_web::convert_m3(
                 "source-file",
                 "export-canvas",
                 selected_profile,
+                selected_acceleration,
                 callback
                     .as_ref()
                     .unchecked_ref::<js_sys::Function>()
@@ -74,6 +77,12 @@ fn App() -> Element {
             "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
             "mp4-h264-aac" if mp4_supported() => OutputProfileId::Mp4H264Aac,
             _ => OutputProfileId::WebmVp8Opus,
+        });
+    };
+    let acceleration_changed = move |event: FormEvent| {
+        acceleration.set(match event.value().as_str() {
+            "prefer-hardware" => CodecAcceleration::PreferHardware,
+            _ => CodecAcceleration::NoPreference,
         });
     };
     let file_changed = move |_| {
@@ -144,7 +153,7 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M3.3" }
+            p { class: "eyebrow", "MILESTONE M3.4" }
             h1 { "Browser video converter" }
             p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → wgpu half-size resize → capability-checked WebM/VP8/Opus or MP4/H.264/AAC. A video-only WebM profile remains available." }
             ConverterControls {
@@ -152,10 +161,12 @@ fn App() -> Element {
                 download_url: download_url(),
                 download_name: download_name(),
                 profile: profile(),
+                acceleration: acceleration(),
                 mp4_supported: mp4_supported(),
                 mp4_reason: mp4_reason(),
                 on_file_change: file_changed,
                 on_profile_change: profile_changed,
+                on_acceleration_change: acceleration_changed,
                 on_convert: convert,
                 on_cancel: cancel,
             }

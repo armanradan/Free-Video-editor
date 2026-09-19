@@ -33,7 +33,7 @@ if (inWorker) {
         self.postMessage({ id, type: "result", result: {} });
       } else {
         if (!runtime) throw Error("media worker was not initialized");
-        const result = await runtime.execute_job(data.file, operation, data.profile,
+        const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration,
           status => self.postMessage({ id, type: "progress", status }));
         self.postMessage({ id, type: "result", result });
       }
@@ -49,6 +49,7 @@ let assets;
 let worker;
 let initialization;
 let fallbackReason;
+let startupDurationMs;
 let nextId = 0;
 let cancelGeneration = 0;
 let runningId = null;
@@ -94,6 +95,7 @@ async function initialize() {
   if (fallbackReason) return false;
   if (initialization) return initialization;
   initialization = (async () => {
+    const startupStarted = performance.now();
     let timer;
     try {
       if (!assets) throw Error("media runtime asset configuration is unavailable");
@@ -128,9 +130,11 @@ async function initialize() {
         new Promise((_, reject) => { timer = setTimeout(() => reject(Error("worker startup exceeded 30 seconds")), 30_000); }),
       ]);
       displayExecution("worker");
+      startupDurationMs = performance.now() - startupStarted;
       return true;
     } catch (error) {
       fallbackReason = messageOf(error);
+      startupDurationMs = performance.now() - startupStarted;
       stopWorker(error);
       displayExecution("main", fallbackReason);
       return false;
@@ -146,10 +150,11 @@ export function cancelRemote() {
   if (worker && runningId !== null) worker.postMessage({ operation: "cancel", id: runningId });
 }
 
-export function dispatchJob(file, operation, profile, status, local) {
+export function dispatchJob(file, operation, profile, acceleration, status, local) {
   const generation = cancelGeneration;
   // Serialize profile probes and jobs: no configure/cancel race on a shared device.
   const task = tail.then(async () => {
+    const reusedExecutionContext = Boolean(initialization);
     const useWorker = await initialize();
     const cancelled = () => generation !== cancelGeneration;
     if (cancelled()) throw Error("CANCELLED: stopped before job startup");
@@ -161,12 +166,12 @@ export function dispatchJob(file, operation, profile, status, local) {
     let result;
     if (useWorker) {
       displayExecution("worker");
-      result = await request(operation, { file, profile }, report);
+      result = await request(operation, { file, profile, acceleration }, report);
     } else {
       displayExecution("main", fallbackReason);
       await Promise.all([import(assets.m1), import(assets.pipeline)]);
       if (cancelled()) throw Error("CANCELLED: stopped before codec startup");
-      result = await local(file, operation, profile, report);
+      result = await local(file, operation, profile, acceleration, report);
     }
     if (cancelled()) throw Error("CANCELLED: completed work discarded after cancellation");
     if (result.blob) {
@@ -174,7 +179,10 @@ export function dispatchJob(file, operation, profile, status, local) {
       delete result.blob;
       result.downloadUrl = downloadUrl;
     }
-    if (result.summary) result.summary += `\nExecution: ${useWorker ? "dedicated worker" : `main-thread fallback (${fallbackReason})`}.`;
+    if (result.summary) {
+      result.summary += `\nExecution: ${useWorker ? "dedicated worker" : `main-thread fallback (${fallbackReason})`}.`;
+      result.summary += `\nExecution-context startup probe: ${(startupDurationMs ?? 0).toFixed(1)} ms once; reused for this command=${reusedExecutionContext}.`;
+    }
     return result;
   });
   tail = task.catch(() => {});

@@ -160,12 +160,30 @@ function resolveProfile(id) {
   return profile;
 }
 
-async function probeProfile(profile, opened, outputWidth, outputHeight) {
+async function probeProfile(profile, opened, outputWidth, outputHeight, hardwareAcceleration = "no-preference") {
   if (profile.audioCodec && !opened.audio) {
     return { supported: false, reason: `${profile.label} requires an input audio track.` };
   }
   if (profile.audioCodec && !opened.audio.canDecode) {
     return { supported: false, reason: `The primary ${opened.audio.codec ?? "unknown"} audio track cannot be decoded.` };
+  }
+  try {
+    const decoderConfig = await opened.track.getDecoderConfig();
+    if (!decoderConfig) {
+      return { supported: false, reason: "The H.264 track returned no WebCodecs decoder configuration." };
+    }
+    const decoderSupport = await VideoDecoder.isConfigSupported({
+      ...decoderConfig,
+      hardwareAcceleration,
+    });
+    if (!decoderSupport.supported) {
+      return {
+        supported: false,
+        reason: `H.264 decoding is unsupported with hardwareAcceleration=${hardwareAcceleration}.`,
+      };
+    }
+  } catch (error) {
+    return { supported: false, reason: `H.264 decoder capability probe failed with hardwareAcceleration=${hardwareAcceleration}: ${errorMessage(error)}` };
   }
   try {
     const videoSupported = await canEncodeVideo(profile.videoCodec, {
@@ -174,12 +192,12 @@ async function probeProfile(profile, opened, outputWidth, outputHeight) {
       frameRate: opened.averagePacketRate,
       quality: new Quality("high"),
       latencyMode: "quality",
-      hardwareAcceleration: "no-preference",
+      hardwareAcceleration,
     });
     if (!videoSupported) {
       return {
         supported: false,
-        reason: `${profile.videoCodec.toUpperCase()} encoding is unsupported at ${outputWidth}×${outputHeight} and ${opened.averagePacketRate.toFixed(3)} fps.`,
+        reason: `${profile.videoCodec.toUpperCase()} encoding is unsupported at ${outputWidth}×${outputHeight}, ${opened.averagePacketRate.toFixed(3)} fps, hardwareAcceleration=${hardwareAcceleration}.`,
       };
     }
   } catch (error) {
@@ -319,7 +337,7 @@ async function verifyOutput(buffer, expected) {
 }
 
 class MediabunnyOutputAdapter {
-  constructor(profile, audioConfig) {
+  constructor(profile, audioConfig, hardwareAcceleration, telemetry) {
     this.target = new BufferTarget();
     this.videoPackets = 0;
     this.audioPackets = 0;
@@ -334,10 +352,15 @@ class MediabunnyOutputAdapter {
       quality: new Quality("high"),
       keyFrameInterval: 2,
       latencyMode: "quality",
-      hardwareAcceleration: "no-preference",
+      hardwareAcceleration,
       sizeChangeBehavior: "deny",
       onEncoderConfig: (config) => { this.videoEncoderConfig = config; },
-      onEncodedPacket: () => { this.videoPackets += 1; },
+      onEncodedSample: () => telemetry.enter("videoEncoderCallbacks"),
+      onEncodedPacket: () => {
+        this.videoPackets += 1;
+        telemetry.leave("videoEncoderCallbacks");
+        telemetry.pulse("videoPacketCallbacks");
+      },
     });
     this.output.addVideoTrack(this.videoSource, { name: "M3 resized video" });
     this.audioSource = null;
@@ -347,7 +370,12 @@ class MediabunnyOutputAdapter {
         quality: new Quality("high"),
         transform: { sampleRate: 48_000, numberOfChannels: audioConfig.numberOfChannels },
         onEncoderConfig: (config) => { this.audioEncoderConfig = config; },
-        onEncodedPacket: () => { this.audioPackets += 1; },
+        onEncodedSample: () => telemetry.enter("audioEncoderCallbacks"),
+        onEncodedPacket: () => {
+          this.audioPackets += 1;
+          telemetry.leave("audioEncoderCallbacks");
+          telemetry.pulse("audioPacketCallbacks");
+        },
       });
       this.output.addAudioTrack(this.audioSource, { name: "M3 transcoded audio" });
     }
@@ -358,18 +386,44 @@ class MediabunnyOutputAdapter {
   cancel() { return this.output.cancel(); }
 }
 
-async function runBrowserJob(file, outputWidth, outputHeight, profileId, processFrame, status, cancelled) {
+async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, processFrame, status, cancelled) {
   if (!globalThis.isSecureContext || !globalThis.VideoDecoder || !globalThis.VideoEncoder || !navigator.gpu) {
     fail("The browser backend requires a secure context, WebCodecs, and WebGPU.");
   }
 
   const profile = resolveProfile(profileId);
+  const requested = requestedAcceleration === "prefer-hardware" ? "prefer-hardware" : "no-preference";
   const opened = await MediabunnyInputAdapter.open(file);
   let muxer = null;
   let outputStarted = false;
   let completed = false;
   let processed = 0;
   let audioSamples = 0;
+  const stages = Object.create(null);
+  const telemetry = {
+    enter(name) {
+      const stage = stages[name] ??= { live: 0, peak: 0, total: 0 };
+      stage.live += 1;
+      stage.total += 1;
+      stage.peak = Math.max(stage.peak, stage.live);
+    },
+    leave(name) {
+      const stage = stages[name];
+      if (stage) stage.live = Math.max(0, stage.live - 1);
+    },
+    pulse(name) { this.enter(name); this.leave(name); },
+    settle(name) {
+      const stage = stages[name];
+      if (stage) {
+        stage.discarded = (stage.discarded ?? 0) + stage.live;
+        stage.live = 0;
+      }
+    },
+    report() {
+      const value = name => stages[name] ?? { live: 0, peak: 0, total: 0 };
+      return `Stage telemetry (live/peak/total/discarded): decoded-video ${value("decodedVideo").live}/${value("decodedVideo").peak}/${value("decodedVideo").total}/${value("decodedVideo").discarded ?? 0}; GPU ${value("gpu").live}/${value("gpu").peak}/${value("gpu").total}/${value("gpu").discarded ?? 0}; video encoder callbacks ${value("videoEncoderCallbacks").live}/${value("videoEncoderCallbacks").peak}/${value("videoEncoderCallbacks").total}/${value("videoEncoderCallbacks").discarded ?? 0}; video packet callbacks ${value("videoPacketCallbacks").live}/${value("videoPacketCallbacks").peak}/${value("videoPacketCallbacks").total}/${value("videoPacketCallbacks").discarded ?? 0}; decoded-audio ${value("decodedAudio").live}/${value("decodedAudio").peak}/${value("decodedAudio").total}/${value("decodedAudio").discarded ?? 0}; audio encoder callbacks ${value("audioEncoderCallbacks").live}/${value("audioEncoderCallbacks").peak}/${value("audioEncoderCallbacks").total}/${value("audioEncoderCallbacks").discarded ?? 0}; audio packet callbacks ${value("audioPacketCallbacks").live}/${value("audioPacketCallbacks").peak}/${value("audioPacketCallbacks").total}/${value("audioPacketCallbacks").discarded ?? 0}.`;
+    },
+  };
   // Application-held references only; codec/library-internal resources are opaque.
   const retained = { frames: 0, samples: 0, peakFrames: 0, peakSamples: 0 };
   const retain = kind => {
@@ -386,7 +440,18 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
     if (opened.width < outputWidth || opened.height < outputHeight) {
       fail("The half-size preset must not upscale the source.");
     }
-    const profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight);
+    let selectedAcceleration = requested;
+    let accelerationFallback = null;
+    let profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight, selectedAcceleration);
+    if (!profileCapability.supported && requested === "prefer-hardware") {
+      const preferredReason = profileCapability.reason;
+      profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight, "no-preference");
+      if (profileCapability.supported) {
+        selectedAcceleration = "no-preference";
+        accelerationFallback = preferredReason;
+        status(`Hardware-preferred codec configuration is unavailable; using the compatibility baseline: ${preferredReason}`);
+      }
+    }
     if (!profileCapability.supported) {
       fail(`${profile.label} is unavailable for this input: ${profileCapability.reason}`);
     }
@@ -397,9 +462,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
     const audioFirstSeconds = opened.audio
       ? (asSafeMicroseconds(Math.round(await opened.audio.track.getFirstTimestamp() * 1_000_000), "audio start") - originUs) / 1_000_000
       : 0;
-    status(`Demuxed MP4/H.264: ${opened.width}×${opened.height}, ${opened.packetCount} video packets; profile ${profile.label}.`);
+    status(`Demuxed MP4/H.264: ${opened.width}×${opened.height}, ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
 
-    muxer = new MediabunnyOutputAdapter(profile, opened.audio);
+    muxer = new MediabunnyOutputAdapter(profile, opened.audio, selectedAcceleration, telemetry);
     try {
       await muxer.start();
     } catch (error) {
@@ -416,8 +481,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
       if (cancelled()) throw new Error("CANCELLED: conversion stopped by user");
     };
     const pumpVideo = async () => {
-      const sink = new VideoSampleSink(opened.track);
+      const sink = new VideoSampleSink(opened.track, { hardwareAcceleration: selectedAcceleration });
       for await (const sample of sink.samples()) {
+        telemetry.enter("decodedVideo");
         retain("samples");
         let decodedFrame = null;
         let processedFrame = null;
@@ -429,7 +495,12 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
           const timestamp = sourceTimestamp - originUs;
           decodedFrame = sample.toVideoFrame();
           retain("frames");
-          processedFrame = await processFrame(decodedFrame, timestamp, duration);
+          telemetry.enter("gpu");
+          try {
+            processedFrame = await processFrame(decodedFrame, timestamp, duration);
+          } finally {
+            telemetry.leave("gpu");
+          }
           retain("frames");
           const outputSample = new VideoSample(processedFrame);
           retain("samples");
@@ -453,6 +524,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
           release(sample, "samples");
           release(decodedFrame, "frames");
           release(processedFrame, "frames");
+          telemetry.leave("decodedVideo");
         }
       }
     };
@@ -461,6 +533,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
       if (!muxer.audioSource) return;
       const sink = new AudioSampleSink(opened.audio.track);
       for await (const sample of sink.samples()) {
+        telemetry.enter("decodedAudio");
         retain("samples");
         try {
           ensureActive();
@@ -480,6 +553,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
           audioEndSeconds = (timestamp + duration) / 1_000_000;
         } finally {
           release(sample, "samples");
+          telemetry.leave("decodedAudio");
         }
       }
     };
@@ -549,7 +623,10 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
     return {
       summary: (profile.audioCodec
         ? `PASS: ${processed} H.264 input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; decoded audio peak=${verified.audioPeak.toFixed(4)}; audio queue peak=1; conversion pixel readbacks=0.`
-        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`) + `\n${lifecycle()}`,
+        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`)
+        + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; exact decoder+encoder probes passed${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
+        + `\nBounds: Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; application decoded/GPU/source-add stages are serial; WebCodecs encoder queue ≤4; mux writes are serialized.`
+        + `\n${telemetry.report()}\n${lifecycle()}`,
       // Only compressed output leaves the execution context. The host owns its URL.
       blob: new Blob([muxer.target.buffer], { type: profile.mimeType }),
       fileName: `${base}-${outputWidth}x${outputHeight}.${profile.extension}`,
@@ -560,12 +637,16 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, process
   } catch (error) {
     if (outputStarted && !completed) {
       try { await muxer.cancel(); } catch (_) { /* retain original failure */ }
+      // A successful cancel closes the library-owned encoders. Accepted samples
+      // without output callbacks are accounted as discarded, not left live.
+      telemetry.settle("videoEncoderCallbacks");
+      telemetry.settle("audioEncoderCallbacks");
     }
     const message = errorMessage(error);
     if (isEmbeddedElectronBrowser() && !message.includes("VS Code embedded browser")) {
       throw new Error(`${message}${environmentHint()}\n${lifecycle()}`);
     }
-    throw new Error(`${message}\n${lifecycle()}`, { cause: error });
+    throw new Error(`${message}\n${telemetry.report()}\n${lifecycle()}`, { cause: error });
   } finally {
     opened.input.dispose();
   }
@@ -580,8 +661,8 @@ class WebCodecsMediabunnyBackend {
     return probeProfiles(file, outputWidth, outputHeight);
   }
 
-  run(file, outputWidth, outputHeight, profileId, processFrame, status, cancelled) {
-    return runBrowserJob(file, outputWidth, outputHeight, profileId, processFrame, status, cancelled);
+  run(file, outputWidth, outputHeight, profileId, acceleration, processFrame, status, cancelled) {
+    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, processFrame, status, cancelled);
   }
 }
 

@@ -339,7 +339,7 @@ Rust formatting, host core/GPU tests, wasm check/Clippy and locked Dioxus web bu
 # M3.3 dedicated worker interoperability report
 
 Date: 2026-09-19
-Initial status: **Firefox worker and main-thread fallback passed every profile enabled there; Chromium/MP4 validation was pending.** The completion section below closes that gap. M3.4 has not started.
+Initial status at the time of this M3.3 run: **Firefox worker and main-thread fallback passed every profile enabled there; Chromium/MP4 validation was pending.** The completion section below closes that gap; the later M3.4 section records subsequent work.
 
 ## Implementation
 
@@ -413,7 +413,7 @@ The window timer and working Cancel controls demonstrate event-loop responsivene
 
 ## M3.3 completion — Chromium/MP4 validation, 2026-09-19
 
-**Acceptance gate passed for the tested browser/profile matrix.** This section supersedes the earlier Chromium/MP4 pending status. No runtime implementation changes were necessary in this completion pass; reusable Chromium and independent output-inspection harnesses were added. M3.4 remains unstarted.
+**Acceptance gate passed for the tested browser/profile matrix.** This section supersedes the earlier Chromium/MP4 pending status. No runtime implementation changes were necessary in this completion pass; reusable Chromium and independent output-inspection harnesses were added. The later M3.4 section records subsequent work.
 
 The user started an isolated Edge session with local debugging port 9227, resolving the browser-launch restriction. The in-app browser bridge remained unavailable (`privileged native pipe bridge is not available; browser-client is not trusted`). Tests connected to the user-provided session, created/closed their own tabs, and did not inspect or change the everyday browser profile.
 
@@ -465,3 +465,60 @@ WebM outputs retained VP8 and the expected Opus/no-audio tracks; each audio-pres
 - The earlier Firefox worker/main results remain valid for its two enabled WebM profiles; Firefox still cannot enable this AAC profile. The unsupported reason is expected capability behavior, not a remaining M3.3 implementation task.
 - No human listening, arbitrary worker runtime crash/device-loss injection, startup-timeout test, Safari/other-OS test, or restrictive-CSP/subpath deployment validation was added. Transport runtime-crash handling remains unit-tested; driver recovery and broader compatibility are later milestones.
 - Long-run memory/queue profiling, resource pools, hardware-preference comparisons, geometry/color work and streaming remain M3.4–M3.6. Completion here is scoped to the M3.3 acceptance gate, not completion of M3 overall.
+
+# M3.4 bounded-throughput and resource-reuse report
+
+Date: 2026-09-19
+Status: **acceptance passed for the tested Firefox/Chromium environments; M3.5 was not started**
+
+## Implemented behavior
+
+- The UI and platform-neutral job policy expose `no-preference` (default compatibility baseline) and `prefer-hardware`. The chosen value crosses the worker boundary and is applied to the exact input decoder and selected output encoder probes. A requested hardware preference is used only if the complete video profile passes. Otherwise the app visibly reports the failed exact configuration and uses `no-preference`; it never changes codec or container.
+- Conversion now reports live/peak/total/discarded counts for decoded video, GPU work, video encoder callbacks, video packet callbacks, decoded audio, audio encoder callbacks, and audio packet callbacks. Completion and cancellation settle application-owned callback counts back to zero.
+- The pinned Mediabunny implementation bounds its combined decoder packet/callback queue at 40 before decoded output and 8 while producing decoded samples, and waits when the WebCodecs encoder queue reaches 4. Application decoded-frame, GPU, and source-add stages are serial, audio submissions are serial, and mux writes are promise-serialized. These are separate bounds; codec/library-internal memory is not claimed as observable.
+- The wgpu execution context owns a device-generation-tagged, single-slot input texture pool. Each use holds an explicit lease through submitted-work completion and output capture. A concurrent lease or generation mismatch fails rather than reusing the texture. Telemetry reports allocation/reuse, leases, ingress copies, canvas captures, CPU bridge/submission time, and submitted-work completion waits. The latter includes synchronization and is explicitly not pure GPU execution time.
+- Worker initialization time is measured once and reported separately from conversion. The existing application frame/sample ownership counters and cancellation/restart checks remain in place.
+
+## Verified short-job matrix
+
+The final-code worker checks used Edge 153.0.4234.32 on Windows x64 with `intel / gen-12lp (BrowserWebGpu)` and Firefox 156.0 with browser-redacted adapter identity. The deterministic 60-frame H.264/AAC fixture was converted, re-decoded in the browser, loaded and midpoint-seeked in an HTML media element, cancelled and restarted for every enabled profile/preference combination. Five repeated M1 image/timestamp checks also passed in each final worker run.
+
+| Browser | Enabled profiles | Requested preference | Selected preference | Result |
+|---|---|---|---|---|
+| Edge 153 | WebM/VP8/Opus, WebM/VP8/video-only, MP4/H.264/AAC | `no-preference` | `no-preference` | all passed; 407.0, 422.2, and 700.1 ms including verification |
+| Edge 153 | same three profiles | `prefer-hardware` | `no-preference` | all passed after visible fallback; exact VP8/H.264 encoder probes rejected the requested preference; 387.2, 376.6, and 738.5 ms |
+| Firefox 156 | both WebM profiles | `no-preference` | `no-preference` | both passed; 6,213 and 6,187 ms including verification |
+| Firefox 156 | both WebM profiles | `prefer-hardware` | `no-preference` | both passed after visible fallback; exact VP8 encoder probe rejected the requested preference; 6,151 and 6,173 ms |
+
+The hardware-request rows are **baseline fallback runs**, not measurements of hardware-preferred encoding. Timing differences are warm-cache/run variation and do not justify an automatic preference. Firefox continued to disable MP4 because its exact AAC encoder probe fails, independent of the video acceleration setting.
+
+Across final short worker conversions, each stage ended with zero live application-owned items. GPU leases ended at `0/1` live/peak, there were 60 ingress copies and 60 canvas captures, and one input texture slot was reused for all 60 frames after size configuration. Edge used direct VideoFrame ingress with zero additional bitmap conversions. Firefox used its documented VideoFrame→ImageBitmap compatibility conversion 60 times. Edge worker initialization measured 353.0 ms and Firefox 673.0 ms in these runs; that context was reused by every conversion command.
+
+Before the final worker smoke, the same two acceleration requests × three profiles also passed the explicit main-thread and injected automatic-fallback paths in Edge. Together with the worker path, `tests/inspect-chromium-outputs.mjs` independently inspected all 18 short outputs using FFprobe/FFmpeg 8.0.1: every file fully decoded with 60 video frames; audio-preserving files retained the expected AAC or Opus audio, video-only files had none, and MP4 retained fast-start layout. The existing Mediabunny Opus packet-header warning remains even though full decoding succeeds.
+
+## Verified long run
+
+`tests/chromium-long-run.mjs` used the local 70,439,352-byte `tmp/user-test/Input.mp4` in the Edge dedicated worker with the `no-preference` WebM/VP8/Opus profile:
+
+- Input/output: 3,530 H.264 frames at 1920×1080 plus 6,343 decoded audio samples → 3,530 VP8 frames at 960×540 plus 7,365 Opus packets.
+- Duration/output: 147.300 seconds, 32,138,436 bytes; browser re-decode verification passed. The test intentionally retained the output Blob in the browser rather than writing a 32 MiB repository artifact.
+- End-to-end time: 47,058.3 ms including verification. A 50 ms window heartbeat ticked 946 times with a 62.9 ms maximum observed gap; this is a responsiveness observation, not a real-time guarantee.
+- Stage peaks: decoded video 1, GPU 1, video encoder callbacks 3, video packets 1, decoded audio 1, audio encoder callbacks 1, and audio packets 1. Every stage ended at zero live items. Application frame/sample ownership ended at 0/0 with peaks 2/3.
+- GPU pool: 2 lifetime allocations across initial/configured sizes, 3,529 job reuses, leases `0/1`, 3,530 ingress copies, 3,530 canvas captures, and zero bitmap fallbacks. Reported CPU bridge/submission time was 1,966.7 ms; submitted-work waits were 41,723.3 ms and are not interpreted as pure GPU time.
+
+The final strict lease/generation guard was subsequently exercised by the complete short Edge and Firefox matrices. The long run establishes stable observable high-water marks and cleanup for the same pool path; it is not a browser-process heap or driver-memory profile.
+
+## Checks
+
+- `cargo fmt --all -- --check`, wasm workspace check, and wasm all-target Clippy with `-D warnings`: passed.
+- `cargo test -p media-core -p media-gpu`: 7 core tests passed; the existing GNU linker `corrupt .drectve` warning for the empty GPU test binary remains.
+- JavaScript syntax checks and `node tests/worker-transport.test.mjs`: passed (5 tests).
+- `dx build --platform web`: passed with Dioxus CLI 0.7.10.
+- Final `node tests/chromium-worker-interop.mjs` and `node tests/firefox-worker-interop.mjs worker`: passed. Earlier M3.4 Edge main/fallback matrices and independent inspection also passed. Evidence and generated media remain under ignored `tmp/m33-chromium-*`, `tmp/m34-firefox-worker`, and `tmp/m34-long`.
+
+## Explicitly untested or unavailable
+
+- No tested output encoder accepted `prefer-hardware`, so actual hardware-preferred throughput, startup, CPU load, power, and codec-engine selection remain unmeasured. WebCodecs configuration success and the displayed wgpu adapter would not prove hardware codec execution anyway.
+- The browser exposes no reliable, codec-attributed CPU-load or power metric used by this app. GPU timestamp queries were not requested/supported in this path; submitted-work waits are not a substitute.
+- wgpu 30.0.1's released browser backend does not implement its plane-based external-texture API for this use and exposes no released direct VideoFrame texture import. Therefore no direct-import comparison was possible. The measured baseline remains one external-image copy per frame, plus Firefox's explicit compatibility bitmap conversion.
+- Safari, non-Windows systems, other GPUs/drivers, device loss, browser-process/driver heap stability, arbitrary codec hangs, HDR/geometry/color extensions, and streaming output remain untested. These are not folded into the M3.4 acceptance claim. M3.5 is the next planned milestone.

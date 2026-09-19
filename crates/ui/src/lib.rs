@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use dioxus::prelude::*;
-use media_core::OutputProfileId;
+use media_core::{CodecAcceleration, OutputProfileId};
 
 #[component]
 pub fn ConverterControls(
@@ -9,10 +9,12 @@ pub fn ConverterControls(
     download_url: String,
     download_name: String,
     profile: OutputProfileId,
+    acceleration: CodecAcceleration,
     mp4_supported: bool,
     mp4_reason: String,
     on_file_change: EventHandler<FormEvent>,
     on_profile_change: EventHandler<FormEvent>,
+    on_acceleration_change: EventHandler<FormEvent>,
     on_convert: EventHandler<MouseEvent>,
     on_cancel: EventHandler<MouseEvent>,
 ) -> Element {
@@ -54,6 +56,22 @@ pub fn ConverterControls(
             }
             if !mp4_supported && !mp4_reason.is_empty() {
                 p { class: "note", "MP4 unavailable: {mp4_reason}" }
+            }
+            label { r#for: "codec-acceleration", "Codec acceleration" }
+            select {
+                id: "codec-acceleration",
+                disabled: running,
+                onchange: move |event| on_acceleration_change.call(event),
+                option {
+                    value: CodecAcceleration::NoPreference.as_str(),
+                    selected: acceleration == CodecAcceleration::NoPreference,
+                    "Compatibility baseline (no preference)"
+                }
+                option {
+                    value: CodecAcceleration::PreferHardware.as_str(),
+                    selected: acceleration == CodecAcceleration::PreferHardware,
+                    "Prefer hardware (capability-probed)"
+                }
             }
         }
         div { class: "actions",

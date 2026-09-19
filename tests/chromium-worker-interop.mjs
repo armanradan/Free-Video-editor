@@ -86,6 +86,7 @@ try {
   assert.match(evidence.execution, mode === "worker" ? /dedicated worker/ : /main-thread compatibility fallback/);
   if (mode === "fallback") assert.match(evidence.execution, /Injected worker startup failure/);
   const profiles = await evaluate('Array.from(document.querySelector("#output-profile").options).filter(option=>!option.disabled).map(option=>option.value)');
+  const accelerations = ["no-preference", "prefer-hardware"];
   evidence.enabledProfiles = profiles;
   save();
 
@@ -99,7 +100,9 @@ try {
     });
     observer.observe(document.querySelector("#status"), {subtree:true,childList:true,characterData:true});
   }`);
-  for (const profile of profiles) {
+  for (const acceleration of accelerations) {
+    await evaluate(`{const select=document.querySelector("#codec-acceleration");select.value=${JSON.stringify(acceleration)};select.dispatchEvent(new Event("change",{bubbles:true}));}`);
+    for (const profile of profiles) {
     await evaluate(`{const select=document.querySelector("#output-profile");select.value=${JSON.stringify(profile)};select.dispatchEvent(new Event("change",{bubbles:true}));}`);
     await armCancel("Converting");
     await click("#convert");
@@ -112,6 +115,9 @@ try {
     const summary = await terminal();
     assert.match(summary, /^PASS: 60 H.264 input frames/);
     assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
+    assert.match(summary, new RegExp(`Codec acceleration: requested=${acceleration}, selected=(?:${acceleration}|no-preference)`));
+    assert.match(summary, /GPU telemetry: device generation \d+; single-slot input texture pool ready=true/);
+    assert.match(summary, /leases live\/peak=0\/1; ingress copies=60; canvas captures=60/);
     const responsiveness = await evaluate('clearInterval(__heartbeatTimer); __heartbeat');
     assert.ok(responsiveness.ticks > 0, "window timers should run during conversion");
     const output = await evaluate(`(async()=>{
@@ -119,7 +125,7 @@ try {
       let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
       return {name:a.download,data:btoa(binary)};
     })()`);
-    const outputPath = path.join(outputDirectory, `${profile}-${output.name}`);
+    const outputPath = path.join(outputDirectory, `${acceleration}-${profile}-${output.name}`);
     fs.writeFileSync(outputPath, Buffer.from(output.data, "base64"));
     const playback = await evaluate(`new Promise((resolve,reject)=>{
       const v=document.createElement("video");v.src=document.querySelector("#download").href;
@@ -130,9 +136,10 @@ try {
     })`);
     assert.equal(playback.width, 320);
     assert.equal(playback.height, 180);
-    evidence.profiles.push({ profile, summary, cancellation, visibility, responsiveness, playback, outputPath });
+    evidence.profiles.push({ profile, acceleration, summary, cancellation, visibility, responsiveness, playback, outputPath });
     save();
     console.log(JSON.stringify(evidence.profiles.at(-1)));
+    }
   }
   await armCancel("Processed");
   await click(".regression button");
@@ -151,7 +158,7 @@ try {
   evidence.gpu = await evaluate('document.querySelector("#selected-gpu").textContent');
   assert.ok(profiles.includes("mp4-h264-aac"), `MP4 validation remains blocked: ${evidence.ready}`);
   evidence.completed = true;
-  console.log(`PASS Chromium ${mode}: all three profiles, cancel/restart, playback, five M1 runs; ${evidence.gpu}`);
+  console.log(`PASS Chromium ${mode}: all three profiles × both acceleration preferences, cancel/restart, playback, five M1 runs; ${evidence.gpu}`);
 } catch (error) {
   evidence.error = error.stack;
   throw error;

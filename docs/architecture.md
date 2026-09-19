@@ -1,6 +1,6 @@
 # GPU video converter: architecture and development plan
 
-Status: design researched 2026-09-15; M3.3 acceptance passed on 2026-09-19 for Firefox's enabled WebM profiles and all three profiles in Chromium, through worker and fallback paths. M3.4 has not started. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations.
+Status: design researched 2026-09-15; M3.4 acceptance passed on 2026-09-19 for Firefox's enabled WebM profiles and all three profiles in Chromium, with a 147-second Chromium stability run. M3.5 has not started. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations.
 
 ## 1. Architecture
 
@@ -355,7 +355,7 @@ Implementation status (2026-09-18): `Mp4H264Aac` is implemented as a complete pr
 
 #### M3.3 — worker migration
 
-Implementation status (2026-09-19, superseding the earlier M3.2 status): acceptance passed in Firefox 156 for both enabled WebM profiles and in Edge/Chromium 153 for all three profiles, including MP4/H.264/AAC. Worker and explicit main-thread paths passed conversion, cancellation/restart, lifecycle counters, playback and five repeated M1 correctness checks per path. A real Chromium test also injected worker-constructor failure and verified visible automatic fallback with all three profiles. Independent FFmpeg inspection passed frame/audio counts, audio seeks and MP4 fast-start layout; the pre-existing Opus header warning remains documented. The user supplied an isolated Chromium debugging session to resolve the earlier launch restriction. Firefox still disables MP4 because its exact AAC encoder probe fails. M3.4 has not started.
+Implementation status (2026-09-19, superseding the earlier M3.2 status): acceptance passed in Firefox 156 for both enabled WebM profiles and in Edge/Chromium 153 for all three profiles, including MP4/H.264/AAC. Worker and explicit main-thread paths passed conversion, cancellation/restart, lifecycle counters, playback and five repeated M1 correctness checks per path. A real Chromium test also injected worker-constructor failure and verified visible automatic fallback with all three profiles. Independent FFmpeg inspection passed frame/audio counts, audio seeks and MP4 fast-start layout; the pre-existing Opus header warning remains documented. The user supplied an isolated Chromium debugging session to resolve the earlier launch restriction. Firefox still disables MP4 because its exact AAC encoder probe fails. M3.4 results are recorded in the following section.
 
 The `media-web` module worker imports the same Dioxus-produced wasm bundle; app startup mounts Dioxus only when `document` exists. No second Rust build or duplicate processor is maintained. wasm-bindgen copies `worker-host.js` as a local module snippet; it resolves the pinned Dioxus `wasm/converter-web.js` layout relative to the inline binding. The hashed codec-script URLs are supplied by `asset!`, not guessed by the worker. Renaming the app or changing the bundler layout requires updating/testing that resolver. The worker pays for a second wasm instance including currently unused UI code; bundle splitting is not part of this correctness milestone.
 
@@ -372,6 +372,8 @@ Application-held frame-reference/sample counts cover the conversion pumps and re
 **Acceptance gate:** both worker and fallback paths pass every enabled output profile, cancellation/restart, lifecycle counters, and M1 correctness checks. The UI remains responsive during conversion, and fallback reasons are visible.
 
 #### M3.4 — bounded throughput and resource reuse
+
+Implementation status (2026-09-19): acceptance passed for the tested environments. Every stage now reports live/peak/total/discarded counts, while the underlying Mediabunny decoder, WebCodecs encoder, and mux policies retain their separate bounds. The GPU path uses one device-generation-tagged, single-lease input-texture slot per configured size and reports allocations, reuse, copies, captures, CPU bridge/submission time, and submitted-work waits. A concurrent lease or generation mismatch fails instead of reusing a texture prematurely. A UI selector carries an exact `no-preference` or `prefer-hardware` request through worker and fallback paths; exact decoder and encoder probes choose the requested setting only when the complete profile passes, otherwise the baseline fallback and reason are visible. On the tested browsers, `prefer-hardware` encoding was unsupported for every enabled profile, so no automatic hardware preference or performance benefit is claimed. The selected wgpu backend exposes no released direct VideoFrame import, and reliable codec-attributed CPU/power data was not observable; both remain explicitly unmeasured rather than inferred. M3.5 has not started.
 
 - Add separately bounded decoder submissions, decoded callbacks, GPU processing, audio queues, encoder submissions, and mux writes.
 - Add device-generation-aware texture pools, allocation/live-resource telemetry, copy counters, and long-running tests. Separate CPU submission latency from GPU execution time; use GPU timestamp queries only when supported.

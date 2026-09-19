@@ -64,7 +64,7 @@ for (const mode of ["worker", "main", "fallback"]) {
       entry.boxes = boxes;
     }
     report.push(entry);
-    console.log(`PASS independent ${mode}/${output.profile}: 60 frames; audio=${audio?.codec_name ?? "none"}; ${entry.audioSeeks.length} non-silent audio seeks; warnings=${Boolean(probe.stderr || decode.stderr)}`);
+    console.log(`PASS independent ${mode}/${output.acceleration}/${output.profile}: 60 frames; audio=${audio?.codec_name ?? "none"}; ${entry.audioSeeks.length} non-silent audio seeks; warnings=${Boolean(probe.stderr || decode.stderr)}`);
   }
   fs.writeFileSync(path.join(directory, "independent-inspection.json"), JSON.stringify(report, null, 2));
 }

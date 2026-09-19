@@ -17,6 +17,23 @@ pub enum OutputProfileId {
     Mp4H264Aac,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CodecAcceleration {
+    #[default]
+    NoPreference,
+    PreferHardware,
+}
+
+impl CodecAcceleration {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NoPreference => "no-preference",
+            Self::PreferHardware => "prefer-hardware",
+        }
+    }
+}
+
 impl OutputProfileId {
     pub const PREFERRED: Self = Self::WebmVp8Opus;
 
@@ -276,6 +293,19 @@ mod tests {
             Capability::Unsupported {
                 reason: "Opus encoder unavailable".to_string()
             }
+        );
+    }
+
+    #[test]
+    fn codec_acceleration_defaults_to_compatibility_baseline() {
+        assert_eq!(
+            CodecAcceleration::default(),
+            CodecAcceleration::NoPreference
+        );
+        assert_eq!(CodecAcceleration::NoPreference.as_str(), "no-preference");
+        assert_eq!(
+            CodecAcceleration::PreferHardware.as_str(),
+            "prefer-hardware"
         );
     }
 }

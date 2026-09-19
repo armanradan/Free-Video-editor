@@ -4,7 +4,7 @@
 
 Build a Rust GPU-accelerated video converter with Dioxus Web initially, Dioxus Native/Blitz eventually, shared media-core and wgpu processing, browser WebCodecs, and a later native codec backend.
 
-Read `docs/architecture.md` before implementation. M1 established the browser decode → wgpu resize → encode round trip; M3.3 worker migration has passed its acceptance gate in the tested Firefox/Chromium profile matrix, documented in `docs/interop-report.md`. M3.4 has not started. Implement only the milestone requested by the user. Future roadmap phases are not instructions to build everything now.
+Read `docs/architecture.md` before implementation. M1 established the browser decode → wgpu resize → encode round trip; implementation has reached M3.4 bounded throughput/resource reuse, validated in the tested Firefox/Chromium profile matrix and one 147-second Chromium run as documented in `docs/interop-report.md`. M3.5 has not started. Implement only the milestone requested by the user. Future roadmap phases are not instructions to build everything now.
 
 ## Architecture boundaries
 

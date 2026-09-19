@@ -58,8 +58,11 @@ try {
   const execution = await evaluate('document.querySelector("#execution-context").textContent');
   assert.match(execution, mode === "worker" ? /dedicated worker/ : /main-thread compatibility fallback/);
   const profiles = JSON.parse(await evaluate('JSON.stringify(Array.from(document.querySelector("#output-profile").options).filter(o=>!o.disabled).map(o=>o.value))'));
+  const accelerations = ["no-preference", "prefer-hardware"];
   const evidence = { browser: session.capabilities, mode, execution, ready: await evaluate(status), profiles: [], m1: [] };
-  for (const profile of profiles) {
+  for (const acceleration of accelerations) {
+    await evaluate(`{ const select = document.querySelector("#codec-acceleration"); select.value=${JSON.stringify(acceleration)}; select.dispatchEvent(new Event("change", {bubbles:true})); }`);
+    for (const profile of profiles) {
     await evaluate(`{ const select = document.querySelector("#output-profile"); select.value=${JSON.stringify(profile)}; select.dispatchEvent(new Event("change", {bubbles:true})); }`);
     await click("#convert");
     await waitFor(`${status}.startsWith("Converting")`);
@@ -72,15 +75,19 @@ try {
     const summary = await terminal();
     assert.match(summary, /^PASS: 60 H.264 input frames/);
     assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
+    assert.match(summary, new RegExp(`Codec acceleration: requested=${acceleration}, selected=(?:${acceleration}|no-preference)`));
+    assert.match(summary, /GPU telemetry: device generation \d+; single-slot input texture pool ready=true/);
+    assert.match(summary, /leases live\/peak=0\/1; ingress copies=60; canvas captures=60/);
     const responsiveness = JSON.parse(await evaluate('clearInterval(__heartbeatTimer); JSON.stringify(__heartbeat)'));
     assert.ok(responsiveness.ticks > 0, "window timers must continue during conversion");
     const output = JSON.parse(await evaluate(`(async()=>{ const a=document.querySelector("#download"); const bytes=new Uint8Array(await (await fetch(a.href)).arrayBuffer()); let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return JSON.stringify({name:a.download,data:btoa(binary)}) })()`));
-    fs.writeFileSync(path.join(outputDirectory, `${profile}-${output.name}`), Buffer.from(output.data, "base64"));
+    fs.writeFileSync(path.join(outputDirectory, `${acceleration}-${profile}-${output.name}`), Buffer.from(output.data, "base64"));
     const playback = JSON.parse(await evaluate(`new Promise((resolve,reject)=>{const v=document.createElement("video");v.src=document.querySelector("#download").href;v.onerror=()=>reject(Error("Playback failed"));v.onloadedmetadata=()=>{v.currentTime=v.duration/2;v.onseeked=()=>{resolve(JSON.stringify({duration:v.duration,width:v.videoWidth,height:v.videoHeight,seek:v.currentTime}));v.removeAttribute("src");v.load()}}})`));
     assert.equal(playback.width, 320);
     assert.equal(playback.height, 180);
-    evidence.profiles.push({ profile, summary, cancellation, responsiveness, playback });
+    evidence.profiles.push({ profile, acceleration, summary, cancellation, responsiveness, playback });
     console.log(JSON.stringify(evidence.profiles.at(-1)));
+    }
   }
   await click(".regression button");
   await delay(250);
@@ -98,7 +105,7 @@ try {
   }
   evidence.gpu = await evaluate('document.querySelector("#selected-gpu").textContent');
   fs.writeFileSync(path.join(outputDirectory, "evidence.json"), JSON.stringify(evidence, null, 2));
-  console.log(`PASS ${mode}: ${profiles.length} profiles, cancel/restart, playback, five M1 rounds; ${evidence.gpu}`);
+  console.log(`PASS ${mode}: ${profiles.length} profiles × two acceleration preferences, cancel/restart, playback, five M1 rounds; ${evidence.gpu}`);
 } finally {
   if (context) await send("browsingContext.close", { context });
   await send("session.end");
