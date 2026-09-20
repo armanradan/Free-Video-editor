@@ -9,6 +9,7 @@ const mode = process.argv[2] ?? "worker";
 assert.ok(["worker", "main", "fallback"].includes(mode));
 const debugPort = Number(process.argv[3] ?? 9227);
 const appPort = Number(process.argv[4] ?? 8084);
+const fullVerification = process.env.VERIFY_OUTPUT !== "skip";
 const outputDirectory = path.resolve(`tmp/m33-chromium-${mode}`);
 fs.mkdirSync(outputDirectory, { recursive: true });
 const version = await fetch(`http://127.0.0.1:${debugPort}/json/version`, { signal: AbortSignal.timeout(5000) })
@@ -72,7 +73,10 @@ try {
     // Deliberate test-only constructor failure, not a claimed browser limitation.
     await send("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.Worker = class { constructor() { throw Error("Injected worker startup failure for interoperability test"); } };` });
   }
-  await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/${mode === "main" ? "?execution=main" : ""}` });
+  const query = new URLSearchParams();
+  if (mode === "main") query.set("execution", "main");
+  if (fullVerification) query.set("verify", "full");
+  await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?${query}` });
   await send("Page.bringToFront");
   await waitFor('!!document.querySelector("#convert")');
   await click("#convert");
@@ -114,6 +118,9 @@ try {
     await click("#convert");
     const summary = await terminal();
     assert.match(summary, /^PASS: 60 H.264 input frames/);
+    assert.match(summary, fullVerification
+      ? /Diagnostic verification: full re-decode PASS/
+      : /Diagnostic verification: skipped for normal conversion/);
     assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
     assert.match(summary, new RegExp(`Codec acceleration: requested=${acceleration}, selected=(?:${acceleration}|no-preference)`));
     assert.match(summary, /GPU telemetry: device generation \d+; bounded input texture pool slots=4/);

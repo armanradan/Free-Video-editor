@@ -544,3 +544,24 @@ The 147.3-second Edge test was repeated with the ring: 3,530/3,530 frames, 6,343
 - The browser exposes no reliable, codec-attributed CPU-load or power metric used by this app. GPU timestamp queries were not requested/supported in this path; submitted-work waits are not a substitute.
 - wgpu 30.0.1's released browser backend does not implement its plane-based external-texture API for this use and exposes no released direct VideoFrame texture import. Therefore no direct-import comparison was possible. The measured baseline remains one external-image copy per frame, plus Firefox's explicit compatibility bitmap conversion.
 - Safari, non-Windows systems, other GPUs/drivers, device loss, browser-process/driver heap stability, arbitrary codec hangs, HDR/geometry/color extensions, and streaming output remain untested. These are not folded into the M3.4 acceptance claim. M3.5 is the next planned milestone.
+
+## Bounded bitmap preparation and verification timing, 2026-09-20
+
+Firefox's compatibility ingress now probes the first frame through the real direct-copy path, then—only after that copy establishes that ImageBitmap fallback is required—prepares subsequent bitmaps in bounded groups of four. Decoded frames/samples remain owned while preparation is pending, completed bitmaps are consumed strictly in timestamp order, Rust takes ownership before GPU submission, and cancellation/error cleanup closes every bitmap that was not transferred. Chromium continues to use direct VideoFrame ingress and created zero preparation tasks; there is no browser-name switch.
+
+Firefox 156 worker results for the 60-frame deterministic fixture with full diagnostic verification:
+
+| Profile/request | Converted/finalized | Full verification | Total job | Bitmap preparation |
+|---|---:|---:|---:|---|
+| WebM/VP8/Opus baseline | 1,248 ms | 65 ms | 1,313 ms | 59 tasks; peak 2; 1,007 ms cumulative; 1 ms ordered wait |
+| WebM/VP8/video-only baseline | 1,239 ms | 37 ms | 1,276 ms | 59 tasks; peak 2; 1,011 ms cumulative; 2 ms ordered wait |
+| WebM/VP8/Opus hardware request → baseline fallback | 1,204 ms | 49 ms | 1,253 ms | 59 tasks; peak 2; 980 ms cumulative; 6 ms ordered wait |
+| WebM/VP8/video-only hardware request → baseline fallback | 1,168 ms | 35 ms | 1,203 ms | 59 tasks; peak 2; 935 ms cumulative; 0 ms ordered wait |
+
+All four jobs passed full browser re-decode, audio checks where applicable, playback/seek, cancellation/restart, zero-live-resource cleanup, and five repeated M1 orientation/color/timestamp rounds. Decoded-video preparation peaked at four retained items; application frame/sample peaks were at most 5/5, GPU leases returned to `0/4`, and bitmap preparation returned to `0/2`. Cancellation summaries also returned bitmap preparation to zero. The explicit Firefox main-thread path passed the same matrix and five M1 rounds, with 1,195–1,527 ms conversion/finalization times. The prior four-slot runs were about 1,172–1,757 ms including verification, so the new wall-time result is directionally better but noisy and modest—not a fourfold bitmap speedup. Firefox appears to expose at most two concurrent preparation tasks here, and cumulative ImageBitmap work remains roughly one second.
+
+With diagnostic verification omitted—the normal UI behavior—two baseline Firefox runs converted/finalized in 1,160–1,208 ms (Opus) and 1,112–1,146 ms (video-only). Full verification itself cost 35–65 ms in the measured worker runs. When verification is skipped, displayed duration is explicitly an expected timeline derived from processed timestamps rather than a re-decoded container duration. Automated interoperability URLs use `?verify=full`; `VERIFY_OUTPUT=skip` exercises the production path.
+
+Edge 153's final worker matrix also passed all three profiles × both acceleration requests, cancellation/restart, playback/seek and five M1 rounds. Direct ingress remained selected: bitmap preparation total/peak were `0/0`. Baseline converted/finalized times were 261.5 ms for WebM/VP8/Opus, 330.2 ms for video-only WebM, and 266.8 ms for MP4/H.264/AAC; their full verification steps cost 15.9, 12.3 and 14.2 ms respectively. FFprobe/FFmpeg independently decoded the six newly generated worker outputs with 60/60 video frames and expected audio/no-audio tracks; the existing Opus warning remains.
+
+Conclusion: both requested changes are validated, but bounded bitmap preparation does not close Firefox's remaining gap. The next justified experiment is the explicitly counted CPU upload compatibility path described in the architecture discussion; increasing the GPU slot count is not supported by these measurements.

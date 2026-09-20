@@ -386,7 +386,7 @@ class MediabunnyOutputAdapter {
   cancel() { return this.output.cancel(); }
 }
 
-async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, processFrame, status, cancelled) {
+async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
   if (!globalThis.isSecureContext || !globalThis.VideoDecoder || !globalThis.VideoEncoder || !navigator.gpu) {
     fail("The browser backend requires a secure context, WebCodecs, and WebGPU.");
   }
@@ -435,6 +435,18 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     if (resource) { resource.close(); retained[kind]--; }
   };
   const lifecycle = () => `Cleanup: ${retained.frames} application-held frame references, ${retained.samples} samples; peaks ${retained.peakFrames}/${retained.peakSamples} (library-internal resources not counted).`;
+  const bitmapPreparation = { live: 0, peak: 0, total: 0, groups: 0, cumulativeMs: 0, consumerWaitMs: 0 };
+  const bitmapPreparationReport = () => `Bitmap preparation: total=${bitmapPreparation.total}; groups=${bitmapPreparation.groups}; live/peak=${bitmapPreparation.live}/${bitmapPreparation.peak}; cumulative task latency=${bitmapPreparation.cumulativeMs.toFixed(1)} ms; ordered-consumer wait=${bitmapPreparation.consumerWaitMs.toFixed(1)} ms; bound=4.`;
+  const prepareBitmap = frame => {
+    bitmapPreparation.live++;
+    bitmapPreparation.total++;
+    bitmapPreparation.peak = Math.max(bitmapPreparation.peak, bitmapPreparation.live);
+    const started = performance.now();
+    return createImageBitmap(frame).finally(() => {
+      bitmapPreparation.cumulativeMs += performance.now() - started;
+      bitmapPreparation.live--;
+    });
+  };
   const startedAt = performance.now();
   try {
     if (opened.width < outputWidth || opened.height < outputHeight) {
@@ -482,11 +494,11 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     };
     const pumpVideo = async () => {
       const sink = new VideoSampleSink(opened.track, { hardwareAcceleration: selectedAcceleration });
-      for await (const sample of sink.samples()) {
+      const iterator = sink.samples()[Symbol.asyncIterator]();
+      const createItem = (sample, prepareInParallel) => {
         telemetry.enter("decodedVideo");
         retain("samples");
         let decodedFrame = null;
-        let processedFrame = null;
         try {
           ensureActive();
           const sourceTimestamp = asSafeMicroseconds(sample.microsecondTimestamp, "input video timestamp");
@@ -495,9 +507,49 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           const timestamp = sourceTimestamp - originUs;
           decodedFrame = sample.toVideoFrame();
           retain("frames");
+          return {
+            sample,
+            decodedFrame,
+            timestamp,
+            duration,
+            bitmapPromise: prepareInParallel ? prepareBitmap(decodedFrame) : Promise.resolve(null),
+            bitmapTransferred: false,
+          };
+        } catch (error) {
+          release(sample, "samples");
+          release(decodedFrame, "frames");
+          telemetry.leave("decodedVideo");
+          throw error;
+        }
+      };
+      const discardItem = async item => {
+        if (!item.bitmapTransferred) {
+          try { (await item.bitmapPromise)?.close(); } catch (_) { /* retain original failure */ }
+        }
+        release(item.sample, "samples");
+        release(item.decodedFrame, "frames");
+        telemetry.leave("decodedVideo");
+      };
+      const processItem = async item => {
+        let processedFrame = null;
+        let bitmap = null;
+        try {
+          ensureActive();
+          const bitmapWaitStarted = performance.now();
+          bitmap = await item.bitmapPromise;
+          bitmapPreparation.consumerWaitMs += performance.now() - bitmapWaitStarted;
+          ensureActive();
+          // Calling into Rust transfers ownership of a prepared bitmap even if
+          // the returned promise later rejects. Rust closes it on every path.
+          item.bitmapTransferred = bitmap !== null;
           telemetry.enter("gpu");
           try {
-            processedFrame = await processFrame(decodedFrame, timestamp, duration);
+            processedFrame = await processFrame(
+              item.decodedFrame,
+              bitmap,
+              item.timestamp,
+              item.duration,
+            );
           } finally {
             telemetry.leave("gpu");
           }
@@ -516,16 +568,60 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
             release(outputSample, "samples");
           }
           processed += 1;
-          lastVideoDurationSeconds = duration / 1_000_000;
-          videoEndSeconds = (timestamp + duration) / 1_000_000;
+          lastVideoDurationSeconds = item.duration / 1_000_000;
+          videoEndSeconds = (item.timestamp + item.duration) / 1_000_000;
           const percent = opened.packetCount > 0 ? Math.min(99, Math.floor((processed / opened.packetCount) * 100)) : 0;
           status(`Converting ${percent}% — video ${processed}/${opened.packetCount || "?"}, audio ${audioSamples}/${opened.audio?.packetCount ?? 0}.`);
         } finally {
-          release(sample, "samples");
-          release(decodedFrame, "frames");
+          if (bitmap && !item.bitmapTransferred) bitmap.close();
           release(processedFrame, "frames");
+          release(item.sample, "samples");
+          release(item.decodedFrame, "frames");
           telemetry.leave("decodedVideo");
         }
+      };
+      try {
+        const first = await iterator.next();
+        if (first.done) return;
+        await processItem(createItem(first.value, false));
+
+        if (!bitmapIngressRequired()) {
+          for (;;) {
+            ensureActive();
+            const next = await iterator.next();
+            if (next.done) break;
+            await processItem(createItem(next.value, false));
+          }
+          return;
+        }
+
+        for (;;) {
+          const group = [];
+          try {
+            for (let index = 0; index < 4; index++) {
+              ensureActive();
+              const next = await iterator.next();
+              if (next.done) break;
+              group.push(createItem(next.value, true));
+            }
+          } catch (error) {
+            await Promise.allSettled(group.map(discardItem));
+            throw error;
+          }
+          if (group.length === 0) break;
+          bitmapPreparation.groups++;
+          for (let index = 0; index < group.length; index++) {
+            try {
+              await processItem(group[index]);
+            } catch (error) {
+              await Promise.allSettled(group.slice(index + 1).map(discardItem));
+              throw error;
+            }
+          }
+          if (group.length < 4) break;
+        }
+      } finally {
+        try { await iterator.return?.(); } catch (_) { /* retain pipeline result */ }
       }
     };
 
@@ -593,40 +689,58 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       fail(`${profile.audioCodec.toUpperCase()} encoder emitted no packets.`);
     }
 
-    status(`Inspecting finalized ${profile.container.toUpperCase()} and decoding video/audio at beginning, midpoint, and end…`);
+    const conversionElapsed = performance.now() - startedAt;
     let verified;
-    try {
-      verified = await verifyOutput(muxer.target.buffer, {
-        container: profile.container,
-        mimeType: profile.mimeType,
-        videoCodec: profile.videoCodec,
-        videoCodecLabel: profile.videoCodec === "avc" ? "H.264" : "VP8",
-        audioCodec: profile.audioCodec,
-        audioCodecLabel: profile.audioCodec === "aac" ? "AAC" : "Opus",
-        width: outputWidth,
-        height: outputHeight,
-        frameCount: processed,
-        videoEndSeconds,
-        lastVideoDurationSeconds,
-        videoFirstSeconds,
-        hasAudio: Boolean(profile.audioCodec),
-        audioChannels: opened.audio?.numberOfChannels ?? 0,
-        audioFirstSeconds,
-        audioEndSeconds,
-      });
-    } catch (error) {
-      fail(`Finalized ${profile.container.toUpperCase()} verification failed: ${errorMessage(error)}${environmentHint()}`);
+    let verificationElapsed = 0;
+    if (verifyOutputFully) {
+      status(`Inspecting finalized ${profile.container.toUpperCase()} and decoding video/audio at beginning, midpoint, and end…`);
+      const verificationStarted = performance.now();
+      try {
+        verified = await verifyOutput(muxer.target.buffer, {
+          container: profile.container,
+          mimeType: profile.mimeType,
+          videoCodec: profile.videoCodec,
+          videoCodecLabel: profile.videoCodec === "avc" ? "H.264" : "VP8",
+          audioCodec: profile.audioCodec,
+          audioCodecLabel: profile.audioCodec === "aac" ? "AAC" : "Opus",
+          width: outputWidth,
+          height: outputHeight,
+          frameCount: processed,
+          videoEndSeconds,
+          lastVideoDurationSeconds,
+          videoFirstSeconds,
+          hasAudio: Boolean(profile.audioCodec),
+          audioChannels: opened.audio?.numberOfChannels ?? 0,
+          audioFirstSeconds,
+          audioEndSeconds,
+        });
+      } catch (error) {
+        fail(`Finalized ${profile.container.toUpperCase()} verification failed: ${errorMessage(error)}${environmentHint()}`);
+      }
+      verificationElapsed = performance.now() - verificationStarted;
+    } else {
+      verified = {
+        duration: Math.max(videoEndSeconds, profile.audioCodec ? audioEndSeconds : 0),
+        audioPackets: muxer.audioPackets,
+      };
     }
 
     const base = file.name.replace(/\.[^.]+$/, "") || "converted";
-    const elapsed = performance.now() - startedAt;
+    const totalElapsed = performance.now() - startedAt;
+    const verificationSummary = verifyOutputFully
+      ? `Diagnostic verification: full re-decode PASS in ${verificationElapsed.toFixed(1)} ms${profile.audioCodec ? `; decoded output audio peak=${verified.audioPeak.toFixed(4)}` : ""}; total job ${totalElapsed.toFixed(1)} ms.`
+      : `Diagnostic verification: skipped for normal conversion; use ?verify=full for the test-only re-decode path; total job ${totalElapsed.toFixed(1)} ms.`;
+    const durationSummary = verifyOutputFully
+      ? `${verified.duration.toFixed(3)} s`
+      : `expected timeline ${verified.duration.toFixed(3)} s (output not re-decoded)`;
     return {
       summary: (profile.audioCodec
-        ? `PASS: ${processed} H.264 input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; decoded audio peak=${verified.audioPeak.toFixed(4)}; audio queue peak=1; conversion pixel readbacks=0.`
-        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} in ${elapsed.toFixed(1)} ms; ${verified.duration.toFixed(3)} s; conversion pixel readbacks=0.`)
+        ? `PASS: ${processed} H.264 input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; audio queue peak=1; conversion pixel readbacks=0.`
+        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0.`)
+        + `\n${verificationSummary}`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; exact decoder+encoder probes passed${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
-        + `\nBounds: Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; decoded/source-add calls are serial with ≤4 retained GPU submissions; WebCodecs encoder queue ≤4; mux writes are serialized.`
-        + `\n${telemetry.report()}\n${lifecycle()}`,
+        + `\nBounds: Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.`
+        + `\n${bitmapPreparationReport()}\n${telemetry.report()}\n${lifecycle()}`,
       // Only compressed output leaves the execution context. The host owns its URL.
       blob: new Blob([muxer.target.buffer], { type: profile.mimeType }),
       fileName: `${base}-${outputWidth}x${outputHeight}.${profile.extension}`,
@@ -644,9 +758,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     }
     const message = errorMessage(error);
     if (isEmbeddedElectronBrowser() && !message.includes("VS Code embedded browser")) {
-      throw new Error(`${message}${environmentHint()}\n${lifecycle()}`);
+      throw new Error(`${message}${environmentHint()}\n${bitmapPreparationReport()}\n${lifecycle()}`);
     }
-    throw new Error(`${message}\n${telemetry.report()}\n${lifecycle()}`, { cause: error });
+    throw new Error(`${message}\n${bitmapPreparationReport()}\n${telemetry.report()}\n${lifecycle()}`, { cause: error });
   } finally {
     opened.input.dispose();
   }
@@ -661,8 +775,8 @@ class WebCodecsMediabunnyBackend {
     return probeProfiles(file, outputWidth, outputHeight);
   }
 
-  run(file, outputWidth, outputHeight, profileId, acceleration, processFrame, status, cancelled) {
-    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, processFrame, status, cancelled);
+  run(file, outputWidth, outputHeight, profileId, acceleration, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
+    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled);
   }
 }
 

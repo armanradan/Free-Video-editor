@@ -27,6 +27,7 @@ mod browser {
         static NEXT_DEVICE_GENERATION: Cell<u32> = const { Cell::new(0) };
         static GPU_SESSION: RefCell<Option<Rc<GpuSession>>> = const { RefCell::new(None) };
         static BITMAP_COPIES: Cell<u32> = const { Cell::new(0) };
+        static BITMAP_INGRESS_REQUIRED: Cell<bool> = const { Cell::new(false) };
         static PROCESSING_METRICS: Cell<ProcessingMetrics> = const { Cell::new(ProcessingMetrics::ZERO) };
         static REMOTE_GPU: RefCell<Option<String>> = const { RefCell::new(None) };
     }
@@ -54,8 +55,17 @@ mod browser {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
         export function inspectBrowserInput(file) { return globalThis.__DIAXUS_MEDIA_WEB__.inspect(file); }
-        export async function copyDecodedFrame(queue, texture, frame, width, height) {
+        export async function copyDecodedFrame(queue, texture, frame, preparedBitmap, width, height) {
             const destination = { texture, colorSpace: 'srgb', premultipliedAlpha: false };
+            if (preparedBitmap != null) {
+                try {
+                    queue.copyExternalImageToTexture({ source: preparedBitmap }, destination, [width, height]);
+                    return preparedBitmap;
+                } catch (error) {
+                    preparedBitmap.close();
+                    throw new Error(`Prepared ImageBitmap GPU ingress failed: ${error.message}`);
+                }
+            }
             try {
                 queue.copyExternalImageToTexture({ source: frame }, destination, [width, height]);
                 return null;
@@ -74,8 +84,8 @@ mod browser {
         export function probeBrowserProfiles(file, width, height) {
             return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height);
         }
-        export function invokeBrowserJob(file, width, height, profile, acceleration, processFrame, status, cancelled) {
-            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, processFrame, status, cancelled);
+        export function invokeBrowserJob(file, width, height, profile, acceleration, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled);
         }
         export async function describeSelectedAdapter() {
             const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
@@ -97,6 +107,7 @@ mod browser {
             queue: &JsValue,
             texture: &JsValue,
             frame: &VideoFrame,
+            prepared_bitmap: &JsValue,
             width: u32,
             height: u32,
         ) -> Result<Promise, JsValue>;
@@ -120,7 +131,9 @@ mod browser {
             height: u32,
             profile: &str,
             acceleration: &str,
+            verify_output: bool,
             process_frame: &Function,
+            bitmap_ingress_required: &Function,
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue>;
@@ -156,21 +169,24 @@ mod browser {
         acceleration: &str,
         status: Function,
     ) -> Result<JsValue, MediaError> {
-        let local = Closure::<dyn FnMut(JsValue, String, String, String, Function) -> Promise>::new(
-            |file: JsValue,
-             operation: String,
-             profile: String,
-             acceleration: String,
-             status: Function| {
-                future_to_promise(execute_job(
-                    file.dyn_into::<File>().ok(),
-                    operation,
-                    profile,
-                    acceleration,
-                    status,
-                ))
-            },
-        );
+        let local =
+            Closure::<dyn FnMut(JsValue, String, String, String, bool, Function) -> Promise>::new(
+                |file: JsValue,
+                 operation: String,
+                 profile: String,
+                 acceleration: String,
+                 verify_output: bool,
+                 status: Function| {
+                    future_to_promise(execute_job(
+                        file.dyn_into::<File>().ok(),
+                        operation,
+                        profile,
+                        acceleration,
+                        verify_output,
+                        status,
+                    ))
+                },
+            );
         let result = JsFuture::from(
             dispatch_job(
                 file,
@@ -213,6 +229,7 @@ mod browser {
         operation: String,
         profile: String,
         acceleration: String,
+        verify_output: bool,
         status: Function,
     ) -> Result<JsValue, JsValue> {
         let result = match operation.as_str() {
@@ -233,7 +250,9 @@ mod browser {
                     _ => CodecAcceleration::NoPreference,
                 };
                 match file {
-                    Some(file) => convert_file(file, profile, acceleration, status).await,
+                    Some(file) => {
+                        convert_file(file, profile, acceleration, verify_output, status).await
+                    }
                     None => Err(platform("no source file")),
                 }
             }
@@ -255,6 +274,7 @@ mod browser {
             file: &File,
             request: ConversionRequest,
             process_frame: &Function,
+            bitmap_ingress_required: &Function,
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue>;
@@ -268,6 +288,7 @@ mod browser {
         output: Size,
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
+        verify_output: bool,
     }
 
     impl BrowserConversionBackend for WebCodecsMediabunnyBackend {
@@ -280,6 +301,7 @@ mod browser {
             file: &File,
             request: ConversionRequest,
             process_frame: &Function,
+            bitmap_ingress_required: &Function,
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue> {
@@ -289,7 +311,9 @@ mod browser {
                 request.output.height,
                 request.profile.as_str(),
                 request.acceleration.as_str(),
+                request.verify_output,
                 process_frame,
+                bitmap_ingress_required,
                 status,
                 cancelled,
             )
@@ -389,6 +413,7 @@ mod browser {
         file: File,
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
+        verify_output: bool,
         status: Function,
     ) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
@@ -404,6 +429,7 @@ mod browser {
         let output = ResizePreset::Half.output_size(input)?;
         let gpu = configured_gpu(input, output).await?;
         let process = process_callback(Rc::clone(&gpu));
+        let bitmap_ingress_required = bitmap_ingress_callback();
         let cancelled = cancellation_callback(generation);
         let job_result = JsFuture::from(
             backend
@@ -413,8 +439,10 @@ mod browser {
                         output,
                         profile,
                         acceleration,
+                        verify_output,
                     },
                     process.as_ref().unchecked_ref(),
+                    bitmap_ingress_required.as_ref().unchecked_ref(),
                     &status,
                     cancelled.as_ref().unchecked_ref(),
                 )
@@ -473,6 +501,7 @@ mod browser {
 
     fn begin_generation() -> u32 {
         BITMAP_COPIES.with(|value| value.set(0));
+        BITMAP_INGRESS_REQUIRED.with(|value| value.set(false));
         PROCESSING_METRICS.with(|value| value.set(ProcessingMetrics::ZERO));
         GENERATION.with(|value| {
             let next = value.get().wrapping_add(1);
@@ -485,25 +514,35 @@ mod browser {
         Closure::new(move || GENERATION.with(|value| value.get() != generation))
     }
 
-    fn process_callback(gpu: Rc<GpuSession>) -> Closure<dyn FnMut(JsValue, f64, f64) -> Promise> {
-        Closure::new(move |value: JsValue, timestamp: f64, duration: f64| {
-            let gpu = Rc::clone(&gpu);
-            future_to_promise(async move {
-                const MAX_SAFE: f64 = 9_007_199_254_740_991.0;
-                let valid = |value: f64| {
-                    value.is_finite() && value.fract() == 0.0 && value.abs() <= MAX_SAFE
-                };
-                if !valid(timestamp) || !valid(duration) {
-                    return Err(JsValue::from_str(
-                        "timestamp/duration was not a safe integer",
-                    ));
-                }
-                let frame = value
-                    .dyn_into::<VideoFrame>()
-                    .map_err(|_| JsValue::from_str("decoder output was not a VideoFrame"))?;
-                gpu.process(frame, timestamp as i64, duration as i64).await
-            })
-        })
+    fn bitmap_ingress_callback() -> Closure<dyn FnMut() -> bool> {
+        Closure::new(move || BITMAP_INGRESS_REQUIRED.with(Cell::get))
+    }
+
+    fn process_callback(
+        gpu: Rc<GpuSession>,
+    ) -> Closure<dyn FnMut(JsValue, JsValue, f64, f64) -> Promise> {
+        Closure::new(
+            move |value: JsValue, prepared_bitmap: JsValue, timestamp: f64, duration: f64| {
+                let gpu = Rc::clone(&gpu);
+                future_to_promise(async move {
+                    let prepared_bitmap = OwnedBitmap(prepared_bitmap);
+                    const MAX_SAFE: f64 = 9_007_199_254_740_991.0;
+                    let valid = |value: f64| {
+                        value.is_finite() && value.fract() == 0.0 && value.abs() <= MAX_SAFE
+                    };
+                    if !valid(timestamp) || !valid(duration) {
+                        return Err(JsValue::from_str(
+                            "timestamp/duration was not a safe integer",
+                        ));
+                    }
+                    let frame = value
+                        .dyn_into::<VideoFrame>()
+                        .map_err(|_| JsValue::from_str("decoder output was not a VideoFrame"))?;
+                    gpu.process(frame, prepared_bitmap, timestamp as i64, duration as i64)
+                        .await
+                })
+            },
+        )
     }
 
     async fn configured_gpu(input: Size, output: Size) -> Result<Rc<GpuSession>, MediaError> {
@@ -816,6 +855,7 @@ mod browser {
         async fn process(
             &self,
             decoded: VideoFrame,
+            prepared_bitmap: OwnedBitmap,
             timestamp: i64,
             duration: i64,
         ) -> Result<JsValue, JsValue> {
@@ -849,6 +889,8 @@ mod browser {
             let lease = ProcessingLease::new()?;
             let submission_started = performance_now();
             let decoded = OwnedVideoFrame(decoded);
+            let has_prepared_bitmap =
+                !prepared_bitmap.0.is_null() && !prepared_bitmap.0.is_undefined();
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
             let ingress = (|| {
                 let configured = self.configured.borrow();
@@ -886,6 +928,7 @@ mod browser {
                         .ok_or_else(|| JsValue::from_str("WebGPU texture unavailable"))?
                         .as_ref(),
                     &decoded.0,
+                    &prepared_bitmap.0,
                     configured.input_size.width,
                     configured.input_size.height,
                 )
@@ -899,8 +942,13 @@ mod browser {
             };
             if !bitmap.is_null() {
                 BITMAP_COPIES.with(|value| value.set(value.get() + 1));
+                BITMAP_INGRESS_REQUIRED.with(|value| value.set(true));
             }
-            let bitmap = OwnedBitmap(bitmap);
+            let bitmap = if has_prepared_bitmap {
+                prepared_bitmap
+            } else {
+                OwnedBitmap(bitmap)
+            };
             let encoded_input = (|| {
                 let configured = self.configured.borrow();
                 let configured = configured

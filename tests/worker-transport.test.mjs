@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 let serial = 0;
-async function fixture({ initError, crash = false, hold = false, mode = "worker" } = {}) {
+async function fixture({ initError, crash = false, hold = false, mode = "worker", verify = false } = {}) {
   const nodes = new Map(["execution-context", "export-canvas", "worker-preview"].map(id => [id, {
     hidden: false, textContent: "", replaceChildren() {},
   }]));
@@ -13,7 +13,10 @@ async function fixture({ initError, crash = false, hold = false, mode = "worker"
     getElementById: id => nodes.get(id),
     createElement: () => ({ setAttribute() {}, transferControlToOffscreen: () => ({ offscreen: true }) }),
   };
-  globalThis.location = { href: `https://test.invalid/${mode === "main" ? "?execution=main" : ""}` };
+  const query = new URLSearchParams();
+  if (mode === "main") query.set("execution", "main");
+  if (verify) query.set("verify", "full");
+  globalThis.location = { href: `https://test.invalid/?${query}` };
   globalThis.HTMLCanvasElement = class { transferControlToOffscreen() {} };
   globalThis.Worker = class {
     constructor() { workers.push(this); }
@@ -53,13 +56,14 @@ const until = async predicate => {
 };
 
 test("worker transports commands and metadata; queued jobs are serialized", async () => {
-  const { module, sent, workers, nodes } = await fixture({ hold: true });
+  const { module, sent, workers, nodes } = await fixture({ hold: true, verify: true });
   const statuses = [];
   const local = () => { throw Error("unexpected fallback"); };
   const first = module.dispatchJob(null, "m1", "", "", value => statuses.push(value), local);
   const second = module.dispatchJob(null, "m1", "", "", () => {}, local);
   await until(() => sent.length === 2);
   assert.deepEqual(sent.map(item => item.message.operation), ["init", "m1"]);
+  assert.equal(sent[1].message.verify, true);
   assert.equal(sent[0].transfer.length, 1);
   const firstId = sent[1].message.id;
   workers[0].reply(firstId, "result", { summary: "PASS" });
@@ -90,13 +94,14 @@ test("cancellation drains current command, rejects queued stale commands, permit
 });
 
 test("startup failure gives exact visible fallback and preserves profile", async () => {
-  const { module, workers, nodes } = await fixture({ initError: "worker WebGPU is unavailable" });
+  const { module, workers, nodes } = await fixture({ initError: "worker WebGPU is unavailable", verify: true });
   let calls = 0;
-  const result = await module.dispatchJob(null, "convert", "mp4-h264-aac", "prefer-hardware", () => {}, async (_, operation, profile, acceleration) => {
+  const result = await module.dispatchJob(null, "convert", "mp4-h264-aac", "prefer-hardware", () => {}, async (_, operation, profile, acceleration, verify) => {
     calls++;
     assert.equal(operation, "convert");
     assert.equal(profile, "mp4-h264-aac");
     assert.equal(acceleration, "prefer-hardware");
+    assert.equal(verify, true);
     return { summary: "PASS" };
   });
   assert.equal(calls, 1);

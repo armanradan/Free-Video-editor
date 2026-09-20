@@ -7,6 +7,7 @@ import path from "node:path";
 
 const mode = process.argv[2] ?? "worker";
 assert.ok(["worker", "main"].includes(mode));
+const fullVerification = process.env.VERIFY_OUTPUT !== "skip";
 const outputDirectory = path.resolve(process.argv[3] ?? `tmp/m33-${mode}`);
 fs.mkdirSync(outputDirectory, { recursive: true });
 const socket = new WebSocket("ws://127.0.0.1:9226/session");
@@ -54,8 +55,11 @@ try {
     });
     observer.observe(document.querySelector("#status"), {subtree:true,childList:true,characterData:true});
   }`);
+  const query = new URLSearchParams();
+  if (mode === "main") query.set("execution", "main");
+  if (fullVerification) query.set("verify", "full");
   await send("browsingContext.navigate", {
-    context, url: `http://127.0.0.1:8084/${mode === "main" ? "?execution=main" : ""}`, wait: "complete",
+    context, url: `http://127.0.0.1:8084/?${query}`, wait: "complete",
   });
   await waitFor('!!document.querySelector("#convert")');
   await click("#convert");
@@ -82,6 +86,9 @@ try {
     await click("#convert");
     const summary = await terminal();
     assert.match(summary, /^PASS: 60 H.264 input frames/);
+    assert.match(summary, fullVerification
+      ? /Diagnostic verification: full re-decode PASS/
+      : /Diagnostic verification: skipped for normal conversion/);
     assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
     assert.match(summary, new RegExp(`Codec acceleration: requested=${acceleration}, selected=(?:${acceleration}|no-preference)`));
     assert.match(summary, /GPU telemetry: device generation \d+; bounded input texture pool slots=4/);

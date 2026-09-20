@@ -53,7 +53,7 @@ try {
   ({ sessionId } = await send("Target.attachToTarget", { targetId, flatten: true }, true));
   await send("Page.enable");
   await send("Runtime.enable");
-  await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/` });
+  await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full` });
   await send("Page.bringToFront");
   await waitFor('!!document.querySelector("#source-file")');
   const document = await send("DOM.getDocument");
@@ -72,6 +72,7 @@ try {
   evidence.execution = await evaluate('document.querySelector("#execution-context").textContent');
   evidence.gpu = await evaluate('document.querySelector("#selected-gpu").textContent');
   assert.match(evidence.summary, /^PASS:/);
+  assert.match(evidence.summary, /Diagnostic verification: full re-decode PASS/);
   assert.match(evidence.summary, /Codec acceleration: requested=no-preference, selected=no-preference/);
   assert.match(evidence.summary, /Cleanup: 0 application-held frame references, 0 samples/);
   const leasePeak = Number(evidence.summary.match(/leases live\/peak=0\/(\d+)/)?.[1]);

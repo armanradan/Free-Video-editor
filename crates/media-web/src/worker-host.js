@@ -33,7 +33,7 @@ if (inWorker) {
         self.postMessage({ id, type: "result", result: {} });
       } else {
         if (!runtime) throw Error("media worker was not initialized");
-        const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration,
+        const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration, data.verify,
           status => self.postMessage({ id, type: "progress", status }));
         self.postMessage({ id, type: "result", result });
       }
@@ -152,6 +152,7 @@ export function cancelRemote() {
 
 export function dispatchJob(file, operation, profile, acceleration, status, local) {
   const generation = cancelGeneration;
+  const verify = new URL(location.href).searchParams.get("verify") === "full";
   // Serialize profile probes and jobs: no configure/cancel race on a shared device.
   const task = tail.then(async () => {
     const reusedExecutionContext = Boolean(initialization);
@@ -166,12 +167,12 @@ export function dispatchJob(file, operation, profile, acceleration, status, loca
     let result;
     if (useWorker) {
       displayExecution("worker");
-      result = await request(operation, { file, profile, acceleration }, report);
+      result = await request(operation, { file, profile, acceleration, verify }, report);
     } else {
       displayExecution("main", fallbackReason);
       await Promise.all([import(assets.m1), import(assets.pipeline)]);
       if (cancelled()) throw Error("CANCELLED: stopped before codec startup");
-      result = await local(file, operation, profile, acceleration, report);
+      result = await local(file, operation, profile, acceleration, verify, report);
     }
     if (cancelled()) throw Error("CANCELLED: completed work discarded after cancellation");
     if (result.blob) {

@@ -96,7 +96,7 @@
         const duration = frame.duration ?? manifest.frame_duration_us;
         let output;
         try {
-          output = own(await processFrame(frame, timestamp, duration));
+          output = own(await processFrame(frame, null, timestamp, duration));
           metrics.liveFrames--; // Rust closed the decoded input after GPU completion.
           metrics.explicitExternalCopies++;
           while (encoder.encodeQueueSize >= MAX_ENCODE_QUEUE) {
