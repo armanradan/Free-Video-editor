@@ -5,7 +5,7 @@ mod browser {
     use js_sys::{Function, Promise, Reflect};
     use media_core::{
         CodecAcceleration, FrameGeometry, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId,
-        Rect, ResizePreset, Rotation, Size, validate_browser_input_size,
+        Rect, ResizeSpec, Rotation, Size, validate_input_size,
     };
     use media_gpu::ResizePipeline;
     use std::{
@@ -46,6 +46,7 @@ mod browser {
     pub struct OutputProfileCapabilities {
         pub mp4_supported: bool,
         pub mp4_reason: String,
+        pub output_size: Size,
     }
 
     #[wasm_bindgen(inline_js = r#"
@@ -84,8 +85,8 @@ mod browser {
         export function probeBrowserProfiles(file, width, height) {
             return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height);
         }
-        export function invokeBrowserJob(file, width, height, profile, acceleration, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled) {
-            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled);
+        export function invokeBrowserJob(file, width, height, profile, acceleration, outputMode, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, outputMode, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled);
         }
         export async function describeSelectedAdapter() {
             const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
@@ -131,6 +132,7 @@ mod browser {
             height: u32,
             profile: &str,
             acceleration: &str,
+            output_mode: &str,
             verify_output: bool,
             process_frame: &Function,
             bitmap_ingress_required: &Function,
@@ -151,6 +153,7 @@ mod browser {
             operation: &str,
             profile: &str,
             acceleration: &str,
+            resize: &str,
             status: &Function,
             local: &Function,
         ) -> Result<Promise, JsValue>;
@@ -167,32 +170,38 @@ mod browser {
         operation: &str,
         profile: &str,
         acceleration: &str,
+        resize: ResizeSpec,
         status: Function,
     ) -> Result<JsValue, MediaError> {
-        let local =
-            Closure::<dyn FnMut(JsValue, String, String, String, bool, Function) -> Promise>::new(
-                |file: JsValue,
-                 operation: String,
-                 profile: String,
-                 acceleration: String,
-                 verify_output: bool,
-                 status: Function| {
-                    future_to_promise(execute_job(
-                        file.dyn_into::<File>().ok(),
-                        operation,
-                        profile,
-                        acceleration,
-                        verify_output,
-                        status,
-                    ))
-                },
-            );
+        let resize = resize_command(resize);
+        let local = Closure::<
+            dyn FnMut(JsValue, String, String, String, String, String, Function) -> Promise,
+        >::new(
+            |file: JsValue,
+             operation: String,
+             profile: String,
+             acceleration: String,
+             resize: String,
+             execution_options: String,
+             status: Function| {
+                future_to_promise(execute_job(
+                    file.dyn_into::<File>().ok(),
+                    operation,
+                    profile,
+                    acceleration,
+                    resize,
+                    execution_options,
+                    status,
+                ))
+            },
+        );
         let result = JsFuture::from(
             dispatch_job(
                 file,
                 operation,
                 profile,
                 acceleration,
+                &resize,
                 &status,
                 local.as_ref().unchecked_ref(),
             )
@@ -229,13 +238,18 @@ mod browser {
         operation: String,
         profile: String,
         acceleration: String,
-        verify_output: bool,
+        resize: String,
+        execution_options: String,
         status: Function,
     ) -> Result<JsValue, JsValue> {
+        let resize =
+            resize_from_command(&resize).map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let (output_mode, verify_output) = execution_options_from_command(&execution_options)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let result = match operation.as_str() {
             "m1" => run_m1_local(status).await,
             "probe" => match file {
-                Some(file) => probe_file(file).await,
+                Some(file) => probe_file(file, resize).await,
                 None => Err(platform("no source file")),
             },
             "convert" => {
@@ -251,7 +265,16 @@ mod browser {
                 };
                 match file {
                     Some(file) => {
-                        convert_file(file, profile, acceleration, verify_output, status).await
+                        convert_file(
+                            file,
+                            profile,
+                            acceleration,
+                            resize,
+                            output_mode,
+                            verify_output,
+                            status,
+                        )
+                        .await
                     }
                     None => Err(platform("no source file")),
                 }
@@ -272,7 +295,7 @@ mod browser {
         fn run(
             &self,
             file: &File,
-            request: ConversionRequest,
+            request: ConversionRequest<'_>,
             process_frame: &Function,
             bitmap_ingress_required: &Function,
             status: &Function,
@@ -284,10 +307,11 @@ mod browser {
     struct WebCodecsMediabunnyBackend;
 
     #[derive(Clone, Copy)]
-    struct ConversionRequest {
+    struct ConversionRequest<'a> {
         output: Size,
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
+        output_mode: &'a str,
         verify_output: bool,
     }
 
@@ -299,7 +323,7 @@ mod browser {
         fn run(
             &self,
             file: &File,
-            request: ConversionRequest,
+            request: ConversionRequest<'_>,
             process_frame: &Function,
             bitmap_ingress_required: &Function,
             status: &Function,
@@ -311,6 +335,7 @@ mod browser {
                 request.output.height,
                 request.profile.as_str(),
                 request.acceleration.as_str(),
+                request.output_mode,
                 request.verify_output,
                 process_frame,
                 bitmap_ingress_required,
@@ -346,7 +371,7 @@ mod browser {
     }
 
     pub async fn run_m1(_canvas_id: &str, status: Function) -> Result<String, MediaError> {
-        let result = dispatch(None, "m1", "", "", status).await?;
+        let result = dispatch(None, "m1", "", "", ResizeSpec::DEFAULT, status).await?;
         string_property(&result, "summary", "probe returned no summary")
     }
 
@@ -384,6 +409,7 @@ mod browser {
         _canvas_id: &str,
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
+        resize: ResizeSpec,
         status: Function,
     ) -> Result<ConversionResult, MediaError> {
         let file = selected_file(file_input_id)?;
@@ -392,6 +418,7 @@ mod browser {
             "convert",
             profile.as_str(),
             acceleration.as_str(),
+            resize,
             status,
         )
         .await?;
@@ -413,17 +440,19 @@ mod browser {
         file: File,
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
+        resize: ResizeSpec,
+        output_mode: String,
         verify_output: bool,
         status: Function,
     ) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
-        validate_browser_input_size(file.size() as u64)?;
+        validate_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
         let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
             .await
             .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
-        let output = ResizePreset::Half.output_size(geometry.display_size())?;
+        let output = resize.output_size(geometry.display_size())?;
         let gpu = configured_gpu(
             geometry.square_pixel,
             output,
@@ -442,6 +471,7 @@ mod browser {
                         output,
                         profile,
                         acceleration,
+                        output_mode: &output_mode,
                         verify_output,
                     },
                     process.as_ref().unchecked_ref(),
@@ -465,6 +495,7 @@ mod browser {
 
     pub async fn probe_output_profiles(
         file_input_id: &str,
+        resize: ResizeSpec,
     ) -> Result<OutputProfileCapabilities, MediaError> {
         let file = selected_file(file_input_id)?;
         let capabilities = dispatch(
@@ -472,6 +503,7 @@ mod browser {
             "probe",
             "",
             "no-preference",
+            resize,
             Function::new_no_args(""),
         )
         .await?;
@@ -482,21 +514,83 @@ mod browser {
                 "mp4Reason",
                 "MP4 capability probe returned no reason",
             )?,
+            output_size: Size::new(
+                u32_property(&capabilities, "outputWidth")?,
+                u32_property(&capabilities, "outputHeight")?,
+            )?,
         })
     }
 
-    async fn probe_file(file: File) -> Result<JsValue, MediaError> {
-        validate_browser_input_size(file.size() as u64)?;
+    async fn probe_file(file: File, resize: ResizeSpec) -> Result<JsValue, MediaError> {
+        validate_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
         let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
             .await
             .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
-        let output = ResizePreset::Half.output_size(geometry.display_size())?;
+        let output = resize.output_size(geometry.display_size())?;
         let capabilities = JsFuture::from(backend.probe_profiles(&file, output).map_err(js_error)?)
             .await
             .map_err(js_error)?;
+        Reflect::set(
+            &capabilities,
+            &"outputWidth".into(),
+            &JsValue::from_f64(f64::from(output.width)),
+        )
+        .map_err(js_error)?;
+        Reflect::set(
+            &capabilities,
+            &"outputHeight".into(),
+            &JsValue::from_f64(f64::from(output.height)),
+        )
+        .map_err(js_error)?;
         Ok(capabilities)
+    }
+
+    fn resize_command(resize: ResizeSpec) -> String {
+        match resize {
+            ResizeSpec::Original => "original".to_string(),
+            ResizeSpec::Percent(percent) => format!("percent:{percent}"),
+            ResizeSpec::Exact {
+                width,
+                height,
+                preserve_aspect_ratio,
+            } => format!("exact:{width}:{height}:{}", u8::from(preserve_aspect_ratio)),
+        }
+    }
+
+    fn resize_from_command(command: &str) -> Result<ResizeSpec, MediaError> {
+        let fields = command.split(':').collect::<Vec<_>>();
+        match fields.as_slice() {
+            ["original"] => Ok(ResizeSpec::Original),
+            ["percent", percent] => Ok(ResizeSpec::Percent(
+                percent
+                    .parse()
+                    .map_err(|_| platform("resize percentage is invalid"))?,
+            )),
+            ["exact", width, height, preserve] => Ok(ResizeSpec::Exact {
+                width: width
+                    .parse()
+                    .map_err(|_| platform("exact resize width is invalid"))?,
+                height: height
+                    .parse()
+                    .map_err(|_| platform("exact resize height is invalid"))?,
+                preserve_aspect_ratio: match *preserve {
+                    "1" => true,
+                    "0" => false,
+                    _ => return Err(platform("exact resize aspect-ratio flag is invalid")),
+                },
+            }),
+            _ => Err(platform("unknown resize command")),
+        }
+    }
+
+    fn execution_options_from_command(command: &str) -> Result<(String, bool), MediaError> {
+        match command.split_once(':') {
+            Some((output_mode @ ("auto" | "memory"), "0")) => Ok((output_mode.to_string(), false)),
+            Some((output_mode @ ("auto" | "memory"), "1")) => Ok((output_mode.to_string(), true)),
+            _ => Err(platform("invalid execution options")),
+        }
     }
 
     fn begin_generation() -> u32 {

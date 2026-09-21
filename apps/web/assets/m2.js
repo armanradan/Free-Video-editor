@@ -9,6 +9,7 @@ import {
   Mp4OutputFormat,
   Output,
   Quality,
+  StreamTarget,
   VideoSample,
   VideoSampleSink,
   VideoSampleSource,
@@ -18,7 +19,13 @@ import {
   canEncodeVideo,
 } from "mediabunny";
 
-const MAX_INPUT_BYTES = 256 * 1024 * 1024;
+const MEMORY_FALLBACK_MAX_INPUT_BYTES = 256 * 1024 * 1024;
+const OUTPUT_CHUNK_BYTES = 4 * 1024 * 1024;
+const INPUT_CACHE_BYTES = 8 * 1024 * 1024;
+const OUTPUT_INSTANCE_ID = globalThis.crypto?.randomUUID?.()
+  ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const OPFS_OUTPUT_NAME = `diaxus-${OUTPUT_INSTANCE_ID}.partial`;
+let retainedOutputStorage = null;
 
 function fail(message) {
   throw new Error(message);
@@ -74,13 +81,9 @@ class MediabunnyInputAdapter {
   static async open(file) {
   if (!(file instanceof File)) fail("Select an MP4 file first.");
   if (file.size === 0) fail("The selected file is empty.");
-  if (file.size > MAX_INPUT_BYTES) {
-    fail(`The selected file is ${(file.size / 1048576).toFixed(1)} MiB; browser conversion is limited to 256 MiB while output is buffered in memory.`);
-  }
-
   const input = new Input({
     formats: [MP4],
-    source: new BlobSource(file, { maxCacheSize: 8 * 1024 * 1024 }),
+    source: new BlobSource(file, { maxCacheSize: INPUT_CACHE_BYTES }),
   });
   if (!(await input.canRead()) || (await input.getFormat()) !== MP4) {
     input.dispose();
@@ -349,10 +352,10 @@ function peakAmplitude(sample) {
   return peak;
 }
 
-async function verifyOutput(buffer, expected) {
+async function verifyOutput(blob, expected) {
   const input = new Input({
     formats: expected.container === "mp4" ? [MP4] : [WEBM],
-    source: new BlobSource(new Blob([buffer], { type: expected.mimeType })),
+    source: new BlobSource(blob),
   });
   try {
     if (!(await input.canRead())) fail(`Finalized ${expected.container.toUpperCase()} could not be reopened by the container inspector.`);
@@ -488,14 +491,71 @@ async function verifyOutput(buffer, expected) {
 }
 
 class MediabunnyOutputAdapter {
-  constructor(profile, audioConfig, hardwareAcceleration, telemetry) {
-    this.target = new BufferTarget();
+  static async create(profile, audioConfig, hardwareAcceleration, telemetry, outputMode) {
+    let storage;
+    try {
+      if (outputMode === "memory") {
+        fail("memory compatibility mode was explicitly requested");
+      }
+      if (!navigator.storage?.getDirectory) {
+        fail("origin-private file storage is unavailable");
+      }
+      const root = await navigator.storage.getDirectory();
+      if (retainedOutputStorage) {
+        try { await retainedOutputStorage.root.removeEntry(retainedOutputStorage.name); }
+        catch (_) { /* the browser may already have evicted the previous output */ }
+        retainedOutputStorage = null;
+      }
+      const handle = await root.getFileHandle(OPFS_OUTPUT_NAME, { create: true });
+      const fileStream = await handle.createWritable();
+      const metrics = { writes: 0, maxWriteBytes: 0 };
+      const writable = new WritableStream({
+        async write(chunk) {
+          metrics.writes += 1;
+          metrics.maxWriteBytes = Math.max(metrics.maxWriteBytes, chunk.data.byteLength);
+          await fileStream.write(chunk);
+        },
+        close: () => fileStream.close(),
+        abort: reason => fileStream.abort(reason),
+      });
+      storage = {
+        mode: "bounded OPFS stream",
+        target: new StreamTarget(writable, { chunked: true, chunkSize: OUTPUT_CHUNK_BYTES }),
+        root,
+        handle,
+        name: OPFS_OUTPUT_NAME,
+        metrics,
+        fallbackReason: null,
+      };
+    } catch (error) {
+      storage = {
+        mode: "memory fallback",
+        target: new BufferTarget(),
+        root: null,
+        handle: null,
+        name: null,
+        metrics: null,
+        fallbackReason: errorMessage(error),
+      };
+    }
+    return new MediabunnyOutputAdapter(
+      profile,
+      audioConfig,
+      hardwareAcceleration,
+      telemetry,
+      storage,
+    );
+  }
+
+  constructor(profile, audioConfig, hardwareAcceleration, telemetry, storage) {
+    this.storage = storage;
+    this.target = storage.target;
     this.videoPackets = 0;
     this.audioPackets = 0;
     this.videoEncoderConfig = null;
     this.audioEncoderConfig = null;
     const format = profile.container === "mp4"
-      ? new Mp4OutputFormat({ fastStart: "in-memory" })
+      ? new Mp4OutputFormat({ fastStart: storage.handle ? false : "in-memory" })
       : new WebMOutputFormat();
     this.output = new Output({ format, target: this.target });
     this.videoSource = new VideoSampleSource({
@@ -535,9 +595,32 @@ class MediabunnyOutputAdapter {
   start() { return this.output.start(); }
   finalize() { return this.output.finalize(); }
   cancel() { return this.output.cancel(); }
+
+  async finalizedBlob(profile) {
+    if (this.storage.handle) {
+      const file = await this.storage.handle.getFile();
+      retainedOutputStorage = this.storage;
+      return file;
+    }
+    if (!this.target.buffer) fail(`${profile.container.toUpperCase()} finalization produced no output buffer.`);
+    return new Blob([this.target.buffer], { type: profile.mimeType });
+  }
+
+  async discardFile() {
+    if (!this.storage.root || !this.storage.name) return;
+    try { await this.storage.root.removeEntry(this.storage.name); }
+    catch (_) { /* a missing or already-removed partial file needs no recovery */ }
+    if (retainedOutputStorage === this.storage) retainedOutputStorage = null;
+  }
+
+  storageReport() {
+    return this.storage.handle
+      ? `Output storage: bounded OPFS stream; Mediabunny target chunk=${OUTPUT_CHUNK_BYTES / 1048576} MiB with WritableStream backpressure; writes=${this.storage.metrics.writes}, maximum write=${this.storage.metrics.maxWriteBytes} bytes; compressed output was not accumulated in an application ArrayBuffer.`
+      : `Output storage: memory fallback (maximum input ${MEMORY_FALLBACK_MAX_INPUT_BYTES / 1048576} MiB); bounded origin-private file streaming was unavailable: ${this.storage.fallbackReason}.`;
+  }
 }
 
-async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
+async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, outputMode, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
   if (!globalThis.isSecureContext || !globalThis.VideoDecoder || !globalThis.VideoEncoder || !navigator.gpu) {
     fail("The browser backend requires a secure context, WebCodecs, and WebGPU.");
   }
@@ -627,7 +710,11 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       : 0;
     status(`Demuxed MP4/H.264: coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, square-pixel ${opened.width}×${opened.height}, rotation ${opened.rotation}°, flip=${opened.flip}, display ${opened.displayWidth}×${opened.displayHeight}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}; ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
 
-    muxer = new MediabunnyOutputAdapter(profile, opened.audio, selectedAcceleration, telemetry);
+    muxer = await MediabunnyOutputAdapter.create(profile, opened.audio, selectedAcceleration, telemetry, outputMode);
+    if (!muxer.storage.handle && file.size > MEMORY_FALLBACK_MAX_INPUT_BYTES) {
+      fail(`The selected file is ${(file.size / 1048576).toFixed(1)} MiB. Bounded output streaming is unavailable (${muxer.storage.fallbackReason}); the memory fallback accepts at most ${MEMORY_FALLBACK_MAX_INPUT_BYTES / 1048576} MiB inputs.`);
+    }
+    status(muxer.storageReport());
     try {
       await muxer.start();
     } catch (error) {
@@ -857,7 +944,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       fail(`${profile.container.toUpperCase()} encoder drain/finalization failed: ${errorMessage(error)}${environmentHint()}`);
     }
     completed = true;
-    if (!muxer.target.buffer) fail(`${profile.container.toUpperCase()} finalization produced no output buffer.`);
+    const outputBlob = await muxer.finalizedBlob(profile);
     if (muxer.videoPackets !== processed) {
       fail(`Video encoder emitted ${muxer.videoPackets} packets for ${processed} processed frames.`);
     }
@@ -872,7 +959,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       status(`Inspecting finalized ${profile.container.toUpperCase()} and decoding video/audio at beginning, midpoint, and end…`);
       const verificationStarted = performance.now();
       try {
-        verified = await verifyOutput(muxer.target.buffer, {
+        verified = await verifyOutput(outputBlob, {
           container: profile.container,
           mimeType: profile.mimeType,
           videoCodec: profile.videoCodec,
@@ -917,14 +1004,16 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         + `\n${verificationSummary}`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; exact decoder+encoder probes passed${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
         + `\nGeometry/color: input coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}, rotation ${opened.rotation}°, flip=${opened.flip}; baked square-pixel output ${outputWidth}×${outputHeight}; SDR ${opened.color.primaries ?? "unspecified"}/${opened.color.transfer ?? "unspecified"}/${opened.color.matrix ?? "unspecified"}, browser-normalized to sRGB processing; HDR rejected.`
-        + `\nBounds: Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.`
+        + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.`
+        + `\n${muxer.storageReport()}`
         + `\n${bitmapPreparationReport()}\n${telemetry.report()}\n${lifecycle()}`,
-      // Only compressed output leaves the execution context. The host owns its URL.
-      blob: new Blob([muxer.target.buffer], { type: profile.mimeType }),
+      // Only a Blob/File handle crosses the execution-context boundary. OPFS-backed
+      // output remains disk-backed; the host owns the object URL lifecycle.
+      blob: outputBlob,
       fileName: `${base}-${outputWidth}x${outputHeight}.${profile.extension}`,
       frameCount: processed,
       duration: verified.duration,
-      outputBytes: muxer.target.buffer.byteLength,
+      outputBytes: outputBlob.size,
     };
   } catch (error) {
     if (outputStarted && !completed) {
@@ -934,6 +1023,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       telemetry.settle("videoEncoderCallbacks");
       telemetry.settle("audioEncoderCallbacks");
     }
+    await muxer?.discardFile();
     const message = errorMessage(error);
     if (isEmbeddedElectronBrowser() && !message.includes("VS Code embedded browser")) {
       throw new Error(`${message}${environmentHint()}\n${bitmapPreparationReport()}\n${lifecycle()}`);
@@ -953,8 +1043,8 @@ class WebCodecsMediabunnyBackend {
     return probeProfiles(file, outputWidth, outputHeight);
   }
 
-  run(file, outputWidth, outputHeight, profileId, acceleration, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
-    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled);
+  run(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
+    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled);
   }
 }
 

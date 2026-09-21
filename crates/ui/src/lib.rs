@@ -10,17 +10,26 @@ pub fn ConverterControls(
     download_name: String,
     profile: OutputProfileId,
     acceleration: CodecAcceleration,
+    resize_mode: String,
+    exact_width: String,
+    exact_height: String,
+    preserve_aspect_ratio: bool,
+    resolved_size: String,
     mp4_supported: bool,
     mp4_reason: String,
     on_file_change: EventHandler<FormEvent>,
     on_profile_change: EventHandler<FormEvent>,
     on_acceleration_change: EventHandler<FormEvent>,
+    on_resize_mode_change: EventHandler<FormEvent>,
+    on_exact_width_change: EventHandler<FormEvent>,
+    on_exact_height_change: EventHandler<FormEvent>,
+    on_aspect_ratio_change: EventHandler<FormEvent>,
     on_convert: EventHandler<MouseEvent>,
     on_cancel: EventHandler<MouseEvent>,
 ) -> Element {
     rsx! {
         div { class: "control-grid",
-            label { r#for: "source-file", "Source MP4 (H.264, up to 256 MiB)" }
+            label { r#for: "source-file", "Source MP4 (H.264)" }
             input {
                 id: "source-file",
                 r#type: "file",
@@ -29,8 +38,52 @@ pub fn ConverterControls(
                 onchange: move |event| on_file_change.call(event),
             }
             label { r#for: "resize-preset", "Resize" }
-            select { id: "resize-preset", disabled: running,
-                option { value: "half", "50% width and height" }
+            select {
+                id: "resize-preset",
+                disabled: running,
+                onchange: move |event| on_resize_mode_change.call(event),
+                option { value: "original", selected: resize_mode == "original", "Original size" }
+                option { value: "percent-75", selected: resize_mode == "percent-75", "75%" }
+                option { value: "percent-50", selected: resize_mode == "percent-50", "50%" }
+                option { value: "percent-25", selected: resize_mode == "percent-25", "25%" }
+                option { value: "exact", selected: resize_mode == "exact", "Exact bounding size" }
+            }
+            if resize_mode == "exact" {
+                label { r#for: "resize-width", "Maximum width" }
+                input {
+                    id: "resize-width",
+                    r#type: "number",
+                    min: "2",
+                    step: "1",
+                    value: exact_width,
+                    disabled: running,
+                    onchange: move |event| on_exact_width_change.call(event),
+                }
+                label { r#for: "resize-height", "Maximum height" }
+                input {
+                    id: "resize-height",
+                    r#type: "number",
+                    min: "2",
+                    step: "1",
+                    value: exact_height,
+                    disabled: running,
+                    onchange: move |event| on_exact_height_change.call(event),
+                }
+                label { r#for: "resize-aspect", "Geometry" }
+                label { class: "inline-check",
+                    input {
+                        id: "resize-aspect",
+                        r#type: "checkbox",
+                        checked: preserve_aspect_ratio,
+                        disabled: running,
+                        onchange: move |event| on_aspect_ratio_change.call(event),
+                    }
+                    "Preserve aspect ratio"
+                }
+            }
+            if !resolved_size.is_empty() {
+                div {}
+                p { id: "resolved-size", class: "note", "Resolved output: {resolved_size}" }
             }
             label { r#for: "output-profile", "Output profile" }
             select {

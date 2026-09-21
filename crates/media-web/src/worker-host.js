@@ -33,7 +33,7 @@ if (inWorker) {
         self.postMessage({ id, type: "result", result: {} });
       } else {
         if (!runtime) throw Error("media worker was not initialized");
-        const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration, data.verify,
+        const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration, data.resize, `${data.outputMode}:${data.verify ? 1 : 0}`,
           status => self.postMessage({ id, type: "progress", status }));
         self.postMessage({ id, type: "result", result });
       }
@@ -150,9 +150,11 @@ export function cancelRemote() {
   if (worker && runningId !== null) worker.postMessage({ operation: "cancel", id: runningId });
 }
 
-export function dispatchJob(file, operation, profile, acceleration, status, local) {
+export function dispatchJob(file, operation, profile, acceleration, resize, status, local) {
   const generation = cancelGeneration;
-  const verify = new URL(location.href).searchParams.get("verify") === "full";
+  const parameters = new URL(location.href).searchParams;
+  const verify = parameters.get("verify") === "full";
+  const outputMode = parameters.get("output") === "memory" ? "memory" : "auto";
   // Serialize profile probes and jobs: no configure/cancel race on a shared device.
   const task = tail.then(async () => {
     const reusedExecutionContext = Boolean(initialization);
@@ -167,12 +169,12 @@ export function dispatchJob(file, operation, profile, acceleration, status, loca
     let result;
     if (useWorker) {
       displayExecution("worker");
-      result = await request(operation, { file, profile, acceleration, verify }, report);
+      result = await request(operation, { file, profile, acceleration, resize, outputMode, verify }, report);
     } else {
       displayExecution("main", fallbackReason);
       await Promise.all([import(assets.m1), import(assets.pipeline)]);
       if (cancelled()) throw Error("CANCELLED: stopped before codec startup");
-      result = await local(file, operation, profile, acceleration, verify, report);
+      result = await local(file, operation, profile, acceleration, resize, `${outputMode}:${verify ? 1 : 0}`, report);
     }
     if (cancelled()) throw Error("CANCELLED: completed work discarded after cancellation");
     if (result.blob) {

@@ -7,7 +7,6 @@ pub const INPUT_SIZE: Size = Size::new_unchecked(320, 180);
 pub const OUTPUT_SIZE: Size = Size::new_unchecked(160, 90);
 pub const FRAME_COUNT: u32 = 30;
 pub const FRAME_DURATION_US: i64 = 33_333;
-pub const MAX_BROWSER_INPUT_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -231,29 +230,113 @@ impl Size {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum ResizePreset {
-    Half,
+pub enum ResizeSpec {
+    Original,
+    Percent(u16),
+    Exact {
+        width: u32,
+        height: u32,
+        preserve_aspect_ratio: bool,
+    },
 }
 
-impl ResizePreset {
+impl ResizeSpec {
+    pub const DEFAULT: Self = Self::Percent(50);
+
     pub fn output_size(self, input: Size) -> Result<Size, MediaError> {
-        match self {
-            Self::Half => {
-                let even_half = |value: u32| ((value / 2).max(2)) & !1;
-                Size::new(even_half(input.width), even_half(input.height))
+        let requested = match self {
+            Self::Original => input,
+            Self::Percent(percent) => {
+                if percent == 0 || percent > 100 {
+                    return Err(MediaError::InvalidResizePercent(percent));
+                }
+                Size::new_unchecked(
+                    scale_dimension(input.width, percent)?,
+                    scale_dimension(input.height, percent)?,
+                )
             }
-        }
+            Self::Exact {
+                width,
+                height,
+                preserve_aspect_ratio,
+            } => {
+                let bounds = Size::new(width, height)?;
+                let resolved = if preserve_aspect_ratio {
+                    fit_within(input, bounds)?
+                } else {
+                    bounds
+                };
+                if resolved.width > input.width || resolved.height > input.height {
+                    return Err(MediaError::ResizeWouldUpscale {
+                        input,
+                        requested: resolved,
+                    });
+                }
+                resolved
+            }
+        };
+        codec_size(requested)
     }
 }
 
-pub fn validate_browser_input_size(bytes: u64) -> Result<(), MediaError> {
+fn scale_dimension(value: u32, percent: u16) -> Result<u32, MediaError> {
+    u32::try_from(
+        u64::from(value)
+            .checked_mul(u64::from(percent))
+            .ok_or(MediaError::ResizeOverflow)?
+            / 100,
+    )
+    .map_err(|_| MediaError::ResizeOverflow)
+}
+
+fn fit_within(input: Size, bounds: Size) -> Result<Size, MediaError> {
+    let width_limited = u64::from(bounds.width)
+        .checked_mul(u64::from(input.height))
+        .ok_or(MediaError::ResizeOverflow)?
+        <= u64::from(bounds.height)
+            .checked_mul(u64::from(input.width))
+            .ok_or(MediaError::ResizeOverflow)?;
+    if width_limited {
+        Size::new(
+            bounds.width,
+            u32::try_from(
+                u64::from(input.height)
+                    .checked_mul(u64::from(bounds.width))
+                    .ok_or(MediaError::ResizeOverflow)?
+                    / u64::from(input.width),
+            )
+            .map_err(|_| MediaError::ResizeOverflow)?,
+        )
+    } else {
+        Size::new(
+            u32::try_from(
+                u64::from(input.width)
+                    .checked_mul(u64::from(bounds.height))
+                    .ok_or(MediaError::ResizeOverflow)?
+                    / u64::from(input.height),
+            )
+            .map_err(|_| MediaError::ResizeOverflow)?,
+            bounds.height,
+        )
+    }
+}
+
+fn codec_size(value: Size) -> Result<Size, MediaError> {
+    let width = value.width & !1;
+    let height = value.height & !1;
+    if width < 2 || height < 2 {
+        Err(MediaError::ResizeTooSmall {
+            width: value.width,
+            height: value.height,
+        })
+    } else {
+        Size::new(width, height)
+    }
+}
+
+pub fn validate_input_size(bytes: u64) -> Result<(), MediaError> {
     if bytes == 0 {
         Err(MediaError::EmptyInput)
-    } else if bytes > MAX_BROWSER_INPUT_BYTES {
-        Err(MediaError::InputTooLarge {
-            actual: bytes,
-            maximum: MAX_BROWSER_INPUT_BYTES,
-        })
     } else {
         Ok(())
     }
@@ -298,9 +381,12 @@ pub enum MediaError {
     InvalidTimeBase,
     InvalidRotation(u32),
     VisibleRectOutsideCoded { visible: Rect, coded: Size },
+    InvalidResizePercent(u16),
+    ResizeWouldUpscale { input: Size, requested: Size },
+    ResizeTooSmall { width: u32, height: u32 },
+    ResizeOverflow,
     TimestampOverflow,
     EmptyInput,
-    InputTooLarge { actual: u64, maximum: u64 },
     Platform(String),
 }
 
@@ -315,12 +401,24 @@ impl fmt::Display for MediaError {
                 "visible rectangle {}x{}+{},{} exceeds coded frame {}x{}",
                 visible.width, visible.height, visible.x, visible.y, coded.width, coded.height
             ),
+            Self::InvalidResizePercent(percent) => {
+                write!(
+                    f,
+                    "resize percentage must be between 1 and 100, got {percent}"
+                )
+            }
+            Self::ResizeWouldUpscale { input, requested } => write!(
+                f,
+                "requested output {}x{} would upscale the oriented source {}x{}",
+                requested.width, requested.height, input.width, input.height
+            ),
+            Self::ResizeTooSmall { width, height } => write!(
+                f,
+                "requested output {width}x{height} is smaller than the minimum codec size 2x2"
+            ),
+            Self::ResizeOverflow => f.write_str("resize calculation overflowed"),
             Self::TimestampOverflow => f.write_str("timestamp conversion overflowed"),
             Self::EmptyInput => f.write_str("the selected file is empty"),
-            Self::InputTooLarge { actual, maximum } => write!(
-                f,
-                "selected file is {actual} bytes; M2 allows at most {maximum} bytes"
-            ),
             Self::Platform(message) => f.write_str(message),
         }
     }
@@ -349,19 +447,73 @@ mod tests {
     }
 
     #[test]
-    fn half_resize_produces_even_codec_dimensions() {
+    fn percentage_resize_produces_even_codec_dimensions() {
         assert_eq!(
-            ResizePreset::Half
+            ResizeSpec::Percent(50)
                 .output_size(Size::new(1_921, 1_081).unwrap())
                 .unwrap(),
             Size::new(960, 540).unwrap()
         );
+        assert!(matches!(
+            ResizeSpec::Percent(50).output_size(Size::new(1, 1).unwrap()),
+            Err(MediaError::ResizeTooSmall { .. })
+        ));
+    }
+
+    #[test]
+    fn original_and_percentage_presets_never_upscale() {
+        let input = Size::new(1_921, 1_081).unwrap();
         assert_eq!(
-            ResizePreset::Half
-                .output_size(Size::new(1, 1).unwrap())
-                .unwrap(),
-            Size::new(2, 2).unwrap()
+            ResizeSpec::Original.output_size(input).unwrap(),
+            Size::new(1_920, 1_080).unwrap()
         );
+        assert_eq!(
+            ResizeSpec::Percent(75).output_size(input).unwrap(),
+            Size::new(1_440, 810).unwrap()
+        );
+        assert!(matches!(
+            ResizeSpec::Percent(101).output_size(input),
+            Err(MediaError::InvalidResizePercent(101))
+        ));
+    }
+
+    #[test]
+    fn exact_locked_size_fits_and_preserves_display_aspect() {
+        let input = Size::new(1_920, 1_080).unwrap();
+        assert_eq!(
+            ResizeSpec::Exact {
+                width: 1_000,
+                height: 1_000,
+                preserve_aspect_ratio: true,
+            }
+            .output_size(input)
+            .unwrap(),
+            Size::new(1_000, 562).unwrap()
+        );
+        assert_eq!(
+            ResizeSpec::Exact {
+                width: 1_000,
+                height: 700,
+                preserve_aspect_ratio: false,
+            }
+            .output_size(input)
+            .unwrap(),
+            Size::new(1_000, 700).unwrap()
+        );
+    }
+
+    #[test]
+    fn exact_size_rejects_implicit_upscale() {
+        let input = Size::new(640, 360).unwrap();
+        assert!(matches!(
+            ResizeSpec::Exact {
+                width: 800,
+                height: 500,
+                preserve_aspect_ratio: true,
+            }
+            .output_size(input),
+            Err(MediaError::ResizeWouldUpscale { .. })
+        ));
     }
 
     #[test]
@@ -376,7 +528,7 @@ mod tests {
         .unwrap();
         assert_eq!(geometry.display_size(), Size::new(180, 426).unwrap());
         assert_eq!(
-            ResizePreset::Half
+            ResizeSpec::Percent(50)
                 .output_size(geometry.display_size())
                 .unwrap(),
             Size::new(90, 212).unwrap()
@@ -394,15 +546,9 @@ mod tests {
     }
 
     #[test]
-    fn browser_input_limit_is_explicit() {
-        assert!(validate_browser_input_size(MAX_BROWSER_INPUT_BYTES).is_ok());
-        assert_eq!(
-            validate_browser_input_size(MAX_BROWSER_INPUT_BYTES + 1),
-            Err(MediaError::InputTooLarge {
-                actual: MAX_BROWSER_INPUT_BYTES + 1,
-                maximum: MAX_BROWSER_INPUT_BYTES,
-            })
-        );
+    fn input_must_not_be_empty_but_has_no_policy_size_cap() {
+        assert!(validate_input_size(u64::MAX).is_ok());
+        assert_eq!(validate_input_size(0), Err(MediaError::EmptyInput));
     }
 
     #[test]

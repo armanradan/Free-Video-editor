@@ -1,10 +1,10 @@
-# Diaxus GPU video converter — M3.5
+# Diaxus GPU video converter — M3.6 configurable-output and streaming slices
 
-Dioxus Web controls an MP4/H.264 converter with shared Rust/wgpu half-size resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, and capability-gated MP4/H.264/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
+Dioxus Web controls an MP4/H.264 converter with shared Rust/wgpu configurable resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, and capability-gated MP4/H.264/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
 
-M3.5 intentionally retains the validated half-size preset. M3.6 begins by replacing it with user-selectable original, percentage, and exact-size output, with aspect-ratio preservation, visible codec-safe dimension adjustment, exact profile re-probing, and real-browser coverage before the milestone proceeds to streaming and recovery work.
+The completed M3.6 slices provide user-selectable original, 75%, 50%, 25%, and exact-size output plus bounded browser input/output. Exact sizing preserves aspect ratio by default, exposes an explicit stretch option, never silently upscales, displays codec-safe even dimensions before conversion, and re-probes every output profile for that exact size. M3.6 expanded compatibility and recovery work remains open.
 
-`media-core` owns platform-neutral policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.5 adds crop/PAR/orientation handling, an explicit BT.709/sRGB SDR policy, VFR/non-zero-origin preservation checks, and clear HDR/resolution-change rejection.
+`media-core` owns platform-neutral resize and media policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.5 added crop/PAR/orientation handling, an explicit BT.709/sRGB SDR policy, VFR/non-zero-origin preservation checks, and clear HDR/resolution-change rejection.
 
 ## Prerequisites
 
@@ -21,9 +21,9 @@ npm ci
 dx serve --web --locked
 ```
 
-The toolchain file selects Rust; no `RUSTUP_TOOLCHAIN` environment override is needed. Select an MP4, choose an available profile and codec-acceleration preference, and convert. `Compatibility baseline` is the default. `Prefer hardware` is used only if the exact decoder and encoder configuration both pass; otherwise the result shows the reason for falling back to the unchanged codec/profile. The execution label reports worker/fallback mode. For a deliberate fallback comparison open the same URL with `?execution=main`; remove it and reload to use automatic worker selection.
+The toolchain file selects Rust; no `RUSTUP_TOOLCHAIN` environment override is needed. Select an MP4, choose a resize mode, an available profile, and a codec-acceleration preference, then convert. The resolved codec-safe output size is shown before conversion. `Compatibility baseline` is the default. `Prefer hardware` is used only if the exact decoder and encoder configuration both pass; otherwise the result shows the reason for falling back to the unchanged codec/profile. The execution label reports worker/fallback mode. For a deliberate fallback comparison open the same URL with `?execution=main`; remove it and reload to use automatic worker selection.
 
-Worker code uses the same wasm bundle produced by `dx`; there is no manual worker build. Keep the complete generated `public` directory, including wasm snippets, when deploying. Input is capped at 256 MiB and compressed output remains in memory. This is not a streaming converter, and successful GPU processing does not prove hardware codec execution.
+Worker code uses the same wasm bundle produced by `dx`; there is no manual worker build. Keep the complete generated `public` directory, including wasm snippets, when deploying. Input uses an 8 MiB cache and compressed output streams with backpressure in 4 MiB chunks to origin-private file storage before its disk-backed `File` is exposed through the download link. The latest temporary output is retained for that link and replaced by the next conversion. If the browser cannot provide origin-private writable storage, the status clearly reports a memory fallback whose input remains capped at 256 MiB. `?output=memory` deliberately exercises that fallback. Successful GPU processing still does not prove hardware codec execution.
 
 Normal conversions stop timing after encoder/muxer finalization and do not re-decode the completed file. Add `?verify=full` to the app URL for the diagnostic interoperability path, which separately reports its re-decode/seek/audio-check time. The automated browser harnesses enable full verification by default; set `VERIFY_OUTPUT=skip` to exercise the normal UI path.
 
@@ -48,6 +48,7 @@ The real-Firefox harness requires an isolated Firefox instance exposing WebDrive
 ```powershell
 node tests/firefox-worker-interop.mjs worker
 node tests/firefox-worker-interop.mjs main
+node tests/firefox-resize-interop.mjs 8084
 ```
 
 It tests every enabled profile, cancellation/restart, output loading/seeking, window timer responsiveness, M1 cancellation and five repeated M1 marker checks. Generated outputs/evidence go under ignored `tmp/m33-*`. The transport unit tests simulate unsupported startup, cancellation, stale messages, and worker crashes; they are not browser interoperability evidence.
@@ -67,6 +68,7 @@ node tests/chromium-worker-interop.mjs fallback
 node tests/inspect-chromium-outputs.mjs
 node tests/chromium-long-run.mjs
 node tests/chromium-m35-interop.mjs
+node tests/chromium-resize-interop.mjs 9227 8084
 ```
 
 The independent output inspector requires FFmpeg/FFprobe on PATH. The Chromium harness creates and closes only its own test tab; `fallback` injects a test-only worker-constructor failure to exercise automatic fallback. It tests both acceleration requests for all three profiles, including MP4. The long-run harness uses `tmp/user-test/Input.mp4`, keeps the produced Blob in the browser, and records evidence under ignored `tmp/m34-long`; it requires that local test input to exist. Other generated outputs/evidence remain under ignored `tmp/m33-chromium-*`. Close the isolated debugging browser when finished; do not use your everyday profile for these tests.
@@ -76,6 +78,10 @@ The M3.5 harnesses run the geometry/color and VFR/non-zero-origin fixtures throu
 ```powershell
 node tests/chromium-m35-interop.mjs 9227 8084
 node tests/firefox-m35-interop.mjs 8084
+node tests/chromium-resize-interop.mjs 9227 8084
+node tests/firefox-resize-interop.mjs 8084
 ```
 
-See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.5 acceptance is complete for the tested Firefox/Chromium profile matrix; this does not claim universal browser/HDR support, codec hardware execution, real-time throughput, or stable memory outside application-visible ownership counters.
+The M3.6 harnesses run the deterministic 640×360 fixture through original, 75%, 25%, exact aspect-locked, and exact stretched modes in every enabled profile. They verify displayed and decoded dimensions, disk-backed full re-decode, cancellation after changing size, zero-resource cleanup, and clear no-upscale rejection. They also generate an ignored sparse MP4 with a logical size above 256 MiB, convert it through the bounded path in both browsers, and verify the labeled memory fallback and its size rejection in Chromium.
+
+See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). The M3.6 configurable-output and bounded-streaming slices are complete for the tested Firefox/Chromium profile matrix; the rest of M3.6 is not. This does not claim universal browser/HDR support, codec hardware execution, real-time throughput, recovery, or stable memory outside application-visible ownership counters.

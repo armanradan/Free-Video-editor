@@ -610,3 +610,41 @@ Both browsers rejected the HDR fixture during inspection with `HDR input is not 
 Verified in this milestone: Rust host tests/checks/lints, complete wasm workspace checks/lints, JavaScript syntax/unit tests, Dioxus web build, deterministic regeneration metadata/hashes, and the two real-browser harnesses above. Exact commands are listed in the repository README.
 
 Still untested: Safari, other operating systems/GPUs, decoder-exposed non-zero visible-rectangle offsets, vertical flip independent of rotation-matrix decomposition, HDR conversion/tone mapping, wide-gamut outputs, transparency, adaptive mid-stream reconfiguration, and browser-internal color-conversion precision beyond representative decoded marker samples. Successful SDR marker checks do not prove colorimetric conformance, and the wgpu adapter still does not identify the codec execution engine.
+
+# M3.6 configurable-output and bounded-streaming interoperability report
+
+Date: 2026-09-21
+Status: **configurable-output and bounded-streaming slices passed for every profile enabled in the tested Firefox/Chromium environments; expanded compatibility and recovery remain open**
+
+## Implemented policy
+
+`media-core::ResizeSpec` owns original-size, percentage, and exact-size policy without browser or UI dependencies. The UI exposes original, 75%, 50%, 25%, and exact width/height. Exact sizing preserves display aspect ratio by default; disabling the lock explicitly requests stretching. The size is resolved from the post-crop, square-pixel, oriented display geometry. Requests are checked for zero, invalid percentage, overflow, implicit upscaling, and outputs smaller than the minimum 2×2 codec geometry. Odd resolved dimensions are floored to even values and the adjusted result is displayed before conversion.
+
+File selection and every resize change run the real decoder/encoder capability probes for the resolved dimensions. The same resolved size is carried through worker or main-thread transport, wgpu configuration, canvas capture, status, encoding, playback, and full output verification. The existing deterministic 640×360 H.264/AAC fixture was reused; no new media fixture was necessary.
+
+Input is lazily read through Mediabunny's `BlobSource` with an 8 MiB maximum cache; the former unconditional 256 MiB input rejection was removed. Output now uses Mediabunny 1.58.1's `StreamTarget` over origin-private file storage with WritableStream backpressure, 4 MiB target chunks, and measured write counts/maximum write size. MP4 uses non-fast-start layout on this random-access target so encoded media is not held for in-memory fast-start finalization. After close, the disk-backed `File` supports the existing object URL, playback, and full verification. The latest temporary file remains valid for that URL and is removed when the next conversion supersedes it; abnormal/cancel paths remove their partial file.
+
+When origin-private writable storage is unavailable, the same job uses a clearly reported `BufferTarget` compatibility fallback and retains a 256 MiB input cap. `?output=memory` exists only to exercise that path deterministically. There is no mid-job retry from a failed stream into memory, avoiding duplicate encode work or a sudden unbounded allocation.
+
+## Real-browser results
+
+The app was served by Dioxus CLI 0.7.10 with `?verify=full` and ran in its dedicated worker on Windows x64. The checked-in harnesses were `node tests/chromium-resize-interop.mjs 9231 8084` and `node tests/firefox-resize-interop.mjs 8084`. Evidence is retained locally under ignored `tmp/m36-resize-chromium` and `tmp/m36-resize-firefox`.
+
+| Browser/GPU | Enabled profiles | Verified resize cases |
+|---|---|---|
+| Edge 153.0.4234.48; `intel / gen-12lp (BrowserWebGpu)` | WebM/VP8/Opus, WebM/VP8/video-only, MP4/H.264/AAC | original 640×360; 75% 480×270; 25% 160×90; exact 500×500 locked → 500×280; exact 501×301 unlocked → 500×300 (15 complete conversions) |
+| Firefox 156.0; adapter identity redacted (`BrowserWebGpu`) | WebM/VP8/Opus, WebM/VP8/video-only | the same five resolved sizes (10 complete conversions) |
+
+Every conversion matched the displayed output geometry, completed full encoded-output re-decode verification, loaded for playback at the expected dimensions, and returned application-held frames/samples and GPU leases to zero. The Firefox matrix continued to expose only the two WebM profiles; unavailable MP4 was not counted as a failure.
+
+All 25 matrix conversions used bounded origin-private output. Their summaries reported the configured 4 MiB chunk boundary and measured writes; the small deterministic outputs required one write each, with maximum writes far below the boundary. Chromium and Firefox additionally converted a valid logical 269,763,667-byte MP4 consisting of the M2 fixture plus a reproducible sparse 257 MiB `free` box. Both processed 60/60 frames at 160×90 through WebM/VP8/video-only, fully re-decoded the disk-backed output, and reported one bounded output write (17,340 bytes Chromium; 19,084 bytes Firefox). This crosses the former input policy boundary and verifies bounded application I/O, but it is not evidence for long-duration decoding or large compressed-output throughput.
+
+Chromium's explicitly forced memory mode converted the normal fixture and passed full verification while visibly reporting `memory fallback (maximum input 256 MiB)`. After bounded input inspection and capability probing, the same mode rejected the 257.3 MiB logical input before starting the conversion decode/process/encode pumps, with the exact fallback reason. Automatic fallback caused by a genuinely unavailable/denied origin-private filesystem remains unobserved because both tested browsers supported the primary path; the forced mode executes the identical `BufferTarget` implementation.
+
+Both browsers cancelled an active conversion after changing the size and reported zero application-held frame/sample resources. Both rejected an aspect-locked 800×500 request before conversion because it would resolve to 800×450 and upscale the 640×360 source. The error reported the requested and oriented source dimensions; no output was offered.
+
+## Checks and remaining M3.6 work
+
+Verified for these slices: focused `media-core` resize/input-policy tests, host Rust tests/checks/lints, complete wasm workspace checks/lints, JavaScript syntax and worker-transport tests (including output-mode transport), Dioxus web build, the M3.5 real-browser regression harnesses, and the two M3.6 browser harnesses above. Mediabunny was updated from 1.58.0 to the current 1.58.1 patch release and the npm lockfile was regenerated.
+
+This is not completion of M3.6. A broader measured browser/input/output compatibility matrix, injected codec-failure recovery, device-loss handling, restart after those failures, Safari, non-Windows systems, other GPUs/drivers, explicit GPU/encoder limit boundary fixtures, large compressed-output/long-duration streaming stress, page-close cleanup of the latest origin-private output, automatic fallback from a genuinely unavailable filesystem, and 50% browser-harness coverage remain untested or unimplemented. The 50% mode uses the same tested percentage policy and is the UI default, but the browser matrix deliberately used 75% and 25% to exercise two non-default scales in addition to the other modes.

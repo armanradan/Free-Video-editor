@@ -32,3 +32,7 @@ pwsh -File tools/generate-m35-fixtures.ps1
 - `m35-resolution-change.mp4` concatenates 320×180 and 352×198 H.264 sequences. It verifies the current fail-fast mid-stream geometry policy and cleanup rather than adaptive reconfiguration.
 
 The geometry fixture deliberately records both source/container intent and observed decoded geometry. WebCodecs decoders may normalize coded padding/crop before exposing `VideoFrame`; the application additionally accepts and validates a non-full `visibleRect` when a decoder exposes one, but the tested H.264 decoders exposed the cropped image as a full visible rectangle.
+
+## M3.6 large-input validation fixture
+
+`tests/large-input-fixture.mjs` reproducibly copies the CC0 M2 fixture into ignored `tmp/m36-streaming` and appends a valid 257 MiB MP4 `free` box. The resulting logical 269,763,667-byte file retains the original 60-frame H.264/AAC tracks and is sparse on filesystems that support sparse extension. It exists only to cross the former 256 MiB policy boundary without checking a large binary into the repository; it does not represent a long-duration or large-compressed-output workload.

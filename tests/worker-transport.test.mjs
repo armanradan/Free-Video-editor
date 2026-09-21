@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 let serial = 0;
-async function fixture({ initError, crash = false, hold = false, mode = "worker", verify = false } = {}) {
+async function fixture({ initError, crash = false, hold = false, mode = "worker", verify = false, output = "auto" } = {}) {
   const nodes = new Map(["execution-context", "export-canvas", "worker-preview"].map(id => [id, {
     hidden: false, textContent: "", replaceChildren() {},
   }]));
@@ -16,6 +16,7 @@ async function fixture({ initError, crash = false, hold = false, mode = "worker"
   const query = new URLSearchParams();
   if (mode === "main") query.set("execution", "main");
   if (verify) query.set("verify", "full");
+  if (output === "memory") query.set("output", "memory");
   globalThis.location = { href: `https://test.invalid/?${query}` };
   globalThis.HTMLCanvasElement = class { transferControlToOffscreen() {} };
   globalThis.Worker = class {
@@ -59,11 +60,13 @@ test("worker transports commands and metadata; queued jobs are serialized", asyn
   const { module, sent, workers, nodes } = await fixture({ hold: true, verify: true });
   const statuses = [];
   const local = () => { throw Error("unexpected fallback"); };
-  const first = module.dispatchJob(null, "m1", "", "", value => statuses.push(value), local);
-  const second = module.dispatchJob(null, "m1", "", "", () => {}, local);
+  const first = module.dispatchJob(null, "m1", "", "", "percent:50", value => statuses.push(value), local);
+  const second = module.dispatchJob(null, "m1", "", "", "percent:50", () => {}, local);
   await until(() => sent.length === 2);
   assert.deepEqual(sent.map(item => item.message.operation), ["init", "m1"]);
   assert.equal(sent[1].message.verify, true);
+  assert.equal(sent[1].message.resize, "percent:50");
+  assert.equal(sent[1].message.outputMode, "auto");
   assert.equal(sent[0].transfer.length, 1);
   const firstId = sent[1].message.id;
   workers[0].reply(firstId, "result", { summary: "PASS" });
@@ -79,7 +82,7 @@ test("worker transports commands and metadata; queued jobs are serialized", asyn
 
 test("cancellation drains current command, rejects queued stale commands, permits restart", async () => {
   const { module, sent, workers } = await fixture({ hold: true });
-  const run = () => module.dispatchJob(null, "m1", "", "", () => {}, () => assert.fail("fallback"));
+  const run = () => module.dispatchJob(null, "m1", "", "", "percent:50", () => {}, () => assert.fail("fallback"));
   const first = run();
   const queued = run();
   const rejected = [assert.rejects(first, /CANCELLED/), assert.rejects(queued, /CANCELLED/)];
@@ -94,14 +97,15 @@ test("cancellation drains current command, rejects queued stale commands, permit
 });
 
 test("startup failure gives exact visible fallback and preserves profile", async () => {
-  const { module, workers, nodes } = await fixture({ initError: "worker WebGPU is unavailable", verify: true });
+  const { module, workers, nodes } = await fixture({ initError: "worker WebGPU is unavailable", verify: true, output: "memory" });
   let calls = 0;
-  const result = await module.dispatchJob(null, "convert", "mp4-h264-aac", "prefer-hardware", () => {}, async (_, operation, profile, acceleration, verify) => {
+  const result = await module.dispatchJob(null, "convert", "mp4-h264-aac", "prefer-hardware", "exact:320:180:1", () => {}, async (_, operation, profile, acceleration, resize, executionOptions) => {
     calls++;
     assert.equal(operation, "convert");
     assert.equal(profile, "mp4-h264-aac");
     assert.equal(acceleration, "prefer-hardware");
-    assert.equal(verify, true);
+    assert.equal(resize, "exact:320:180:1");
+    assert.equal(executionOptions, "memory:1");
     return { summary: "PASS" };
   });
   assert.equal(calls, 1);
@@ -112,7 +116,7 @@ test("startup failure gives exact visible fallback and preserves profile", async
 
 test("runtime crash rejects job without silently rerunning it; retry creates new worker", async () => {
   const { module, workers } = await fixture({ crash: true });
-  const run = () => module.dispatchJob(null, "m1", "", "", () => {}, () => assert.fail("must not fallback mid-job"));
+  const run = () => module.dispatchJob(null, "m1", "", "", "percent:50", () => {}, () => assert.fail("must not fallback mid-job"));
   await assert.rejects(run(), /injected runtime failure/);
   assert.equal(workers[0].terminated, true);
   assert.match((await run()).summary, /dedicated worker/);
@@ -121,7 +125,7 @@ test("runtime crash rejects job without silently rerunning it; retry creates new
 
 test("explicit main-thread mode bypasses worker creation", async () => {
   const { module, workers } = await fixture({ mode: "main" });
-  const result = await module.dispatchJob(null, "m1", "", "", () => {}, async () => ({ summary: "PASS" }));
+  const result = await module.dispatchJob(null, "m1", "", "", "percent:50", () => {}, async () => ({ summary: "PASS" }));
   assert.equal(workers.length, 0);
   assert.match(result.summary, /explicitly requested/);
 });

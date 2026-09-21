@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use media_core::{CodecAcceleration, OutputProfileId};
+use media_core::{CodecAcceleration, OutputProfileId, ResizeSpec};
 use ui::{ConverterControls, JobStatus};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 
@@ -31,11 +31,38 @@ fn App() -> Element {
     let mut download_name = use_signal(String::new);
     let mut profile = use_signal(|| OutputProfileId::PREFERRED);
     let mut acceleration = use_signal(CodecAcceleration::default);
-    let mut mp4_supported = use_signal(|| false);
-    let mut mp4_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
+    let mut resize_mode = use_signal(|| "percent-50".to_string());
+    let mut exact_width = use_signal(|| "320".to_string());
+    let mut exact_height = use_signal(|| "180".to_string());
+    let mut preserve_aspect_ratio = use_signal(|| true);
+    let resolved_size = use_signal(String::new);
+    let mut has_source = use_signal(|| false);
+    let mp4_supported = use_signal(|| false);
+    let mp4_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
     let mut probe_generation = use_signal(|| 0_u64);
+    let probe_signals = ProbeSignals {
+        generation: probe_generation,
+        running,
+        mp4_supported,
+        mp4_reason,
+        profile,
+        resolved_size,
+        status,
+    };
 
     let convert = move |_| {
+        let selected_resize = match requested_resize(
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+        ) {
+            Ok(resize) => resize,
+            Err(error) => {
+                status.set(display_error(error));
+                return;
+            }
+        };
         running.set(true);
         download_url.set(String::new());
         status.set("Inspecting MP4 container and exact H.264 configuration…".to_string());
@@ -48,6 +75,7 @@ fn App() -> Element {
                 "export-canvas",
                 selected_profile,
                 selected_acceleration,
+                selected_resize,
                 callback
                     .as_ref()
                     .unchecked_ref::<js_sys::Function>()
@@ -86,39 +114,66 @@ fn App() -> Element {
         });
     };
     let file_changed = move |_| {
-        let generation = probe_generation().wrapping_add(1);
-        probe_generation.set(generation);
-        mp4_supported.set(false);
-        mp4_reason.set("Checking the exact H.264/AAC encoder configuration…".to_string());
-        status.set("Inspecting input and probing output profiles…".to_string());
-        spawn(async move {
-            let result = media_web::probe_output_profiles("source-file").await;
-            if probe_generation() != generation || running() {
+        has_source.set(true);
+        let resize = match requested_resize(
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+        ) {
+            Ok(resize) => resize,
+            Err(error) => {
+                status.set(display_error(error));
                 return;
             }
-            match result {
-                Ok(capabilities) => {
-                    mp4_supported.set(capabilities.mp4_supported);
-                    mp4_reason.set(capabilities.mp4_reason.clone());
-                    if !capabilities.mp4_supported && profile() == OutputProfileId::Mp4H264Aac {
-                        profile.set(OutputProfileId::PREFERRED);
-                    }
-                    status.set(if capabilities.mp4_supported {
-                        "Ready. WebM/VP8/Opus and MP4/H.264/AAC are supported for this input."
-                            .to_string()
-                    } else {
-                        format!(
-                            "Ready. WebM profiles are available; MP4 is unavailable: {}",
-                            capabilities.mp4_reason
-                        )
-                    });
-                }
-                Err(error) => {
-                    mp4_reason.set("Input inspection failed.".to_string());
-                    status.set(display_error(error.to_string()));
-                }
-            }
-        });
+        };
+        let generation = probe_generation().wrapping_add(1);
+        probe_generation.set(generation);
+        spawn(probe_resize(resize, generation, probe_signals));
+    };
+    let resize_mode_changed = move |event: FormEvent| {
+        resize_mode.set(event.value());
+        reprobe_if_ready(
+            has_source(),
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+            probe_signals,
+        );
+    };
+    let exact_width_changed = move |event: FormEvent| {
+        exact_width.set(event.value());
+        reprobe_if_ready(
+            has_source(),
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+            probe_signals,
+        );
+    };
+    let exact_height_changed = move |event: FormEvent| {
+        exact_height.set(event.value());
+        reprobe_if_ready(
+            has_source(),
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+            probe_signals,
+        );
+    };
+    let aspect_ratio_changed = move |event: FormEvent| {
+        preserve_aspect_ratio.set(event.checked());
+        reprobe_if_ready(
+            has_source(),
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+            probe_signals,
+        );
     };
     let cancel = move |_| {
         media_web::cancel();
@@ -153,20 +208,29 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M3.5" }
+            p { class: "eyebrow", "MILESTONE M3.6 — CONFIGURABLE OUTPUT" }
             h1 { "Browser video converter" }
-            p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → wgpu half-size resize → capability-checked WebM/VP8/Opus or MP4/H.264/AAC. A video-only WebM profile remains available." }
+            p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → configurable wgpu resize → capability-checked WebM/VP8/Opus or MP4/H.264/AAC. A video-only WebM profile remains available." }
             ConverterControls {
                 running: running(),
                 download_url: download_url(),
                 download_name: download_name(),
                 profile: profile(),
                 acceleration: acceleration(),
+                resize_mode: resize_mode(),
+                exact_width: exact_width(),
+                exact_height: exact_height(),
+                preserve_aspect_ratio: preserve_aspect_ratio(),
+                resolved_size: resolved_size(),
                 mp4_supported: mp4_supported(),
                 mp4_reason: mp4_reason(),
                 on_file_change: file_changed,
                 on_profile_change: profile_changed,
                 on_acceleration_change: acceleration_changed,
+                on_resize_mode_change: resize_mode_changed,
+                on_exact_width_change: exact_width_changed,
+                on_exact_height_change: exact_height_changed,
+                on_aspect_ratio_change: aspect_ratio_changed,
                 on_convert: convert,
                 on_cancel: cancel,
             }
@@ -177,12 +241,126 @@ fn App() -> Element {
                 canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
             }
             JobStatus { status: status(), selected_gpu: selected_gpu() }
-            p { class: "note", "BT.709/sRGB SDR input is normalized through the browser color pipeline. Crop, pixel aspect ratio, rotation, and flip are baked into square-pixel output; HDR and mid-stream geometry changes are rejected. Input is capped at 256 MiB and finalized output is held in memory." }
+            p { class: "note", "BT.709/sRGB SDR input is normalized through the browser color pipeline. Crop, pixel aspect ratio, rotation, and flip are baked into square-pixel output; HDR and mid-stream geometry changes are rejected. Input is read through a bounded cache and output streams to origin-private file storage when available; the status reports any capped memory fallback." }
             details { class: "regression",
                 summary { "M1 deterministic regression probe" }
                 p { "Runs the original embedded 30-frame VP8 correctness fixture." }
                 button { disabled: running(), onclick: run_m1, "Run M1 probe" }
             }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ProbeSignals {
+    generation: Signal<u64>,
+    running: Signal<bool>,
+    mp4_supported: Signal<bool>,
+    mp4_reason: Signal<String>,
+    profile: Signal<OutputProfileId>,
+    resolved_size: Signal<String>,
+    status: Signal<String>,
+}
+
+fn requested_resize(
+    mode: &str,
+    exact_width: &str,
+    exact_height: &str,
+    preserve_aspect_ratio: bool,
+) -> Result<ResizeSpec, String> {
+    match mode {
+        "original" => Ok(ResizeSpec::Original),
+        "percent-75" => Ok(ResizeSpec::Percent(75)),
+        "percent-50" => Ok(ResizeSpec::Percent(50)),
+        "percent-25" => Ok(ResizeSpec::Percent(25)),
+        "exact" => {
+            let width = exact_width
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| "Exact output width must be a positive integer.".to_string())?;
+            let height = exact_height
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| "Exact output height must be a positive integer.".to_string())?;
+            Ok(ResizeSpec::Exact {
+                width,
+                height,
+                preserve_aspect_ratio,
+            })
+        }
+        _ => Err("Unknown resize selection.".to_string()),
+    }
+}
+
+fn reprobe_if_ready(
+    has_source: bool,
+    mode: &str,
+    exact_width: &str,
+    exact_height: &str,
+    preserve_aspect_ratio: bool,
+    mut signals: ProbeSignals,
+) {
+    if !has_source || (signals.running)() {
+        return;
+    }
+    let resize = match requested_resize(mode, exact_width, exact_height, preserve_aspect_ratio) {
+        Ok(resize) => resize,
+        Err(error) => {
+            signals.mp4_supported.set(false);
+            signals.resolved_size.set(String::new());
+            signals.status.set(display_error(error));
+            return;
+        }
+    };
+    let generation = (signals.generation)().wrapping_add(1);
+    signals.generation.set(generation);
+    spawn(probe_resize(resize, generation, signals));
+}
+
+async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSignals) {
+    signals.mp4_supported.set(false);
+    signals
+        .mp4_reason
+        .set("Checking the exact H.264/AAC encoder configuration…".to_string());
+    signals.resolved_size.set(String::new());
+    signals
+        .status
+        .set("Inspecting input and probing output profiles for the selected size…".to_string());
+    let result = media_web::probe_output_profiles("source-file", resize).await;
+    if (signals.generation)() != generation || (signals.running)() {
+        return;
+    }
+    match result {
+        Ok(capabilities) => {
+            signals.mp4_supported.set(capabilities.mp4_supported);
+            signals.mp4_reason.set(capabilities.mp4_reason.clone());
+            signals.resolved_size.set(format!(
+                "{}×{} (codec-safe)",
+                capabilities.output_size.width, capabilities.output_size.height
+            ));
+            if !capabilities.mp4_supported && (signals.profile)() == OutputProfileId::Mp4H264Aac {
+                signals.profile.set(OutputProfileId::PREFERRED);
+            }
+            signals.status.set(if capabilities.mp4_supported {
+                format!(
+                    "Ready. Output resolves to {}×{}. WebM/VP8/Opus and MP4/H.264/AAC are supported.",
+                    capabilities.output_size.width, capabilities.output_size.height
+                )
+            } else {
+                format!(
+                    "Ready. Output resolves to {}×{}. WebM profiles are available; MP4 is unavailable: {}",
+                    capabilities.output_size.width,
+                    capabilities.output_size.height,
+                    capabilities.mp4_reason
+                )
+            });
+        }
+        Err(error) => {
+            signals
+                .mp4_reason
+                .set("Input or resize inspection failed.".to_string());
+            signals.resolved_size.set(String::new());
+            signals.status.set(display_error(error.to_string()));
         }
     }
 }
