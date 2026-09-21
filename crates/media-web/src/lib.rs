@@ -4,8 +4,8 @@
 mod browser {
     use js_sys::{Function, Promise, Reflect};
     use media_core::{
-        CodecAcceleration, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId, ResizePreset,
-        Size, validate_browser_input_size,
+        CodecAcceleration, FrameGeometry, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId,
+        Rect, ResizePreset, Rotation, Size, validate_browser_input_size,
     };
     use media_gpu::ResizePipeline;
     use std::{
@@ -214,7 +214,7 @@ mod browser {
                 .await
                 .map_err(|e| JsValue::from_str(&e.to_string()))?,
         );
-        gpu.configure(INPUT_SIZE, OUTPUT_SIZE)
+        gpu.configure(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let init = VideoFrameInit::new();
         init.set_timestamp_f64(0.0);
@@ -352,7 +352,7 @@ mod browser {
 
     async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
-        let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE).await?;
+        let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false).await?;
         let process = process_callback(Rc::clone(&gpu));
         let cancelled = cancellation_callback(generation);
         let fixture =
@@ -422,12 +422,15 @@ mod browser {
         let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
             .await
             .map_err(js_error)?;
-        let input = Size::new(
-            u32_property(&inspection, "width")?,
-            u32_property(&inspection, "height")?,
-        )?;
-        let output = ResizePreset::Half.output_size(input)?;
-        let gpu = configured_gpu(input, output).await?;
+        let geometry = frame_geometry(&inspection)?;
+        let output = ResizePreset::Half.output_size(geometry.display_size())?;
+        let gpu = configured_gpu(
+            geometry.square_pixel,
+            output,
+            geometry.rotation,
+            geometry.flip_horizontal,
+        )
+        .await?;
         let process = process_callback(Rc::clone(&gpu));
         let bitmap_ingress_required = bitmap_ingress_callback();
         let cancelled = cancellation_callback(generation);
@@ -488,11 +491,8 @@ mod browser {
         let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
             .await
             .map_err(js_error)?;
-        let input = Size::new(
-            u32_property(&inspection, "width")?,
-            u32_property(&inspection, "height")?,
-        )?;
-        let output = ResizePreset::Half.output_size(input)?;
+        let geometry = frame_geometry(&inspection)?;
+        let output = ResizePreset::Half.output_size(geometry.display_size())?;
         let capabilities = JsFuture::from(backend.probe_profiles(&file, output).map_err(js_error)?)
             .await
             .map_err(js_error)?;
@@ -545,7 +545,12 @@ mod browser {
         )
     }
 
-    async fn configured_gpu(input: Size, output: Size) -> Result<Rc<GpuSession>, MediaError> {
+    async fn configured_gpu(
+        input: Size,
+        output: Size,
+        rotation: Rotation,
+        flip_horizontal: bool,
+    ) -> Result<Rc<GpuSession>, MediaError> {
         let existing = GPU_SESSION.with(|slot| slot.borrow().clone());
         let gpu = if let Some(existing) = existing {
             existing
@@ -562,7 +567,7 @@ mod browser {
             GPU_SESSION.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&created)));
             created
         };
-        gpu.configure(input, output)?;
+        gpu.configure(input, output, rotation, flip_horizontal)?;
         Ok(gpu)
     }
 
@@ -586,6 +591,9 @@ mod browser {
         next_slot: Cell<usize>,
         input_size: Size,
         output_size: Size,
+        rotation: Rotation,
+        flip_horizontal: bool,
+        transform: wgpu::Buffer,
         device_generation: u32,
     }
     struct InputTextureSlot {
@@ -784,13 +792,19 @@ mod browser {
             })
         }
 
-        fn configure(&self, input_size: Size, output_size: Size) -> Result<(), MediaError> {
-            if self
-                .configured
-                .borrow()
-                .as_ref()
-                .is_some_and(|c| c.input_size == input_size && c.output_size == output_size)
-            {
+        fn configure(
+            &self,
+            input_size: Size,
+            output_size: Size,
+            rotation: Rotation,
+            flip_horizontal: bool,
+        ) -> Result<(), MediaError> {
+            if self.configured.borrow().as_ref().is_some_and(|c| {
+                c.input_size == input_size
+                    && c.output_size == output_size
+                    && c.rotation == rotation
+                    && c.flip_horizontal == flip_horizontal
+            }) {
                 return Ok(());
             }
             if self.configured.borrow().as_ref().is_some_and(|configured| {
@@ -842,11 +856,20 @@ mod browser {
                 .collect();
             self.texture_allocations
                 .set(self.texture_allocations.get() + GPU_POOL_SIZE as u64);
+            let transform = self.pipeline.create_transform_buffer(
+                &self.device,
+                &self.queue,
+                rotation,
+                flip_horizontal,
+            );
             *self.configured.borrow_mut() = Some(ConfiguredResources {
                 slots,
                 next_slot: Cell::new(0),
                 input_size,
                 output_size,
+                rotation,
+                flip_horizontal,
+                transform,
                 device_generation: self.device_generation,
             });
             Ok(())
@@ -976,6 +999,7 @@ mod browser {
                     &self.device,
                     &mut encoder,
                     &source,
+                    &configured.transform,
                     &target,
                     configured.output_size,
                 );
@@ -1132,6 +1156,45 @@ mod browser {
             metrics.pool_wait_ms,
             metrics.final_drain_wait_ms,
         )
+    }
+
+    fn frame_geometry(value: &JsValue) -> Result<FrameGeometry, MediaError> {
+        let coded = Size::new(
+            u32_property(value, "codedWidth")?,
+            u32_property(value, "codedHeight")?,
+        )?;
+        let visible = Rect::new(
+            u32_property(value, "visibleX")?,
+            u32_property(value, "visibleY")?,
+            u32_property(value, "visibleWidth")?,
+            u32_property(value, "visibleHeight")?,
+        )?;
+        let square_pixel = Size::new(
+            u32_property(value, "width")?,
+            u32_property(value, "height")?,
+        )?;
+        let rotation = Rotation::from_degrees(u32_property(value, "rotation")?)?;
+        let geometry = FrameGeometry::new(
+            coded,
+            visible,
+            square_pixel,
+            rotation,
+            bool_property(value, "flip")?,
+        )?;
+        let reported_display = Size::new(
+            u32_property(value, "displayWidth")?,
+            u32_property(value, "displayHeight")?,
+        )?;
+        if geometry.display_size() != reported_display {
+            return Err(platform(format!(
+                "browser display geometry {}x{} does not match normalized geometry {}x{}",
+                reported_display.width,
+                reported_display.height,
+                geometry.display_size().width,
+                geometry.display_size().height
+            )));
+        }
+        Ok(geometry)
     }
 
     fn string_property(value: &JsValue, name: &str, missing: &str) -> Result<String, MediaError> {

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use media_core::Size;
+use media_core::{Rotation, Size};
 
 pub const RESIZE_SHADER: &str = include_str!("resize.wgsl");
 
@@ -26,6 +26,16 @@ impl ResizePipeline {
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(16),
                     },
                     count: None,
                 },
@@ -85,6 +95,7 @@ impl ResizePipeline {
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
         source: &wgpu::TextureView,
+        transform: &wgpu::Buffer,
         target: &wgpu::TextureView,
         output_size: Size,
     ) {
@@ -99,6 +110,10 @@ impl ResizePipeline {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: transform.as_entire_binding(),
                 },
             ],
         });
@@ -129,5 +144,27 @@ impl ResizePipeline {
             1.0,
         );
         pass.draw(0..3, 0..1);
+    }
+
+    pub fn create_transform_buffer(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        rotation: Rotation,
+        flip_horizontal: bool,
+    ) -> wgpu::Buffer {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("frame orientation uniform"),
+            size: 16,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let values = [rotation as u32, u32::from(flip_horizontal), 0_u32, 0_u32];
+        let mut bytes = [0_u8; 16];
+        for (index, value) in values.into_iter().enumerate() {
+            bytes[index * 4..index * 4 + 4].copy_from_slice(&value.to_ne_bytes());
+        }
+        queue.write_buffer(&buffer, 0, &bytes);
+        buffer
     }
 }

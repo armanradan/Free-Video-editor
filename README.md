@@ -1,8 +1,10 @@
-# Diaxus GPU video converter — M3.4
+# Diaxus GPU video converter — M3.5
 
 Dioxus Web controls an MP4/H.264 converter with shared Rust/wgpu half-size resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, and capability-gated MP4/H.264/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
 
-`media-core` owns platform-neutral policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.4 adds exact codec-acceleration selection/fallback, stage high-water telemetry, a generation-aware four-slot texture ring, and long-run validation; M3.5 has not started.
+M3.5 intentionally retains the validated half-size preset. M3.6 begins by replacing it with user-selectable original, percentage, and exact-size output, with aspect-ratio preservation, visible codec-safe dimension adjustment, exact profile re-probing, and real-browser coverage before the milestone proceeds to streaming and recovery work.
+
+`media-core` owns platform-neutral policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.5 adds crop/PAR/orientation handling, an explicit BT.709/sRGB SDR policy, VFR/non-zero-origin preservation checks, and clear HDR/resolution-change rejection.
 
 ## Prerequisites
 
@@ -64,8 +66,16 @@ node tests/chromium-worker-interop.mjs main
 node tests/chromium-worker-interop.mjs fallback
 node tests/inspect-chromium-outputs.mjs
 node tests/chromium-long-run.mjs
+node tests/chromium-m35-interop.mjs
 ```
 
 The independent output inspector requires FFmpeg/FFprobe on PATH. The Chromium harness creates and closes only its own test tab; `fallback` injects a test-only worker-constructor failure to exercise automatic fallback. It tests both acceleration requests for all three profiles, including MP4. The long-run harness uses `tmp/user-test/Input.mp4`, keeps the produced Blob in the browser, and records evidence under ignored `tmp/m34-long`; it requires that local test input to exist. Other generated outputs/evidence remain under ignored `tmp/m33-chromium-*`. Close the isolated debugging browser when finished; do not use your everyday profile for these tests.
 
-See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.4 acceptance is complete for the tested Firefox/Chromium matrix and long input; this does not claim universal browser support, codec hardware execution, real-time throughput, or stable memory outside application-visible ownership counters.
+The M3.5 harnesses run the geometry/color and VFR/non-zero-origin fixtures through every enabled profile, sample decoded output corner colors, verify every video packet timestamp/duration within the container timebase, and exercise HDR and mid-stream resolution-change failures:
+
+```powershell
+node tests/chromium-m35-interop.mjs 9227 8084
+node tests/firefox-m35-interop.mjs 8084
+```
+
+See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.5 acceptance is complete for the tested Firefox/Chromium profile matrix; this does not claim universal browser/HDR support, codec hardware execution, real-time throughput, or stable memory outside application-visible ownership counters.

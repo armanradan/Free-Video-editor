@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "name": "m35-geometry-color.mp4",
+  "purpose": "M3.5 crop, non-square-pixel, clockwise rotation, horizontal flip, BT.709 SDR, marker-color, and audio synchronization input",
+  "license": "CC0-1.0",
+  "generated_utc": "2026-09-20",
+  "generator": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "command": "tools/generate-m35-fixtures.ps1 (FFmpeg testsrc2 320x192; SPS crop 2/2/6/6; SAR 4:3; BT.709; rotate 90 degrees clockwise and flip horizontally)",
+  "expected": {
+    "frame_count": 24,
+    "frame_rate": "24/1",
+    "coded_width": 318,
+    "coded_height": 180,
+    "visible_rect": {
+      "x": 0,
+      "y": 0,
+      "width": 318,
+      "height": 180
+    },
+    "source_sps_crop": {
+      "left": 2,
+      "right": 2,
+      "top": 6,
+      "bottom": 6,
+      "decoder_behavior": "normalized into the decoded coded/visible size"
+    },
+    "pixel_aspect_ratio": "421:316",
+    "square_pixel_width": 421,
+    "square_pixel_height": 180,
+    "rotation_clockwise": 90,
+    "flip_horizontal_after_rotation": true,
+    "display_width": 180,
+    "display_height": 421,
+    "half_output_width": 90,
+    "half_output_height": 210,
+    "color": "BT.709 limited-range SDR",
+    "audio": "AAC LC, mono, 48000 Hz, 523 Hz tone"
+  },
+  "size_bytes": 56356,
+  "sha256": "03dbdd9a99de71b411f1c22c9feb69fe75ecc38f67bea3a83051072835b8bec9"
+}

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "name": "m35-hdr-tagged.mp4",
+  "purpose": "M3.5 deterministic BT.2020/PQ tagged input that the SDR-only pipeline must reject before conversion",
+  "license": "CC0-1.0",
+  "generated_utc": "2026-09-20",
+  "generator": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "command": "tools/generate-m35-fixtures.ps1 (FFmpeg testsrc2 tagged BT.2020 primaries, SMPTE ST 2084 transfer, BT.2020 non-constant matrix)",
+  "expected": {
+    "frame_count": 6,
+    "coded_width": 160,
+    "coded_height": 90,
+    "result": "reject as unsupported HDR"
+  },
+  "size_bytes": 9032,
+  "sha256": "f4ee492ca6a2474b65a63fa986e2013edeca19ff33fa3b3cb22a976974919b48"
+}

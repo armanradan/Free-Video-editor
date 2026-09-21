@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "m35-resolution-change.mp4",
+  "purpose": "M3.5 H.264 stream that changes decoded geometry mid-stream and must fail clearly rather than resize implicitly",
+  "license": "CC0-1.0",
+  "generated_utc": "2026-09-20",
+  "generator": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "command": "tools/generate-m35-fixtures.ps1 (concatenated 320x180 and 352x198 Annex-B H.264 sequences, muxed with deterministic AAC)",
+  "expected": {
+    "frame_count": 18,
+    "initial_width": 320,
+    "initial_height": 180,
+    "changed_width": 352,
+    "changed_height": 198,
+    "result": "reject mid-stream geometry change"
+  },
+  "size_bytes": 58651,
+  "sha256": "51bcc46d0498dab9bde031cd3d1e7706846c8a03ce2dbf0b9f6a6f703efe5e45"
+}

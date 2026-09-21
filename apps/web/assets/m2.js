@@ -3,6 +3,7 @@ import {
   AudioSampleSource,
   BlobSource,
   BufferTarget,
+  EncodedPacketSink,
   Input,
   MP4,
   Mp4OutputFormat,
@@ -44,6 +45,31 @@ function asSafeMicroseconds(value, label) {
   return value;
 }
 
+function normalizedColorSpace(value) {
+  return {
+    primaries: value?.primaries ?? null,
+    transfer: value?.transfer ?? null,
+    matrix: value?.matrix ?? null,
+    fullRange: value?.fullRange ?? null,
+  };
+}
+
+function validateSdrColorSpace(colorSpace, hasHdr) {
+  const color = normalizedColorSpace(colorSpace);
+  if (hasHdr) {
+    fail(`HDR input is not supported by the M3.5 SDR pipeline (${color.primaries ?? "unknown"}/${color.transfer ?? "unknown"}/${color.matrix ?? "unknown"}).`);
+  }
+  const allowedPrimaries = new Set([null, "bt709"]);
+  const allowedTransfer = new Set([null, "bt709", "iec61966-2-1"]);
+  const allowedMatrix = new Set([null, "bt709", "rgb"]);
+  if (!allowedPrimaries.has(color.primaries)
+      || !allowedTransfer.has(color.transfer)
+      || !allowedMatrix.has(color.matrix)) {
+    fail(`Unsupported SDR color space ${color.primaries ?? "unknown"}/${color.transfer ?? "unknown"}/${color.matrix ?? "unknown"}; M3.5 accepts BT.709/sRGB SDR only.`);
+  }
+  return color;
+}
+
 class MediabunnyInputAdapter {
   static async open(file) {
   if (!(file instanceof File)) fail("Select an MP4 file first.");
@@ -76,20 +102,74 @@ class MediabunnyInputAdapter {
     fail("This browser cannot decode the selected H.264 track with its exact codec configuration.");
   }
 
-  const [width, height, rotation, flip, duration, stats, audioTracks, codecString] = await Promise.all([
+  const [trackCodedWidth, trackCodedHeight, squarePixelWidth, squarePixelHeight, displayWidth, displayHeight,
+    pixelAspectRatio, rotation, flip, colorSpace, hasHdr, canBeTransparent, duration, stats, audioTracks, codecString] = await Promise.all([
     track.getCodedWidth(),
     track.getCodedHeight(),
+    track.getSquarePixelWidth(),
+    track.getSquarePixelHeight(),
+    track.getDisplayWidth(),
+    track.getDisplayHeight(),
+    track.getPixelAspectRatio(),
     track.getRotation(),
     track.getFlip(),
+    track.getColorSpace(),
+    track.hasHighDynamicRange(),
+    track.canBeTransparent(),
     input.computeDuration([track]),
     track.computePacketStats(),
     input.getAudioTracks(),
     track.getCodecParameterString(),
   ]);
-  if (rotation !== 0 || flip) {
+  if (![0, 90, 180, 270].includes(rotation)) {
     input.dispose();
-    fail("M3.2 supports unrotated, unflipped MP4 video only; orientation transforms remain scheduled for a later M3 slice.");
+    fail(`Unsupported video rotation ${rotation}; expected a multiple of 90 degrees.`);
   }
+  if (![trackCodedWidth, trackCodedHeight, squarePixelWidth, squarePixelHeight, displayWidth, displayHeight]
+      .every(value => Number.isSafeInteger(value) && value > 0)) {
+    input.dispose();
+    fail("Video geometry contains a non-positive or non-integer dimension.");
+  }
+  if (displayWidth !== (rotation % 180 === 0 ? squarePixelWidth : squarePixelHeight)
+      || displayHeight !== (rotation % 180 === 0 ? squarePixelHeight : squarePixelWidth)) {
+    input.dispose();
+    fail(`Inconsistent display geometry: square-pixel ${squarePixelWidth}×${squarePixelHeight}, rotation ${rotation}°, display ${displayWidth}×${displayHeight}.`);
+  }
+  if (!Number.isSafeInteger(pixelAspectRatio.num) || pixelAspectRatio.num <= 0
+      || !Number.isSafeInteger(pixelAspectRatio.den) || pixelAspectRatio.den <= 0) {
+    input.dispose();
+    fail("Video pixel aspect ratio is invalid.");
+  }
+  if (canBeTransparent) {
+    input.dispose();
+    fail("Transparent video is not supported by the opaque M3.5 SDR output policy.");
+  }
+  let color;
+  try { color = validateSdrColorSpace(colorSpace, hasHdr); }
+  catch (error) { input.dispose(); throw error; }
+  let firstSample;
+  try {
+    firstSample = await new VideoSampleSink(track).getSample(await track.getFirstTimestamp());
+    if (!firstSample) fail("The primary video track produced no decodable geometry sample.");
+    if (firstSample.rotation !== rotation || firstSample.flip !== flip) {
+      fail(`Track/sample orientation mismatch: track=${rotation}° flip=${flip}, sample=${firstSample.rotation}° flip=${firstSample.flip}.`);
+    }
+    if (firstSample.squarePixelWidth !== squarePixelWidth || firstSample.squarePixelHeight !== squarePixelHeight) {
+      fail(`Track/sample square-pixel geometry mismatch: track=${squarePixelWidth}×${squarePixelHeight}, sample=${firstSample.squarePixelWidth}×${firstSample.squarePixelHeight}.`);
+    }
+    color = validateSdrColorSpace(firstSample.colorSpace, false);
+  } catch (error) {
+    firstSample?.close();
+    input.dispose();
+    throw error;
+  }
+  const visibleRect = { ...firstSample.visibleRect };
+  // The container's track dimensions can describe the clean aperture while the
+  // decoder exposes the larger coded allocation. Use the decoded sample as the
+  // authoritative coded grid so non-zero crop offsets remain representable.
+  const codedWidth = firstSample.codedWidth;
+  const codedHeight = firstSample.codedHeight;
+  firstSample.close();
   const audioTrack = audioTracks[0] ?? null;
   let audio = null;
   if (audioTrack) {
@@ -105,8 +185,17 @@ class MediabunnyInputAdapter {
   return {
     input,
     track,
-    width,
-    height,
+    codedWidth,
+    codedHeight,
+    width: squarePixelWidth,
+    height: squarePixelHeight,
+    displayWidth,
+    displayHeight,
+    pixelAspectRatio,
+    rotation,
+    flip,
+    color,
+    visibleRect,
     duration,
     packetCount: stats.packetCount,
     averagePacketRate: stats.averagePacketRate,
@@ -123,6 +212,22 @@ async function inspect(file) {
     return {
       width: opened.width,
       height: opened.height,
+      codedWidth: opened.codedWidth,
+      codedHeight: opened.codedHeight,
+      visibleX: opened.visibleRect.left,
+      visibleY: opened.visibleRect.top,
+      visibleWidth: opened.visibleRect.width,
+      visibleHeight: opened.visibleRect.height,
+      displayWidth: opened.displayWidth,
+      displayHeight: opened.displayHeight,
+      rotation: opened.rotation,
+      flip: opened.flip,
+      pixelAspectNumerator: opened.pixelAspectRatio.num,
+      pixelAspectDenominator: opened.pixelAspectRatio.den,
+      colorPrimaries: opened.color.primaries ?? "unknown",
+      colorTransfer: opened.color.transfer ?? "unknown",
+      colorMatrix: opened.color.matrix ?? "unknown",
+      colorFullRange: opened.color.fullRange,
       duration: opened.duration,
       packetCount: opened.packetCount,
       averagePacketRate: opened.averagePacketRate,
@@ -256,10 +361,18 @@ async function verifyOutput(buffer, expected) {
     if (!(await videoTrack.canDecode())) {
       fail(`This browser cannot re-decode the finalized ${expected.videoCodecLabel} track.${environmentHint()}`);
     }
-    const [codec, width, height, videoDuration, metadataDuration, stats, videoFirst] = await Promise.all([
+    const [codec, width, height, displayWidth, displayHeight, rotation, flip, pixelAspectRatio,
+      colorSpace, hasHdr, videoDuration, metadataDuration, stats, videoFirst] = await Promise.all([
       videoTrack.getCodec(),
       videoTrack.getCodedWidth(),
       videoTrack.getCodedHeight(),
+      videoTrack.getDisplayWidth(),
+      videoTrack.getDisplayHeight(),
+      videoTrack.getRotation(),
+      videoTrack.getFlip(),
+      videoTrack.getPixelAspectRatio(),
+      videoTrack.getColorSpace(),
+      videoTrack.hasHighDynamicRange(),
       input.computeDuration([videoTrack]),
       input.getDurationFromMetadata([videoTrack]),
       videoTrack.computePacketStats(),
@@ -271,8 +384,39 @@ async function verifyOutput(buffer, expected) {
     if (width !== expected.width || height !== expected.height) {
       fail(`Finalized output is ${width}×${height}, expected ${expected.width}×${expected.height}.`);
     }
+    if (displayWidth !== expected.width || displayHeight !== expected.height
+        || rotation !== 0 || flip || pixelAspectRatio.num !== 1 || pixelAspectRatio.den !== 1) {
+      fail(`Finalized output geometry is coded=${width}×${height}, display=${displayWidth}×${displayHeight}, rotation=${rotation}°, flip=${flip}, PAR=${pixelAspectRatio.num}:${pixelAspectRatio.den}; expected baked orientation with square pixels at ${expected.width}×${expected.height}.`);
+    }
+    validateSdrColorSpace(colorSpace, hasHdr);
     if (stats.packetCount !== expected.frameCount) {
       fail(`Finalized output contains ${stats.packetCount} video packets for ${expected.frameCount} decoded input frames.`);
+    }
+    const outputTimeline = [];
+    for await (const packet of new EncodedPacketSink(videoTrack).packets(undefined, undefined, { metadataOnly: true })) {
+      outputTimeline.push({ timestamp: packet.microsecondTimestamp, duration: packet.microsecondDuration });
+    }
+    outputTimeline.sort((a, b) => a.timestamp - b.timestamp);
+    if (outputTimeline.length !== expected.videoTimeline.length) {
+      fail(`Finalized output timeline has ${outputTimeline.length} packets, expected ${expected.videoTimeline.length}.`);
+    }
+    // WebM uses millisecond timecode ticks here; a packet duration is the
+    // difference between two independently rounded endpoints.
+    const timelineToleranceUs = expected.container === "webm" ? 1_000 : 5;
+    let maxTimelineErrorUs = 0;
+    for (let index = 0; index < outputTimeline.length; index++) {
+      const actual = outputTimeline[index];
+      const wanted = expected.videoTimeline[index];
+      const timestampError = Math.abs(actual.timestamp - wanted.timestamp);
+      // Some muxers omit the final packet's duration; the separately checked
+      // track coverage then provides that final endpoint.
+      const durationError = index === outputTimeline.length - 1 && actual.duration === 0
+        ? 0
+        : Math.abs(actual.duration - wanted.duration);
+      maxTimelineErrorUs = Math.max(maxTimelineErrorUs, timestampError, durationError);
+      if (timestampError > timelineToleranceUs || durationError > timelineToleranceUs) {
+        fail(`Finalized output timeline differs beyond the ${timelineToleranceUs} µs ${expected.container.toUpperCase()} tick tolerance at frame ${index}: ${actual.timestamp}+${actual.duration} µs, expected ${wanted.timestamp}+${wanted.duration} µs.`);
+      }
     }
     const tolerance = Math.max(0.050, expected.lastVideoDurationSeconds + 0.010);
     if (Math.abs(videoDuration - expected.videoEndSeconds) > tolerance) {
@@ -284,12 +428,17 @@ async function verifyOutput(buffer, expected) {
     const midpoint = Math.max(0, videoDuration / 2);
     const sample = await new VideoSampleSink(videoTrack).getSample(midpoint);
     if (!sample) fail("Finalized output could not seek/decode video at its midpoint.");
-    sample.close();
+    try {
+      if (sample.rotation !== 0 || sample.flip || sample.displayWidth !== expected.width || sample.displayHeight !== expected.height) {
+        fail(`Decoded output sample did not retain baked square-pixel geometry at ${expected.width}×${expected.height}.`);
+      }
+      validateSdrColorSpace(sample.colorSpace, false);
+    } finally { sample.close(); }
 
     const audioTracks = await input.getAudioTracks();
     if (!expected.hasAudio) {
       if (audioTracks.length !== 0) fail(`Video-only profile produced ${audioTracks.length} audio track(s).`);
-      return { duration: metadataDuration ?? videoDuration, packetCount: stats.packetCount, audioPackets: 0, audioPeak: 0 };
+      return { duration: metadataDuration ?? videoDuration, packetCount: stats.packetCount, timelinePackets: outputTimeline.length, maxTimelineErrorUs, audioPackets: 0, audioPeak: 0 };
     }
     const audioTrack = audioTracks[0];
     if (!audioTrack) fail("Audio-preserving profile produced no audio track.");
@@ -328,6 +477,8 @@ async function verifyOutput(buffer, expected) {
     return {
       duration: Math.max(metadataDuration ?? 0, videoDuration, audioDuration),
       packetCount: stats.packetCount,
+      timelinePackets: outputTimeline.length,
+      maxTimelineErrorUs,
       audioPackets: audioStats.packetCount,
       audioPeak,
     };
@@ -449,7 +600,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
   };
   const startedAt = performance.now();
   try {
-    if (opened.width < outputWidth || opened.height < outputHeight) {
+    if (opened.displayWidth < outputWidth || opened.displayHeight < outputHeight) {
       fail("The half-size preset must not upscale the source.");
     }
     let selectedAcceleration = requested;
@@ -474,7 +625,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const audioFirstSeconds = opened.audio
       ? (asSafeMicroseconds(Math.round(await opened.audio.track.getFirstTimestamp() * 1_000_000), "audio start") - originUs) / 1_000_000
       : 0;
-    status(`Demuxed MP4/H.264: ${opened.width}×${opened.height}, ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
+    status(`Demuxed MP4/H.264: coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, square-pixel ${opened.width}×${opened.height}, rotation ${opened.rotation}°, flip=${opened.flip}, display ${opened.displayWidth}×${opened.displayHeight}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}; ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
 
     muxer = new MediabunnyOutputAdapter(profile, opened.audio, selectedAcceleration, telemetry);
     try {
@@ -487,6 +638,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     let videoEndSeconds = 0;
     let audioEndSeconds = 0;
     let lastVideoDurationSeconds = 0;
+    const videoTimeline = [];
     let siblingFailure = null;
     const ensureActive = () => {
       if (siblingFailure) throw siblingFailure;
@@ -495,6 +647,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const pumpVideo = async () => {
       const sink = new VideoSampleSink(opened.track, { hardwareAcceleration: selectedAcceleration });
       const iterator = sink.samples()[Symbol.asyncIterator]();
+      let previousTimestamp = null;
       const createItem = (sample, prepareInParallel) => {
         telemetry.enter("decodedVideo");
         retain("samples");
@@ -505,7 +658,30 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           const reportedDuration = asSafeMicroseconds(sample.microsecondDuration, "input video duration");
           const duration = reportedDuration > 0 ? reportedDuration : Math.round(1_000_000 / opened.averagePacketRate);
           const timestamp = sourceTimestamp - originUs;
+          if (previousTimestamp !== null && timestamp <= previousTimestamp) {
+            fail(`Video timestamps are not strictly increasing: ${timestamp} µs followed ${previousTimestamp} µs.`);
+          }
+          previousTimestamp = timestamp;
+          videoTimeline.push({ timestamp, duration });
+          const visible = sample.visibleRect;
+          if (sample.codedWidth !== opened.codedWidth || sample.codedHeight !== opened.codedHeight
+              || visible.left !== opened.visibleRect.left || visible.top !== opened.visibleRect.top
+              || visible.width !== opened.visibleRect.width || visible.height !== opened.visibleRect.height
+              || sample.squarePixelWidth !== opened.width || sample.squarePixelHeight !== opened.height
+              || sample.rotation !== opened.rotation || sample.flip !== opened.flip) {
+            fail(`Mid-stream geometry change is unsupported: frame ${sample.codedWidth}×${sample.codedHeight}, visible ${visible.width}×${visible.height}+${visible.left},${visible.top}, square-pixel ${sample.squarePixelWidth}×${sample.squarePixelHeight}, rotation ${sample.rotation}°, flip=${sample.flip}.`);
+          }
+          const sampleColor = validateSdrColorSpace(sample.colorSpace, false);
+          if (sampleColor.primaries !== opened.color.primaries
+              || sampleColor.transfer !== opened.color.transfer
+              || sampleColor.matrix !== opened.color.matrix
+              || sampleColor.fullRange !== opened.color.fullRange) {
+            fail("Mid-stream color metadata change is unsupported.");
+          }
           decodedFrame = sample.toVideoFrame();
+          if (decodedFrame.displayWidth !== opened.width || decodedFrame.displayHeight !== opened.height) {
+            fail(`Decoded VideoFrame display geometry ${decodedFrame.displayWidth}×${decodedFrame.displayHeight} does not match normalized square-pixel input ${opened.width}×${opened.height}.`);
+          }
           retain("frames");
           return {
             sample,
@@ -706,6 +882,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           width: outputWidth,
           height: outputHeight,
           frameCount: processed,
+          videoTimeline,
           videoEndSeconds,
           lastVideoDurationSeconds,
           videoFirstSeconds,
@@ -728,7 +905,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const base = file.name.replace(/\.[^.]+$/, "") || "converted";
     const totalElapsed = performance.now() - startedAt;
     const verificationSummary = verifyOutputFully
-      ? `Diagnostic verification: full re-decode PASS in ${verificationElapsed.toFixed(1)} ms${profile.audioCodec ? `; decoded output audio peak=${verified.audioPeak.toFixed(4)}` : ""}; total job ${totalElapsed.toFixed(1)} ms.`
+      ? `Diagnostic verification: full re-decode PASS in ${verificationElapsed.toFixed(1)} ms; ${verified.timelinePackets}-frame timestamp/duration timeline PASS (maximum container quantization ${verified.maxTimelineErrorUs} µs)${profile.audioCodec ? `; decoded output audio peak=${verified.audioPeak.toFixed(4)}` : ""}; total job ${totalElapsed.toFixed(1)} ms.`
       : `Diagnostic verification: skipped for normal conversion; use ?verify=full for the test-only re-decode path; total job ${totalElapsed.toFixed(1)} ms.`;
     const durationSummary = verifyOutputFully
       ? `${verified.duration.toFixed(3)} s`
@@ -739,6 +916,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0.`)
         + `\n${verificationSummary}`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; exact decoder+encoder probes passed${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
+        + `\nGeometry/color: input coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}, rotation ${opened.rotation}°, flip=${opened.flip}; baked square-pixel output ${outputWidth}×${outputHeight}; SDR ${opened.color.primaries ?? "unspecified"}/${opened.color.transfer ?? "unspecified"}/${opened.color.matrix ?? "unspecified"}, browser-normalized to sRGB processing; HDR rejected.`
         + `\nBounds: Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.`
         + `\n${bitmapPreparationReport()}\n${telemetry.report()}\n${lifecycle()}`,
       // Only compressed output leaves the execution context. The host owns its URL.

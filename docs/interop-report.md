@@ -543,7 +543,7 @@ The 147.3-second Edge test was repeated with the ring: 3,530/3,530 frames, 6,343
 - No tested output encoder accepted `prefer-hardware`, so actual hardware-preferred throughput, startup, CPU load, power, and codec-engine selection remain unmeasured. WebCodecs configuration success and the displayed wgpu adapter would not prove hardware codec execution anyway.
 - The browser exposes no reliable, codec-attributed CPU-load or power metric used by this app. GPU timestamp queries were not requested/supported in this path; submitted-work waits are not a substitute.
 - wgpu 30.0.1's released browser backend does not implement its plane-based external-texture API for this use and exposes no released direct VideoFrame texture import. Therefore no direct-import comparison was possible. The measured baseline remains one external-image copy per frame, plus Firefox's explicit compatibility bitmap conversion.
-- Safari, non-Windows systems, other GPUs/drivers, device loss, browser-process/driver heap stability, arbitrary codec hangs, HDR/geometry/color extensions, and streaming output remain untested. These are not folded into the M3.4 acceptance claim. M3.5 is the next planned milestone.
+- Safari, non-Windows systems, other GPUs/drivers, device loss, browser-process/driver heap stability, arbitrary codec hangs, HDR conversion, wide-gamut output, and streaming output remained untested at M3.4. M3.5 subsequently added the tested SDR/geometry policy below; M3.6 is the next planned milestone.
 
 ## Bounded bitmap preparation and verification timing, 2026-09-20
 
@@ -565,3 +565,48 @@ With diagnostic verification omitted—the normal UI behavior—two baseline Fir
 Edge 153's final worker matrix also passed all three profiles × both acceleration requests, cancellation/restart, playback/seek and five M1 rounds. Direct ingress remained selected: bitmap preparation total/peak were `0/0`. Baseline converted/finalized times were 261.5 ms for WebM/VP8/Opus, 330.2 ms for video-only WebM, and 266.8 ms for MP4/H.264/AAC; their full verification steps cost 15.9, 12.3 and 14.2 ms respectively. FFprobe/FFmpeg independently decoded the six newly generated worker outputs with 60/60 video frames and expected audio/no-audio tracks; the existing Opus warning remains.
 
 Conclusion: both requested changes are validated, but bounded bitmap preparation does not close Firefox's remaining gap. The next justified experiment is the explicitly counted CPU upload compatibility path described in the architecture discussion; increasing the GPU slot count is not supported by these measurements.
+
+# M3.5 geometry, timing, and color interoperability report
+
+Date: 2026-09-21
+Status: **acceptance passed for every profile enabled in the tested Firefox/Chromium environments; M3.6 has not started**
+
+## Implemented policy
+
+The browser backend now inspects coded dimensions, decoded visible rectangle, square-pixel dimensions, pixel aspect ratio, clockwise rotation, post-rotation horizontal flip, color metadata, HDR state, and transparency before configuring the GPU. `media-core` owns the platform-neutral geometry types and validation. The browser external-image boundary normalizes the decoded visible image, pixel aspect ratio, and accepted SDR color into the square-pixel sRGB processing texture; shared WGSL applies the inverse sampling transform for rotation/flip while performing the half-size resize. The encoder therefore receives pixels with orientation baked in and emits square-pixel, rotation=0, flip=false output.
+
+Accepted color is opaque BT.709/sRGB SDR: primaries may be unspecified or BT.709, transfer may be unspecified, BT.709, or IEC 61966-2-1, and matrix may be unspecified, BT.709, or RGB. Browser color conversion into the `Rgba8Unorm` canvas is relied on and reported; this is not a claim of wide-gamut or HDR fidelity. Transparency, BT.2020/PQ and other HDR/wide-color combinations are rejected before conversion. A change to coded/visible/square-pixel dimensions, orientation, or color metadata after the first decoded sample fails the job and drains owned resources; adaptive resolution reconfiguration is deferred.
+
+Every processed input timestamp and duration remains an integer microsecond value. Full diagnostic verification reopens the finalized container, enumerates all encoded video packets, sorts them into presentation order, and compares every timestamp/duration with the processed input timeline. WebM permits at most 1,000 µs error because its millisecond timecode independently rounds packet endpoints; MP4 permits 5 µs in the tested muxer timescale. When the final packet omits its duration, its start is still checked and the independently checked track coverage supplies the final endpoint. Midpoint video seek and decoded audio near the beginning, middle, and end retain the earlier M3 checks.
+
+## Deterministic fixtures
+
+`tools/generate-m35-fixtures.ps1` generated four CC0-1.0 inputs with FFmpeg 8.0.1:
+
+| Fixture | Bytes | SHA-256 | Purpose |
+|---|---:|---|---|
+| `m35-geometry-color.mp4` | 56,356 | `03dbdd9a99de71b411f1c22c9feb69fe75ecc38f67bea3a83051072835b8bec9` | H.264 clean-aperture crop, non-square pixels, 90° clockwise rotation, horizontal flip, BT.709 markers, AAC tone |
+| `m35-vfr-offset.mp4` | 88,866 | `c16c968ee505aa6e2a0ee3d4fb0ac8ea58aad0378e97062a7872925cb0983724` | 36 VFR frames with 33,333/66,667 µs durations, video start 1.250 s, AAC start 1.228 s |
+| `m35-hdr-tagged.mp4` | 9,032 | `f4ee492ca6a2474b65a63fa986e2013edeca19ff33fa3b3cb22a976974919b48` | Deterministic BT.2020/PQ negative input |
+| `m35-resolution-change.mp4` | 58,651 | `51bcc46d0498dab9bde031cd3d1e7706846c8a03ce2dbf0b9f6a6f703efe5e45` | 320×180 H.264 followed by 352×198 H.264 |
+
+The geometry fixture begins as a 320×192 synthetic source with explicit H.264 cropping. In both tested browsers the decoder normalized that aperture into a 318×180 coded allocation with a full 318×180 `visibleRect`; the track's sample-aspect/display metadata produced 421×180 square-pixel input and a 180×421 oriented display, resized to 90×210. Thus compressed crop normalization was exercised, while a decoder-exposed non-zero `visibleRect` was not available in this H.264/browser matrix. The implementation validates and uses such a rectangle if supplied, but that subcase remains explicitly unverified.
+
+## Real-browser results
+
+The app was served by Dioxus CLI 0.7.10 in full diagnostic mode and ran in a dedicated worker on Windows x64. The checked-in harnesses were `node tests/chromium-m35-interop.mjs 9230 8084` and `node tests/firefox-m35-interop.mjs 8084`. Evidence is retained locally under ignored `tmp/m35-chromium` and `tmp/m35-firefox`.
+
+| Browser/GPU | Enabled profiles | Geometry/color result | VFR/timing result |
+|---|---|---|---|
+| Edge 153.0.4234.48; `intel / gen-12lp (BrowserWebGpu)` | WebM/VP8/Opus, WebM/VP8/video-only, MP4/H.264/AAC | 24/24 frames per profile; decoded 90×210; sampled corners red `(253,25,11)`, blue `(3,12,239)`, green `(9,108,0)`, yellow `(255,240,0)` for VP8 and equivalent H.264 values; seek/audio checks passed | 36/36 frames per profile; decoded 160×90; maximum timeline error 667 µs WebM and 4 µs MP4; audio profiles retained non-silent audio and A/V offsets |
+| Firefox 156.0; adapter identity redacted (`BrowserWebGpu`) | WebM/VP8/Opus, WebM/VP8/video-only | 24/24 frames per profile; decoded 90×210; sampled corners red `(252,26,1)`, blue `(0,17,250)`, green `(0,109,2)`, yellow `(253,242,4)`; seek/audio checks passed | 36/36 frames per profile; decoded 160×90; maximum timeline error 667 µs; Opus profile retained non-silent audio and A/V offsets |
+
+Every enabled profile reported baked square-pixel output with no rotation/flip metadata, passed packet-count and complete per-frame timeline checks, and returned application-held frames/samples and GPU leases to zero. Chromium exposed all three profiles; Firefox still did not expose the MP4/H.264/AAC encoder profile, so it was not presented as available and was not counted as a Firefox failure.
+
+Both browsers rejected the HDR fixture during inspection with `HDR input is not supported by the M3.5 SDR pipeline (bt2020/pq/bt2020-ncl)`. Both began the resolution-change fixture at 320×180, detected the first 352×198 decoded frame, failed with `Mid-stream geometry change is unsupported`, and cleaned application-held frames/samples to zero. No altered output was offered for either negative case.
+
+## Checks and limitations
+
+Verified in this milestone: Rust host tests/checks/lints, complete wasm workspace checks/lints, JavaScript syntax/unit tests, Dioxus web build, deterministic regeneration metadata/hashes, and the two real-browser harnesses above. Exact commands are listed in the repository README.
+
+Still untested: Safari, other operating systems/GPUs, decoder-exposed non-zero visible-rectangle offsets, vertical flip independent of rotation-matrix decomposition, HDR conversion/tone mapping, wide-gamut outputs, transparency, adaptive mid-stream reconfiguration, and browser-internal color-conversion precision beyond representative decoded marker samples. Successful SDR marker checks do not prove colorimetric conformance, and the wgpu adapter still does not identify the codec execution engine.

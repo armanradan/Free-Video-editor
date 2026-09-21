@@ -112,6 +112,110 @@ pub struct Size {
     pub height: u32,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Rect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Rect {
+    pub fn new(x: u32, y: u32, width: u32, height: u32) -> Result<Self, MediaError> {
+        Size::new(width, height)?;
+        Ok(Self {
+            x,
+            y,
+            width,
+            height,
+        })
+    }
+
+    pub fn fits_within(self, coded: Size) -> bool {
+        self.x
+            .checked_add(self.width)
+            .is_some_and(|right| right <= coded.width)
+            && self
+                .y
+                .checked_add(self.height)
+                .is_some_and(|bottom| bottom <= coded.height)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[repr(u32)]
+pub enum Rotation {
+    #[default]
+    Deg0 = 0,
+    Deg90 = 1,
+    Deg180 = 2,
+    Deg270 = 3,
+}
+
+impl Rotation {
+    pub fn from_degrees(value: u32) -> Result<Self, MediaError> {
+        match value {
+            0 => Ok(Self::Deg0),
+            90 => Ok(Self::Deg90),
+            180 => Ok(Self::Deg180),
+            270 => Ok(Self::Deg270),
+            _ => Err(MediaError::InvalidRotation(value)),
+        }
+    }
+
+    pub const fn degrees(self) -> u32 {
+        match self {
+            Self::Deg0 => 0,
+            Self::Deg90 => 90,
+            Self::Deg180 => 180,
+            Self::Deg270 => 270,
+        }
+    }
+
+    pub const fn swaps_axes(self) -> bool {
+        matches!(self, Self::Deg90 | Self::Deg270)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FrameGeometry {
+    pub coded: Size,
+    pub visible: Rect,
+    /// Browser-normalized square-pixel size before rotation and flip.
+    pub square_pixel: Size,
+    pub rotation: Rotation,
+    pub flip_horizontal: bool,
+}
+
+impl FrameGeometry {
+    pub fn new(
+        coded: Size,
+        visible: Rect,
+        square_pixel: Size,
+        rotation: Rotation,
+        flip_horizontal: bool,
+    ) -> Result<Self, MediaError> {
+        if !visible.fits_within(coded) {
+            return Err(MediaError::VisibleRectOutsideCoded { visible, coded });
+        }
+        Ok(Self {
+            coded,
+            visible,
+            square_pixel,
+            rotation,
+            flip_horizontal,
+        })
+    }
+
+    pub const fn display_size(self) -> Size {
+        if self.rotation.swaps_axes() {
+            Size::new_unchecked(self.square_pixel.height, self.square_pixel.width)
+        } else {
+            self.square_pixel
+        }
+    }
+}
+
 impl Size {
     pub const fn new_unchecked(width: u32, height: u32) -> Self {
         Self { width, height }
@@ -192,6 +296,8 @@ impl TimeBase {
 pub enum MediaError {
     InvalidSize { width: u32, height: u32 },
     InvalidTimeBase,
+    InvalidRotation(u32),
+    VisibleRectOutsideCoded { visible: Rect, coded: Size },
     TimestampOverflow,
     EmptyInput,
     InputTooLarge { actual: u64, maximum: u64 },
@@ -203,6 +309,12 @@ impl fmt::Display for MediaError {
         match self {
             Self::InvalidSize { width, height } => write!(f, "invalid frame size {width}x{height}"),
             Self::InvalidTimeBase => f.write_str("time-base terms must both be non-zero"),
+            Self::InvalidRotation(value) => write!(f, "invalid frame rotation {value} degrees"),
+            Self::VisibleRectOutsideCoded { visible, coded } => write!(
+                f,
+                "visible rectangle {}x{}+{},{} exceeds coded frame {}x{}",
+                visible.width, visible.height, visible.x, visible.y, coded.width, coded.height
+            ),
             Self::TimestampOverflow => f.write_str("timestamp conversion overflowed"),
             Self::EmptyInput => f.write_str("the selected file is empty"),
             Self::InputTooLarge { actual, maximum } => write!(
@@ -250,6 +362,35 @@ mod tests {
                 .unwrap(),
             Size::new(2, 2).unwrap()
         );
+    }
+
+    #[test]
+    fn geometry_applies_crop_aspect_then_orientation_before_resize() {
+        let geometry = FrameGeometry::new(
+            Size::new(336, 192).unwrap(),
+            Rect::new(8, 6, 320, 180).unwrap(),
+            Size::new(426, 180).unwrap(),
+            Rotation::Deg90,
+            true,
+        )
+        .unwrap();
+        assert_eq!(geometry.display_size(), Size::new(180, 426).unwrap());
+        assert_eq!(
+            ResizePreset::Half
+                .output_size(geometry.display_size())
+                .unwrap(),
+            Size::new(90, 212).unwrap()
+        );
+    }
+
+    #[test]
+    fn geometry_rejects_visible_rect_outside_coded_frame() {
+        let coded = Size::new(320, 180).unwrap();
+        let visible = Rect::new(4, 0, 320, 180).unwrap();
+        assert!(matches!(
+            FrameGeometry::new(coded, visible, coded, Rotation::Deg0, false),
+            Err(MediaError::VisibleRectOutsideCoded { .. })
+        ));
     }
 
     #[test]

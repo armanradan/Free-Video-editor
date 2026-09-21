@@ -153,7 +153,7 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M3.4" }
+            p { class: "eyebrow", "MILESTONE M3.5" }
             h1 { "Browser video converter" }
             p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → wgpu half-size resize → capability-checked WebM/VP8/Opus or MP4/H.264/AAC. A video-only WebM profile remains available." }
             ConverterControls {
@@ -177,7 +177,7 @@ fn App() -> Element {
                 canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
             }
             JobStatus { status: status(), selected_gpu: selected_gpu() }
-            p { class: "note", "Input is capped at 256 MiB and finalized output is held in memory. Conversion performs no explicit CPU pixel readback; browser-internal copies and codec hardware execution remain unknown." }
+            p { class: "note", "BT.709/sRGB SDR input is normalized through the browser color pipeline. Crop, pixel aspect ratio, rotation, and flip are baked into square-pixel output; HDR and mid-stream geometry changes are rejected. Input is capped at 256 MiB and finalized output is held in memory." }
             details { class: "regression",
                 summary { "M1 deterministic regression probe" }
                 p { "Runs the original embedded 30-frame VP8 correctness fixture." }
