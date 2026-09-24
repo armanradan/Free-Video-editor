@@ -613,8 +613,8 @@ Still untested: Safari, other operating systems/GPUs, decoder-exposed non-zero v
 
 # M3.6 configurable-output and bounded-streaming interoperability report
 
-Date: 2026-09-21
-Status: **configurable-output and bounded-streaming slices passed for every profile enabled in the tested Firefox/Chromium environments; expanded compatibility and recovery remain open**
+Date: 2026-09-24
+Status: **configurable-output, bounded-streaming, named-size, source-metadata, and capability-gated HEVC slices passed where supported in the tested Firefox/Chromium environments; expanded compatibility and recovery remain open**
 
 ## Implemented policy
 
@@ -648,3 +648,23 @@ Both browsers cancelled an active conversion after changing the size and reporte
 Verified for these slices: focused `media-core` resize/input-policy tests, host Rust tests/checks/lints, complete wasm workspace checks/lints, JavaScript syntax and worker-transport tests (including output-mode transport), Dioxus web build, the M3.5 real-browser regression harnesses, and the two M3.6 browser harnesses above. Mediabunny was updated from 1.58.0 to the current 1.58.1 patch release and the npm lockfile was regenerated.
 
 This is not completion of M3.6. A broader measured browser/input/output compatibility matrix, injected codec-failure recovery, device-loss handling, restart after those failures, Safari, non-Windows systems, other GPUs/drivers, explicit GPU/encoder limit boundary fixtures, large compressed-output/long-duration streaming stress, page-close cleanup of the latest origin-private output, automatic fallback from a genuinely unavailable filesystem, and 50% browser-harness coverage remain untested or unimplemented. The 50% mode uses the same tested percentage policy and is the UI default, but the browser matrix deliberately used 75% and 25% to exercise two non-default scales in addition to the other modes.
+
+## Named resolution presets and source metadata, 2026-09-24
+
+The resize selector now also exposes aspect-preserving maximum bounds for HD/720p (1280×720), Full HD/1080p (1920×1080), 2K width (2048 pixels with source aspect preserved), QHD/1440p (2560×1440), and 4K UHD/2160p (3840×2160). `media-core` owns these concrete `ResizeSpec` constants. A focused UHD-input test verifies every resolved dimension, including 2048×1152 for the 2K-width choice on a 16:9 source. Named modes use the same post-orientation resolution, even-dimension adjustment, profile re-probe, and no-upscale policy as exact sizing.
+
+After selection, the UI now reports filename/file size, display and coded resolution, H.264 codec parameter string, duration, average packet/frame rate, video frame count, and audio codec/channel/sample-rate metadata returned by the browser inspection boundary. Edge 153 and Firefox 156 both displayed `640×360`, an `avc1.*` H.264 string, 60 frames, 2.000 seconds, 30 fps, and mono 48 kHz AAC for the deterministic M2 fixture. Both exposed all five named choices and clearly rejected HD/720p for that 640×360 source as implicit upscaling; the existing original/percentage/exact matrices then passed unchanged. Actual high-resolution encoding at each named bound remains dependent on the exact browser/profile capability probe and was not claimed from this low-resolution fixture.
+
+## H.265/HEVC input and output profile, 2026-09-24
+
+`media-core` now defines `Mp4H265Aac` as a concrete MP4/HEVC/AAC profile. The browser boundary accepts AVC or HEVC MP4 video after exact decoder probing, reports the actual `avc1`/`avc3`/`hvc1`/`hev1` parameter string, and uses the same bounded decode, wgpu processing, audio, cancellation, OPFS output, and full verification path. HEVC output has its own exact video/audio encoder probe and disabled reason; it does not silently fall back to H.264 or become the preferred profile.
+
+The new 52,426-byte CC0 fixture `fixtures/m36-h265-aac.mp4` contains 30 synthetic 320×180 HEVC Main-profile frames at 30 fps and one second of mono 48 kHz AAC. Its checked-in manifest and generator record provenance, expected streams, and SHA-256.
+
+Verified on Windows x64:
+
+- Chromium/Edge 153 decoded the HEVC fixture, displayed `H.265/HEVC (hev1.1.6.L60.90)`, processed all 30 frames through wgpu to 160×90 VP8, finalized bounded OPFS output, and fully re-decoded all 30 output frames. Cleanup returned application-held frames, samples, and GPU leases to zero.
+- That Chromium environment rejected the exact HEVC encoder probe at 320×180/30 fps with `hardwareAcceleration=no-preference`; the H.265 output option remained disabled with that reason. No HEVC output file was produced or claimed.
+- Firefox 156 rejected the exact HEVC input decoder configuration. Its HEVC output profile also remained unavailable. The existing five-size × two-WebM-profile Firefox regression matrix continued to pass.
+
+The checked-in focused Chromium harness records input and output capabilities independently. Actual H.265 output muxing/re-decode still requires validation on a browser/OS/GPU combination whose `VideoEncoder` probe accepts HEVC. HEVC Main10/HDR, alpha, other containers, non-Windows platforms, and licensing suitability for distribution remain untested or out of scope for this slice.

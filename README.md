@@ -1,8 +1,8 @@
 # Diaxus GPU video converter — M3.6 configurable-output and streaming slices
 
-Dioxus Web controls an MP4/H.264 converter with shared Rust/wgpu configurable resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, and capability-gated MP4/H.264/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
+Dioxus Web accepts MP4 with H.264/AVC or H.265/HEVC video and applies shared Rust/wgpu configurable resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, capability-gated MP4/H.264/AAC, and capability-gated MP4/H.265/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
 
-The completed M3.6 slices provide user-selectable original, 75%, 50%, 25%, and exact-size output plus bounded browser input/output. Exact sizing preserves aspect ratio by default, exposes an explicit stretch option, never silently upscales, displays codec-safe even dimensions before conversion, and re-probes every output profile for that exact size. M3.6 expanded compatibility and recovery work remains open.
+The completed M3.6 slices provide user-selectable original, 75%, 50%, 25%, HD 720p, Full HD 1080p, 2K-width, QHD 1440p, 4K UHD, and exact-size output plus bounded browser input/output. Named modes are aspect-preserving maximum bounds; exact sizing preserves aspect ratio by default and exposes an explicit stretch option. Every mode rejects implicit upscaling, displays codec-safe even dimensions before conversion, and re-probes every output profile for that exact size. Selecting a file immediately displays its display/coded resolution, codec string, duration, average frame rate, frame count, audio details, and file size. M3.6 expanded compatibility and recovery work remains open.
 
 `media-core` owns platform-neutral resize and media policy, `media-gpu` owns the shared processor/WGSL, `media-web` owns browser resources and worker transport, and `ui` contains reusable controls. The M1 deterministic regression remains available. M3.5 added crop/PAR/orientation handling, an explicit BT.709/sRGB SDR policy, VFR/non-zero-origin preservation checks, and clear HDR/resolution-change rejection.
 
@@ -69,9 +69,10 @@ node tests/inspect-chromium-outputs.mjs
 node tests/chromium-long-run.mjs
 node tests/chromium-m35-interop.mjs
 node tests/chromium-resize-interop.mjs 9227 8084
+node tests/chromium-hevc-interop.mjs 9227 8084
 ```
 
-The independent output inspector requires FFmpeg/FFprobe on PATH. The Chromium harness creates and closes only its own test tab; `fallback` injects a test-only worker-constructor failure to exercise automatic fallback. It tests both acceleration requests for all three profiles, including MP4. The long-run harness uses `tmp/user-test/Input.mp4`, keeps the produced Blob in the browser, and records evidence under ignored `tmp/m34-long`; it requires that local test input to exist. Other generated outputs/evidence remain under ignored `tmp/m33-chromium-*`. Close the isolated debugging browser when finished; do not use your everyday profile for these tests.
+The independent output inspector requires FFmpeg/FFprobe on PATH. The Chromium harness creates and closes only its own test tab; `fallback` injects a test-only worker-constructor failure to exercise automatic fallback. It tests both acceleration requests for every enabled profile. The focused HEVC harness validates HEVC input decoding and conversion and either fully verifies HEVC output or records the exact failed capability probe. The long-run harness uses `tmp/user-test/Input.mp4`, keeps the produced Blob in the browser, and records evidence under ignored `tmp/m34-long`; it requires that local test input to exist. Other generated outputs/evidence remain under ignored `tmp/m33-chromium-*`. Close the isolated debugging browser when finished; do not use your everyday profile for these tests.
 
 The M3.5 harnesses run the geometry/color and VFR/non-zero-origin fixtures through every enabled profile, sample decoded output corner colors, verify every video packet timestamp/duration within the container timebase, and exercise HDR and mid-stream resolution-change failures:
 
@@ -82,6 +83,6 @@ node tests/chromium-resize-interop.mjs 9227 8084
 node tests/firefox-resize-interop.mjs 8084
 ```
 
-The M3.6 harnesses run the deterministic 640×360 fixture through original, 75%, 25%, exact aspect-locked, and exact stretched modes in every enabled profile. They verify displayed and decoded dimensions, disk-backed full re-decode, cancellation after changing size, zero-resource cleanup, and clear no-upscale rejection. They also generate an ignored sparse MP4 with a logical size above 256 MiB, convert it through the bounded path in both browsers, and verify the labeled memory fallback and its size rejection in Chromium.
+The M3.6 harnesses run the deterministic 640×360 fixture through original, 75%, 25%, exact aspect-locked, and exact stretched modes in every enabled profile. They verify source metadata display, availability of all named presets, the named-preset no-upscale boundary, displayed and decoded output dimensions, disk-backed full re-decode, cancellation after changing size, zero-resource cleanup, and clear no-upscale rejection. They also exercise the deterministic HEVC/AAC input, generate an ignored sparse MP4 above 256 MiB, convert it through the bounded path in both browsers, and verify the labeled memory fallback and its size rejection in Chromium.
 
 See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). The M3.6 configurable-output and bounded-streaming slices are complete for the tested Firefox/Chromium profile matrix; the rest of M3.6 is not. This does not claim universal browser/HDR support, codec hardware execution, real-time throughput, recovery, or stable memory outside application-visible ownership counters.

@@ -46,7 +46,25 @@ mod browser {
     pub struct OutputProfileCapabilities {
         pub mp4_supported: bool,
         pub mp4_reason: String,
+        pub hevc_supported: bool,
+        pub hevc_reason: String,
         pub output_size: Size,
+        pub source: SourceMetadata,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct SourceMetadata {
+        pub file_name: String,
+        pub file_size: u64,
+        pub display_size: Size,
+        pub coded_size: Size,
+        pub video_codec: String,
+        pub duration_seconds: f64,
+        pub frame_rate: f64,
+        pub frame_count: u64,
+        pub audio_codec: Option<String>,
+        pub audio_channels: u32,
+        pub audio_sample_rate: u32,
     }
 
     #[wasm_bindgen(inline_js = r#"
@@ -257,6 +275,7 @@ mod browser {
                     "webm-vp8-opus" => OutputProfileId::WebmVp8Opus,
                     "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
                     "mp4-h264-aac" => OutputProfileId::Mp4H264Aac,
+                    "mp4-h265-aac" => OutputProfileId::Mp4H265Aac,
                     _ => return Err(JsValue::from_str("unknown output profile")),
                 };
                 let acceleration = match acceleration.as_str() {
@@ -514,9 +533,18 @@ mod browser {
                 "mp4Reason",
                 "MP4 capability probe returned no reason",
             )?,
+            hevc_supported: bool_property(&capabilities, "hevcSupported")?,
+            hevc_reason: string_property(
+                &capabilities,
+                "hevcReason",
+                "HEVC capability probe returned no reason",
+            )?,
             output_size: Size::new(
                 u32_property(&capabilities, "outputWidth")?,
                 u32_property(&capabilities, "outputHeight")?,
+            )?,
+            source: source_metadata(
+                &Reflect::get(&capabilities, &"source".into()).map_err(js_error)?,
             )?,
         })
     }
@@ -544,6 +572,7 @@ mod browser {
             &JsValue::from_f64(f64::from(output.height)),
         )
         .map_err(js_error)?;
+        Reflect::set(&capabilities, &"source".into(), &inspection).map_err(js_error)?;
         Ok(capabilities)
     }
 
@@ -1297,6 +1326,17 @@ mod browser {
             .as_string()
             .ok_or_else(|| platform(missing))
     }
+    fn optional_string_property(value: &JsValue, name: &str) -> Result<Option<String>, MediaError> {
+        let property = Reflect::get(value, &JsValue::from_str(name)).map_err(js_error)?;
+        if property.is_null() || property.is_undefined() {
+            Ok(None)
+        } else {
+            property
+                .as_string()
+                .map(Some)
+                .ok_or_else(|| platform(format!("invalid {name}")))
+        }
+    }
     fn number_property(value: &JsValue, name: &str) -> Result<f64, MediaError> {
         let number = Reflect::get(value, &JsValue::from_str(name))
             .map_err(js_error)?
@@ -1321,6 +1361,36 @@ mod browser {
         } else {
             Err(platform(format!("invalid {name}")))
         }
+    }
+    fn u64_property(value: &JsValue, name: &str) -> Result<u64, MediaError> {
+        let number = number_property(value, name)?;
+        if number >= 0.0 && number.fract() == 0.0 && number <= u64::MAX as f64 {
+            Ok(number as u64)
+        } else {
+            Err(platform(format!("invalid {name}")))
+        }
+    }
+
+    fn source_metadata(value: &JsValue) -> Result<SourceMetadata, MediaError> {
+        Ok(SourceMetadata {
+            file_name: string_property(value, "name", "input metadata has no filename")?,
+            file_size: u64_property(value, "size")?,
+            display_size: Size::new(
+                u32_property(value, "displayWidth")?,
+                u32_property(value, "displayHeight")?,
+            )?,
+            coded_size: Size::new(
+                u32_property(value, "codedWidth")?,
+                u32_property(value, "codedHeight")?,
+            )?,
+            video_codec: string_property(value, "codec", "input metadata has no video codec")?,
+            duration_seconds: number_property(value, "duration")?,
+            frame_rate: number_property(value, "averagePacketRate")?,
+            frame_count: u64_property(value, "packetCount")?,
+            audio_codec: optional_string_property(value, "audioCodec")?,
+            audio_channels: u32_property(value, "audioChannels")?,
+            audio_sample_rate: u32_property(value, "audioSampleRate")?,
+        })
     }
     fn js_error(value: JsValue) -> MediaError {
         let message = value.as_string().or_else(|| {
@@ -1348,8 +1418,8 @@ mod browser {
 
 #[cfg(target_arch = "wasm32")]
 pub use browser::{
-    ConversionResult, OutputProfileCapabilities, cancel, convert_m3, probe_output_profiles, run_m1,
-    selected_gpu, setup_runtime,
+    ConversionResult, OutputProfileCapabilities, SourceMetadata, cancel, convert_m3,
+    probe_output_profiles, run_m1, selected_gpu, setup_runtime,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}

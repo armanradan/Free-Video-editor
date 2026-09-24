@@ -33,6 +33,10 @@ pwsh -File tools/generate-m35-fixtures.ps1
 
 The geometry fixture deliberately records both source/container intent and observed decoded geometry. WebCodecs decoders may normalize coded padding/crop before exposing `VideoFrame`; the application additionally accepts and validates a non-full `visibleRect` when a decoder exposes one, but the tested H.264 decoders exposed the cropped image as a full visible rectangle.
 
+## M3.6 HEVC input/output fixture
+
+`m36-h265-aac.mp4` is a one-second, 30-frame, 320×180 MP4 generated from FFmpeg's `testsrc2` and `sine` filters. Its HEVC Main-profile video uses the `hvc1` sample entry and BT.709 SDR metadata; its audio is mono AAC at 48 kHz. It validates both H.265 input decode and the capability-gated H.265 output profile without third-party media. The file is CC0-1.0, its manifest records its hash and expected streams, and `tools/generate-hevc-fixture.ps1` regenerates both.
+
 ## M3.6 large-input validation fixture
 
 `tests/large-input-fixture.mjs` reproducibly copies the CC0 M2 fixture into ignored `tmp/m36-streaming` and appends a valid 257 MiB MP4 `free` box. The resulting logical 269,763,667-byte file retains the original 60-frame H.264/AAC tracks and is sparse on filesystems that support sparse extension. It exists only to cross the former 256 MiB policy boundary without checking a large binary into the repository; it does not represent a long-duration or large-compressed-output workload.

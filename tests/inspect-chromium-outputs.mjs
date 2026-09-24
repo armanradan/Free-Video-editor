@@ -22,8 +22,11 @@ for (const mode of ["worker", "main", "fallback"]) {
     const metadata = JSON.parse(probe.stdout);
     const video = metadata.streams.find(stream => stream.codec_type === "video");
     const audio = metadata.streams.find(stream => stream.codec_type === "audio");
-    const isMp4 = output.profile === "mp4-h264-aac";
-    assert.equal(video.codec_name, isMp4 ? "h264" : "vp8");
+    const expectedVideoCodec = output.profile === "mp4-h264-aac"
+      ? "h264"
+      : output.profile === "mp4-h265-aac" ? "hevc" : "vp8";
+    const isMp4 = expectedVideoCodec !== "vp8";
+    assert.equal(video.codec_name, expectedVideoCodec);
     assert.equal(video.width, 320);
     assert.equal(video.height, 180);
     assert.equal(Number(video.nb_read_frames), 60);

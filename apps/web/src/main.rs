@@ -22,8 +22,7 @@ fn App() -> Element {
     use_effect(|| {
         media_web::setup_runtime(&M1_SCRIPT.to_string(), &MEDIA_PIPELINE_SCRIPT.to_string())
     });
-    let mut status =
-        use_signal(|| "Ready. Select an MP4 with H.264 video and AAC audio.".to_string());
+    let mut status = use_signal(|| "Ready. Select an MP4 with H.264 or H.265 video.".to_string());
     let mut running = use_signal(|| false);
     let selected_gpu =
         use_signal(|| "Selected GPU: determined when processing starts.".to_string());
@@ -36,17 +35,23 @@ fn App() -> Element {
     let mut exact_height = use_signal(|| "180".to_string());
     let mut preserve_aspect_ratio = use_signal(|| true);
     let resolved_size = use_signal(String::new);
+    let mut source_metadata = use_signal(String::new);
     let mut has_source = use_signal(|| false);
     let mp4_supported = use_signal(|| false);
     let mp4_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
+    let hevc_supported = use_signal(|| false);
+    let hevc_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
     let mut probe_generation = use_signal(|| 0_u64);
     let probe_signals = ProbeSignals {
         generation: probe_generation,
         running,
         mp4_supported,
         mp4_reason,
+        hevc_supported,
+        hevc_reason,
         profile,
         resolved_size,
+        source_metadata,
         status,
     };
 
@@ -65,7 +70,7 @@ fn App() -> Element {
         };
         running.set(true);
         download_url.set(String::new());
-        status.set("Inspecting MP4 container and exact H.264 configuration…".to_string());
+        status.set("Inspecting MP4 container and exact video codec configuration…".to_string());
         let selected_profile = profile();
         let selected_acceleration = acceleration();
         spawn(async move {
@@ -104,6 +109,7 @@ fn App() -> Element {
         profile.set(match event.value().as_str() {
             "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
             "mp4-h264-aac" if mp4_supported() => OutputProfileId::Mp4H264Aac,
+            "mp4-h265-aac" if hevc_supported() => OutputProfileId::Mp4H265Aac,
             _ => OutputProfileId::WebmVp8Opus,
         });
     };
@@ -115,6 +121,7 @@ fn App() -> Element {
     };
     let file_changed = move |_| {
         has_source.set(true);
+        source_metadata.set(String::new());
         let resize = match requested_resize(
             &resize_mode(),
             &exact_width(),
@@ -210,7 +217,7 @@ fn App() -> Element {
         main { class: "shell",
             p { class: "eyebrow", "MILESTONE M3.6 — CONFIGURABLE OUTPUT" }
             h1 { "Browser video converter" }
-            p { class: "lede", "MP4/H.264 + AAC → WebCodecs decode → configurable wgpu resize → capability-checked WebM/VP8/Opus or MP4/H.264/AAC. A video-only WebM profile remains available." }
+            p { class: "lede", "MP4/H.264 or H.265 input → WebCodecs decode → configurable wgpu resize → capability-checked WebM/VP8/Opus, MP4/H.264/AAC, or MP4/H.265/AAC output. A video-only WebM profile remains available." }
             ConverterControls {
                 running: running(),
                 download_url: download_url(),
@@ -222,8 +229,11 @@ fn App() -> Element {
                 exact_height: exact_height(),
                 preserve_aspect_ratio: preserve_aspect_ratio(),
                 resolved_size: resolved_size(),
+                source_metadata: source_metadata(),
                 mp4_supported: mp4_supported(),
                 mp4_reason: mp4_reason(),
+                hevc_supported: hevc_supported(),
+                hevc_reason: hevc_reason(),
                 on_file_change: file_changed,
                 on_profile_change: profile_changed,
                 on_acceleration_change: acceleration_changed,
@@ -257,8 +267,11 @@ struct ProbeSignals {
     running: Signal<bool>,
     mp4_supported: Signal<bool>,
     mp4_reason: Signal<String>,
+    hevc_supported: Signal<bool>,
+    hevc_reason: Signal<String>,
     profile: Signal<OutputProfileId>,
     resolved_size: Signal<String>,
+    source_metadata: Signal<String>,
     status: Signal<String>,
 }
 
@@ -273,6 +286,11 @@ fn requested_resize(
         "percent-75" => Ok(ResizeSpec::Percent(75)),
         "percent-50" => Ok(ResizeSpec::Percent(50)),
         "percent-25" => Ok(ResizeSpec::Percent(25)),
+        "hd-720p" => Ok(ResizeSpec::HD_720P),
+        "fhd-1080p" => Ok(ResizeSpec::FULL_HD_1080P),
+        "dci-2k" => Ok(ResizeSpec::DCI_2K),
+        "qhd-1440p" => Ok(ResizeSpec::QHD_1440P),
+        "uhd-2160p" => Ok(ResizeSpec::UHD_2160P),
         "exact" => {
             let width = exact_width
                 .trim()
@@ -307,6 +325,7 @@ fn reprobe_if_ready(
         Ok(resize) => resize,
         Err(error) => {
             signals.mp4_supported.set(false);
+            signals.hevc_supported.set(false);
             signals.resolved_size.set(String::new());
             signals.status.set(display_error(error));
             return;
@@ -319,9 +338,13 @@ fn reprobe_if_ready(
 
 async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSignals) {
     signals.mp4_supported.set(false);
+    signals.hevc_supported.set(false);
     signals
         .mp4_reason
         .set("Checking the exact H.264/AAC encoder configuration…".to_string());
+    signals
+        .hevc_reason
+        .set("Checking the exact H.265/AAC encoder configuration…".to_string());
     signals.resolved_size.set(String::new());
     signals
         .status
@@ -334,34 +357,93 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
         Ok(capabilities) => {
             signals.mp4_supported.set(capabilities.mp4_supported);
             signals.mp4_reason.set(capabilities.mp4_reason.clone());
+            signals.hevc_supported.set(capabilities.hevc_supported);
+            signals.hevc_reason.set(capabilities.hevc_reason.clone());
             signals.resolved_size.set(format!(
                 "{}×{} (codec-safe)",
                 capabilities.output_size.width, capabilities.output_size.height
             ));
+            signals
+                .source_metadata
+                .set(format_source_metadata(&capabilities.source));
             if !capabilities.mp4_supported && (signals.profile)() == OutputProfileId::Mp4H264Aac {
                 signals.profile.set(OutputProfileId::PREFERRED);
             }
-            signals.status.set(if capabilities.mp4_supported {
-                format!(
-                    "Ready. Output resolves to {}×{}. WebM/VP8/Opus and MP4/H.264/AAC are supported.",
-                    capabilities.output_size.width, capabilities.output_size.height
-                )
-            } else {
-                format!(
-                    "Ready. Output resolves to {}×{}. WebM profiles are available; MP4 is unavailable: {}",
-                    capabilities.output_size.width,
-                    capabilities.output_size.height,
-                    capabilities.mp4_reason
-                )
-            });
+            if !capabilities.hevc_supported && (signals.profile)() == OutputProfileId::Mp4H265Aac {
+                signals.profile.set(OutputProfileId::PREFERRED);
+            }
+            let mut available = vec!["WebM/VP8/Opus"];
+            if capabilities.mp4_supported {
+                available.push("MP4/H.264/AAC");
+            }
+            if capabilities.hevc_supported {
+                available.push("MP4/H.265/AAC");
+            }
+            signals.status.set(format!(
+                "Ready. Output resolves to {}×{}. Supported profiles: {}.",
+                capabilities.output_size.width,
+                capabilities.output_size.height,
+                available.join(", ")
+            ));
         }
         Err(error) => {
             signals
                 .mp4_reason
                 .set("Input or resize inspection failed.".to_string());
+            signals
+                .hevc_reason
+                .set("Input or resize inspection failed.".to_string());
             signals.resolved_size.set(String::new());
             signals.status.set(display_error(error.to_string()));
         }
+    }
+}
+
+fn format_source_metadata(source: &media_web::SourceMetadata) -> String {
+    let video_codec =
+        if source.video_codec.starts_with("hvc1") || source.video_codec.starts_with("hev1") {
+            "H.265/HEVC"
+        } else if source.video_codec.starts_with("avc1") || source.video_codec.starts_with("avc3") {
+            "H.264/AVC"
+        } else {
+            "Unknown video codec"
+        };
+    let audio = match &source.audio_codec {
+        Some(codec) => format!(
+            "{} · {} channel{} · {:.1} kHz",
+            codec.to_uppercase(),
+            source.audio_channels,
+            if source.audio_channels == 1 { "" } else { "s" },
+            f64::from(source.audio_sample_rate) / 1_000.0
+        ),
+        None => "No audio track".to_string(),
+    };
+    format!(
+        "{} · display {}×{} · coded {}×{}\nVideo: {} ({}) · {:.3} fps · {} frames · {:.3} s\nAudio: {} · file size {}",
+        source.file_name,
+        source.display_size.width,
+        source.display_size.height,
+        source.coded_size.width,
+        source.coded_size.height,
+        video_codec,
+        source.video_codec,
+        source.frame_rate,
+        source.frame_count,
+        source.duration_seconds,
+        audio,
+        format_bytes(source.file_size)
+    )
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const MIB: f64 = 1_048_576.0;
+    const KIB: f64 = 1_024.0;
+    if bytes >= 1_048_576 {
+        format!("{:.1} MiB", bytes as f64 / MIB)
+    } else if bytes >= 1_024 {
+        format!("{:.1} KiB", bytes as f64 / KIB)
+    } else {
+        format!("{bytes} bytes")
     }
 }
 

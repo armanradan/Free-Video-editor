@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "name": "m36-h265-aac.mp4",
+  "purpose": "M3.6 MP4/H.265 input decode and capability-gated H.265 output interoperability",
+  "license": "CC0-1.0",
+  "generated_utc": "2026-09-24",
+  "generator": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "command": "pwsh -File tools/generate-hevc-fixture.ps1",
+  "expected": {
+    "container": "MP4",
+    "video_codec": "HEVC Main profile (hvc1)",
+    "width": 320,
+    "height": 180,
+    "frame_rate": "30/1",
+    "frame_count": 30,
+    "color": "BT.709 limited-range SDR",
+    "audio": "AAC LC, mono, 48000 Hz, 740 Hz tone",
+    "duration_seconds": 1.0
+  },
+  "size_bytes": 52425,
+  "sha256": "79a279e19330b910ff5886c31c9ab1999051cbd207836b28a710d71002cf5caa"
+}

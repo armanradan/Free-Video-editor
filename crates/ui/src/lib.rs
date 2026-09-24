@@ -15,8 +15,11 @@ pub fn ConverterControls(
     exact_height: String,
     preserve_aspect_ratio: bool,
     resolved_size: String,
+    source_metadata: String,
     mp4_supported: bool,
     mp4_reason: String,
+    hevc_supported: bool,
+    hevc_reason: String,
     on_file_change: EventHandler<FormEvent>,
     on_profile_change: EventHandler<FormEvent>,
     on_acceleration_change: EventHandler<FormEvent>,
@@ -29,13 +32,19 @@ pub fn ConverterControls(
 ) -> Element {
     rsx! {
         div { class: "control-grid",
-            label { r#for: "source-file", "Source MP4 (H.264)" }
+            label { r#for: "source-file", "Source MP4 (H.264 or H.265/HEVC)" }
             input {
                 id: "source-file",
                 r#type: "file",
                 accept: ".mp4,video/mp4",
                 disabled: running,
                 onchange: move |event| on_file_change.call(event),
+            }
+            if !source_metadata.is_empty() {
+                div { class: "source-metadata",
+                    strong { "Selected input" }
+                    p { id: "source-metadata", "{source_metadata}" }
+                }
             }
             label { r#for: "resize-preset", "Resize" }
             select {
@@ -46,6 +55,11 @@ pub fn ConverterControls(
                 option { value: "percent-75", selected: resize_mode == "percent-75", "75%" }
                 option { value: "percent-50", selected: resize_mode == "percent-50", "50%" }
                 option { value: "percent-25", selected: resize_mode == "percent-25", "25%" }
+                option { value: "hd-720p", selected: resize_mode == "hd-720p", "HD / 720p (up to 1280×720)" }
+                option { value: "fhd-1080p", selected: resize_mode == "fhd-1080p", "Full HD / 1080p (up to 1920×1080)" }
+                option { value: "dci-2k", selected: resize_mode == "dci-2k", "2K width (2048 px, aspect preserved)" }
+                option { value: "qhd-1440p", selected: resize_mode == "qhd-1440p", "QHD / 1440p (up to 2560×1440)" }
+                option { value: "uhd-2160p", selected: resize_mode == "uhd-2160p", "4K UHD / 2160p (up to 3840×2160)" }
                 option { value: "exact", selected: resize_mode == "exact", "Exact bounding size" }
             }
             if resize_mode == "exact" {
@@ -106,9 +120,18 @@ pub fn ConverterControls(
                     disabled: !mp4_supported,
                     if mp4_supported { "MP4 — H.264 + AAC" } else { "MP4 — H.264 + AAC (unavailable)" }
                 }
+                option {
+                    value: OutputProfileId::Mp4H265Aac.as_str(),
+                    selected: profile == OutputProfileId::Mp4H265Aac,
+                    disabled: !hevc_supported,
+                    if hevc_supported { "MP4 — H.265/HEVC + AAC" } else { "MP4 — H.265/HEVC + AAC (unavailable)" }
+                }
             }
             if !mp4_supported && !mp4_reason.is_empty() {
-                p { class: "note", "MP4 unavailable: {mp4_reason}" }
+                p { class: "note", "H.264 MP4 unavailable: {mp4_reason}" }
+            }
+            if !hevc_supported && !hevc_reason.is_empty() {
+                p { class: "note", "H.265/HEVC MP4 unavailable: {hevc_reason}" }
             }
             label { r#for: "codec-acceleration", "Codec acceleration" }
             select {

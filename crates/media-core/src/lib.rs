@@ -14,6 +14,7 @@ pub enum OutputProfileId {
     WebmVp8Opus,
     WebmVp8VideoOnly,
     Mp4H264Aac,
+    Mp4H265Aac,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -41,6 +42,7 @@ impl OutputProfileId {
             Self::WebmVp8Opus => "webm-vp8-opus",
             Self::WebmVp8VideoOnly => "webm-vp8-video-only",
             Self::Mp4H264Aac => "mp4-h264-aac",
+            Self::Mp4H265Aac => "mp4-h265-aac",
         }
     }
 
@@ -48,14 +50,14 @@ impl OutputProfileId {
         match self {
             Self::WebmVp8Opus => AudioPolicy::Transcode(AudioCodec::Opus),
             Self::WebmVp8VideoOnly => AudioPolicy::Omit,
-            Self::Mp4H264Aac => AudioPolicy::Transcode(AudioCodec::Aac),
+            Self::Mp4H264Aac | Self::Mp4H265Aac => AudioPolicy::Transcode(AudioCodec::Aac),
         }
     }
 
     pub const fn container(self) -> ContainerFormat {
         match self {
             Self::WebmVp8Opus | Self::WebmVp8VideoOnly => ContainerFormat::WebM,
-            Self::Mp4H264Aac => ContainerFormat::Mp4,
+            Self::Mp4H264Aac | Self::Mp4H265Aac => ContainerFormat::Mp4,
         }
     }
 
@@ -63,6 +65,7 @@ impl OutputProfileId {
         match self {
             Self::WebmVp8Opus | Self::WebmVp8VideoOnly => VideoCodec::Vp8,
             Self::Mp4H264Aac => VideoCodec::H264,
+            Self::Mp4H265Aac => VideoCodec::H265,
         }
     }
 }
@@ -77,6 +80,7 @@ pub enum ContainerFormat {
 pub enum VideoCodec {
     Vp8,
     H264,
+    H265,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -242,6 +246,31 @@ pub enum ResizeSpec {
 
 impl ResizeSpec {
     pub const DEFAULT: Self = Self::Percent(50);
+    pub const HD_720P: Self = Self::Exact {
+        width: 1_280,
+        height: 720,
+        preserve_aspect_ratio: true,
+    };
+    pub const FULL_HD_1080P: Self = Self::Exact {
+        width: 1_920,
+        height: 1_080,
+        preserve_aspect_ratio: true,
+    };
+    pub const DCI_2K: Self = Self::Exact {
+        width: 2_048,
+        height: 2_160,
+        preserve_aspect_ratio: true,
+    };
+    pub const QHD_1440P: Self = Self::Exact {
+        width: 2_560,
+        height: 1_440,
+        preserve_aspect_ratio: true,
+    };
+    pub const UHD_2160P: Self = Self::Exact {
+        width: 3_840,
+        height: 2_160,
+        preserve_aspect_ratio: true,
+    };
 
     pub fn output_size(self, input: Size) -> Result<Size, MediaError> {
         let requested = match self {
@@ -517,6 +546,28 @@ mod tests {
     }
 
     #[test]
+    fn named_resolution_presets_resolve_deterministically_for_uhd_input() {
+        let input = Size::new(3_840, 2_160).unwrap();
+        assert_eq!(
+            ResizeSpec::HD_720P.output_size(input).unwrap(),
+            Size::new(1_280, 720).unwrap()
+        );
+        assert_eq!(
+            ResizeSpec::FULL_HD_1080P.output_size(input).unwrap(),
+            Size::new(1_920, 1_080).unwrap()
+        );
+        assert_eq!(
+            ResizeSpec::QHD_1440P.output_size(input).unwrap(),
+            Size::new(2_560, 1_440).unwrap()
+        );
+        assert_eq!(
+            ResizeSpec::DCI_2K.output_size(input).unwrap(),
+            Size::new(2_048, 1_152).unwrap()
+        );
+        assert_eq!(ResizeSpec::UHD_2160P.output_size(input).unwrap(), input);
+    }
+
+    #[test]
     fn geometry_applies_crop_aspect_then_orientation_before_resize() {
         let geometry = FrameGeometry::new(
             Size::new(336, 192).unwrap(),
@@ -571,6 +622,15 @@ mod tests {
             ContainerFormat::Mp4
         );
         assert_eq!(OutputProfileId::Mp4H264Aac.video_codec(), VideoCodec::H264);
+        assert_eq!(
+            OutputProfileId::Mp4H265Aac.audio_policy(),
+            AudioPolicy::Transcode(AudioCodec::Aac)
+        );
+        assert_eq!(
+            OutputProfileId::Mp4H265Aac.container(),
+            ContainerFormat::Mp4
+        );
+        assert_eq!(OutputProfileId::Mp4H265Aac.video_codec(), VideoCodec::H265);
     }
 
     #[test]

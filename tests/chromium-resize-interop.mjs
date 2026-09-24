@@ -68,6 +68,15 @@ try {
   await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
   await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
   await waitFor(`${statusExpression}.includes("Output resolves to 320×180") && document.querySelector("#resolved-size")?.textContent.includes("320×180")`);
+  evidence.sourceMetadata = await waitFor('document.querySelector("#source-metadata")?.textContent');
+  assert.match(evidence.sourceMetadata, /display 640×360 · coded 640×360/);
+  assert.match(evidence.sourceMetadata, /Video: H\.264\/AVC \(avc1\./);
+  assert.match(evidence.sourceMetadata, /60 frames · 2\.000 s/);
+  assert.match(evidence.sourceMetadata, /Audio: AAC · 1 channel · 48\.0 kHz/);
+  const namedPresets = await evaluate('Array.from(document.querySelector("#resize-preset").options).map(option=>option.value)');
+  assert.deepEqual(namedPresets.filter(value => /^(hd|fhd|dci|qhd|uhd)-/.test(value)), ["hd-720p", "fhd-1080p", "dci-2k", "qhd-1440p", "uhd-2160p"]);
+  await evaluate('{const s=document.querySelector("#resize-preset");s.value="hd-720p";s.dispatchEvent(new Event("change",{bubbles:true}));}');
+  evidence.namedPresetUpscale = await waitFor(`${statusExpression}.startsWith("FAILED:") && ${statusExpression}.includes("would upscale") && ${statusExpression}`);
 
   const setResize = async testCase => {
     await evaluate(`{const s=document.querySelector("#resize-preset");s.value=${JSON.stringify(testCase.mode)};s.dispatchEvent(new Event("change",{bubbles:true}));}`);
@@ -112,6 +121,7 @@ try {
       save();
     }
   }
+  const hevcOutputReason = await evaluate('document.querySelector("#output-profile").querySelector("option[value=\\"mp4-h265-aac\\"]").disabled ? Array.from(document.querySelectorAll(".note")).map(n=>n.textContent).find(t=>t.startsWith("H.265/HEVC MP4 unavailable:")) : "supported"');
 
   await setResize(cases[1]);
   await selectProfile(expectedProfiles[0]);
@@ -126,6 +136,26 @@ try {
   await evaluate(`{const w=document.querySelector("#resize-width");w.value="800";w.dispatchEvent(new Event("change",{bubbles:true}));const h=document.querySelector("#resize-height");h.value="500";h.dispatchEvent(new Event("change",{bubbles:true}));const a=document.querySelector("#resize-aspect");if(!a.checked){a.checked=true;a.dispatchEvent(new Event("change",{bubbles:true}));}}`);
   evidence.invalidUpscale = await waitFor(`${statusExpression}.startsWith("FAILED:") && ${statusExpression}.includes("would upscale") && ${statusExpression}`);
   assert.equal(await evaluate('!document.querySelector("#resolved-size")'), true);
+
+  await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m36-h265-aac.mp4")] });
+  await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));const s=document.querySelector("#resize-preset");s.value="percent-50";s.dispatchEvent(new Event("change",{bubbles:true}));}');
+  const hevcInputProbe = await waitFor(`(${statusExpression}.includes("Output resolves to 160×90") || ${statusExpression}.startsWith("FAILED:")) && ${statusExpression}`);
+  evidence.hevc = {
+    inputProbe: hevcInputProbe,
+    outputEnabled: expectedProfiles.includes("mp4-h265-aac"),
+    outputReason: hevcOutputReason,
+  };
+  if (hevcInputProbe.includes("Output resolves")) {
+    const metadata = await waitFor('document.querySelector("#source-metadata")?.textContent');
+    assert.match(metadata, /Video: H\.265\/HEVC \((?:hvc1|hev1)\./);
+    await selectProfile("webm-vp8-video-only");
+    await click("#convert");
+    evidence.hevc.inputConversion = await terminal();
+    assert.match(evidence.hevc.inputConversion, /^PASS: 30 H\.265\/HEVC input frames/);
+    assert.match(evidence.hevc.inputConversion, /Diagnostic verification: full re-decode PASS/);
+  } else {
+    assert.match(hevcInputProbe, /cannot decode the selected H\.265\/HEVC track/);
+  }
 
   const largeInput = ensureLargeInputFixture();
   await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [largeInput] });

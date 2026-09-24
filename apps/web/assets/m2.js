@@ -96,13 +96,13 @@ class MediabunnyInputAdapter {
     fail("The MP4 contains no video track.");
   }
   const codec = await track.getCodec();
-  if (codec !== "avc") {
+  if (codec !== "avc" && codec !== "hevc") {
     input.dispose();
-    fail(`The browser backend accepts H.264/AVC video only; selected track is ${codec ?? "unknown"}.`);
+    fail(`The browser backend accepts H.264/AVC or H.265/HEVC video; selected track is ${codec ?? "unknown"}.`);
   }
   if (!(await track.canDecode())) {
     input.dispose();
-    fail("This browser cannot decode the selected H.264 track with its exact codec configuration.");
+    fail(`This browser cannot decode the selected ${codec === "hevc" ? "H.265/HEVC" : "H.264/AVC"} track with its exact codec configuration.`);
   }
 
   const [trackCodedWidth, trackCodedHeight, squarePixelWidth, squarePixelHeight, displayWidth, displayHeight,
@@ -204,7 +204,8 @@ class MediabunnyInputAdapter {
     averagePacketRate: stats.averagePacketRate,
     audioTrackCount: audioTracks.length,
     audio,
-    codecString: codecString ?? "avc",
+    codec,
+    codecString: codecString ?? codec,
   };
   }
 }
@@ -260,6 +261,10 @@ const OUTPUT_PROFILES = Object.freeze({
     container: "mp4", videoCodec: "avc", audioCodec: "aac",
     label: "MP4/H.264/AAC", extension: "mp4", mimeType: "video/mp4",
   },
+  "mp4-h265-aac": {
+    container: "mp4", videoCodec: "hevc", audioCodec: "aac",
+    label: "MP4/H.265/AAC", extension: "mp4", mimeType: "video/mp4",
+  },
 });
 
 function resolveProfile(id) {
@@ -278,7 +283,7 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
   try {
     const decoderConfig = await opened.track.getDecoderConfig();
     if (!decoderConfig) {
-      return { supported: false, reason: "The H.264 track returned no WebCodecs decoder configuration." };
+      return { supported: false, reason: "The input video track returned no WebCodecs decoder configuration." };
     }
     const decoderSupport = await VideoDecoder.isConfigSupported({
       ...decoderConfig,
@@ -287,11 +292,11 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
     if (!decoderSupport.supported) {
       return {
         supported: false,
-        reason: `H.264 decoding is unsupported with hardwareAcceleration=${hardwareAcceleration}.`,
+        reason: `${opened.codec === "hevc" ? "H.265/HEVC" : "H.264/AVC"} decoding is unsupported with hardwareAcceleration=${hardwareAcceleration}.`,
       };
     }
   } catch (error) {
-    return { supported: false, reason: `H.264 decoder capability probe failed with hardwareAcceleration=${hardwareAcceleration}: ${errorMessage(error)}` };
+    return { supported: false, reason: `Input video decoder capability probe failed with hardwareAcceleration=${hardwareAcceleration}: ${errorMessage(error)}` };
   }
   try {
     const videoSupported = await canEncodeVideo(profile.videoCodec, {
@@ -335,7 +340,13 @@ async function probeProfiles(file, outputWidth, outputHeight) {
   const opened = await MediabunnyInputAdapter.open(file);
   try {
     const mp4 = await probeProfile(OUTPUT_PROFILES["mp4-h264-aac"], opened, outputWidth, outputHeight);
-    return { mp4Supported: mp4.supported, mp4Reason: mp4.reason };
+    const hevc = await probeProfile(OUTPUT_PROFILES["mp4-h265-aac"], opened, outputWidth, outputHeight);
+    return {
+      mp4Supported: mp4.supported,
+      mp4Reason: mp4.reason,
+      hevcSupported: hevc.supported,
+      hevcReason: hevc.reason,
+    };
   } finally {
     opened.input.dispose();
   }
@@ -708,7 +719,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const audioFirstSeconds = opened.audio
       ? (asSafeMicroseconds(Math.round(await opened.audio.track.getFirstTimestamp() * 1_000_000), "audio start") - originUs) / 1_000_000
       : 0;
-    status(`Demuxed MP4/H.264: coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, square-pixel ${opened.width}×${opened.height}, rotation ${opened.rotation}°, flip=${opened.flip}, display ${opened.displayWidth}×${opened.displayHeight}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}; ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
+    status(`Demuxed MP4/${opened.codec === "hevc" ? "H.265/HEVC" : "H.264/AVC"}: coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, square-pixel ${opened.width}×${opened.height}, rotation ${opened.rotation}°, flip=${opened.flip}, display ${opened.displayWidth}×${opened.displayHeight}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}; ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
 
     muxer = await MediabunnyOutputAdapter.create(profile, opened.audio, selectedAcceleration, telemetry, outputMode);
     if (!muxer.storage.handle && file.size > MEMORY_FALLBACK_MAX_INPUT_BYTES) {
@@ -963,7 +974,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           container: profile.container,
           mimeType: profile.mimeType,
           videoCodec: profile.videoCodec,
-          videoCodecLabel: profile.videoCodec === "avc" ? "H.264" : "VP8",
+          videoCodecLabel: profile.videoCodec === "avc" ? "H.264" : profile.videoCodec === "hevc" ? "H.265/HEVC" : "VP8",
           audioCodec: profile.audioCodec,
           audioCodecLabel: profile.audioCodec === "aac" ? "AAC" : "Opus",
           width: outputWidth,
@@ -997,10 +1008,11 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const durationSummary = verifyOutputFully
       ? `${verified.duration.toFixed(3)} s`
       : `expected timeline ${verified.duration.toFixed(3)} s (output not re-decoded)`;
+    const inputCodecLabel = opened.codec === "hevc" ? "H.265/HEVC" : "H.264";
     return {
       summary: (profile.audioCodec
-        ? `PASS: ${processed} H.264 input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; audio queue peak=1; conversion pixel readbacks=0.`
-        : `PASS: ${processed} H.264 input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0.`)
+        ? `PASS: ${processed} ${inputCodecLabel} input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; audio queue peak=1; conversion pixel readbacks=0.`
+        : `PASS: ${processed} ${inputCodecLabel} input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0.`)
         + `\n${verificationSummary}`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; exact decoder+encoder probes passed${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
         + `\nGeometry/color: input coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}, rotation ${opened.rotation}°, flip=${opened.flip}; baked square-pixel output ${outputWidth}×${outputHeight}; SDR ${opened.color.primaries ?? "unspecified"}/${opened.color.transfer ?? "unspecified"}/${opened.color.matrix ?? "unspecified"}, browser-normalized to sRGB processing; HDR rejected.`
