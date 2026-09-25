@@ -1,4 +1,4 @@
-# Diaxus GPU video converter — M3 browser robustness complete
+# Diaxus GPU video converter — M4 native harness in progress
 
 Dioxus Web accepts MP4 with H.264/AVC or H.265/HEVC video and applies shared Rust/wgpu configurable resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, capability-gated MP4/H.264/AAC, and capability-gated MP4/H.265/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
 
@@ -28,6 +28,21 @@ The optional `?backend=ffmpeg-wasm` MP4/H.264/AAC route uses M3.8's bounded live
 Worker code uses the same wasm bundle produced by `dx`; there is no manual worker build. Keep the complete generated `public` directory, including wasm snippets, when deploying. Input uses an 8 MiB cache and compressed output streams with backpressure in 4 MiB chunks to origin-private file storage before its disk-backed `File` is exposed through the download link. The current temporary output is retained only while its download URL is usable, removed when replaced, and explicitly cleaned on page exit. If the browser cannot provide origin-private writable storage, the status clearly reports a memory fallback whose input remains capped at 256 MiB. `?output=memory` deliberately exercises that fallback. Successful GPU processing still does not prove hardware codec execution.
 
 Normal conversions stop timing after encoder/muxer finalization and do not re-decode the completed file. Add `?verify=full` to the app URL for the diagnostic interoperability path, which separately reports its re-decode/seek/audio-check time. The automated browser harnesses enable full verification by default; set `VERIFY_OUTPUT=skip` to exercise the normal UI path.
+
+## Native M4 headless harness (initial slice)
+
+The Windows native correctness harness uses installed FFmpeg/FFprobe 8.0.1 on `PATH`. It offers a direct-FFmpeg software route and a comparison route that decodes to RGBA with FFmpeg, applies the **same `media-gpu` WGSL resize**, then reads back RGBA to FFmpeg's software encoder. Both use `media-core` resize/profile policy and produce MP4/H.264/AAC. Direct FFmpeg is the intended native default for resize-only and FFmpeg-expressible effects; the current CLI requires an explicit route while M4 is in progress. Keep wgpu for custom effects shared with the web app or a GPU effect chain that proves worthwhile in complete conversion benchmarks. The current wgpu route explicitly counts CPU→GPU and GPU→CPU frame bytes; it is not zero-copy hardware codec interoperability. It currently accepts only zero-origin, square-pixel, unrotated, 8-bit CFR sources with one video and at most one audio track. Ctrl-C requests cooperative cancellation and reaps FFmpeg children; `--cancel-after-ms N` is a deterministic cancellation-test option. Native Dioxus/Blitz UI, VFR/rotation/HDR, and direct codec-surface sharing are not implemented yet.
+
+```powershell
+cargo run --locked -p media-native --bin native-convert -- list-gpus
+cargo run --locked -p media-native --bin native-convert -- convert --input fixtures/m2-h264-aac.mp4 --output tmp/m4/direct-output.mp4 --route direct --resize 50
+cargo run --locked -p media-native --bin native-convert -- save-gpu --adapter-key 'Dx12:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU' --preference tmp/m4/gpu-preference.json
+cargo run --locked -p media-native --bin native-convert -- convert --input fixtures/m2-h264-aac.mp4 --output tmp/m4/wgpu-output.mp4 --route wgpu --resize 50 --preference tmp/m4/gpu-preference.json
+node tests/native-m4-interop.mjs
+cargo test -p media-native --lib cancel_active_jobs_and_retry_in_same_process -- --ignored --nocapture
+```
+
+`list-gpus` shows the adapter keys available on your machine; use one of those keys in place of the example. A saved preference is re-resolved on each run, with an explicit reported fallback if missing. The harness refuses to overwrite an output. Details and measured limitations are in the interop report.
 
 ## Checks
 
@@ -89,4 +104,4 @@ node tests/firefox-recovery-interop.mjs 8084
 
 The M3.6 harnesses run the deterministic 640×360 fixture through original, 75%, 50%, 25%, exact aspect-locked, and exact stretched modes in every enabled profile. They verify source metadata display, availability of all named presets, the named-preset no-upscale boundary, displayed and decoded output dimensions, disk-backed full re-decode, cancellation after changing size, zero-resource cleanup, page-exit temporary-file cleanup, and clear no-upscale rejection. They also exercise the deterministic HEVC/AAC input, generate an ignored sparse MP4 above 256 MiB, convert it through the bounded path in both browsers, and verify forced and API-unavailable memory fallback behavior in Chromium. The recovery harnesses exercise worker and explicit main-thread paths with test-only `?failure=codec-once` and `?failure=device-loss-once` modes. They require the failed job to expose no partial download, return application-owned resources to zero, and complete a full re-decode after retry; the device-loss case also requires a new device generation.
 
-See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.6 is complete for the tested Firefox/Chromium profile matrix; M3.7 and M3.8 add an optional FFmpeg WASM compatibility route. This does not claim universal browser/HDR support, codec hardware execution, real-time throughput, spontaneous driver/process-loss recovery, or stable memory outside application-visible ownership counters. M4 has not started.
+See [fixture provenance](fixtures/README.md), [architecture and remaining milestones](docs/architecture.md), and [verified results and remaining limitations](docs/interop-report.md). M3.6 is complete for the tested Firefox/Chromium profile matrix; M3.7 and M3.8 add an optional FFmpeg WASM compatibility route. This does not claim universal browser/HDR support, codec hardware execution, real-time throughput, spontaneous driver/process-loss recovery, or stable memory outside application-visible ownership counters. M4's initial headless native slice is in progress; its full acceptance gate has not passed.
