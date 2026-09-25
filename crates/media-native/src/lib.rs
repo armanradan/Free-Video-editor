@@ -8,9 +8,9 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -38,16 +38,34 @@ impl CancellationToken {
 }
 
 struct ChildGuard {
-    child: Child,
+    child: Arc<Mutex<Child>>,
     reaped: bool,
 }
 
 impl ChildGuard {
     fn spawn(command: &mut Command) -> NativeResult<Self> {
         Ok(Self {
-            child: command.spawn()?,
+            child: Arc::new(Mutex::new(command.spawn()?)),
             reaped: false,
         })
+    }
+
+    fn take_stdout(&self) -> NativeResult<std::process::ChildStdout> {
+        self.child
+            .lock()
+            .map_err(|_| "decoder process lock was poisoned")?
+            .stdout
+            .take()
+            .ok_or_else(|| "decoder stdout was unavailable".into())
+    }
+
+    fn take_stdin(&self) -> NativeResult<std::process::ChildStdin> {
+        self.child
+            .lock()
+            .map_err(|_| "encoder process lock was poisoned")?
+            .stdin
+            .take()
+            .ok_or_else(|| "encoder stdin was unavailable".into())
     }
 
     fn wait_cancellable(
@@ -56,7 +74,12 @@ impl ChildGuard {
     ) -> NativeResult<std::process::ExitStatus> {
         loop {
             cancel.check()?;
-            if let Some(status) = self.child.try_wait()? {
+            if let Some(status) = self
+                .child
+                .lock()
+                .map_err(|_| "child process lock was poisoned")?
+                .try_wait()?
+            {
                 self.reaped = true;
                 return Ok(status);
             }
@@ -67,9 +90,51 @@ impl ChildGuard {
 
 impl Drop for ChildGuard {
     fn drop(&mut self) {
-        if !self.reaped {
-            let _ = self.child.kill();
-            let _ = self.child.wait();
+        if !self.reaped
+            && let Ok(mut child) = self.child.lock()
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+struct CancellationWatch {
+    stop: Arc<AtomicBool>,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+impl CancellationWatch {
+    fn new(cancel: &CancellationToken, children: &[&ChildGuard]) -> Self {
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_in_thread = stop.clone();
+        let token = cancel.clone();
+        let children: Vec<_> = children.iter().map(|guard| guard.child.clone()).collect();
+        let thread = thread::spawn(move || {
+            while !stop_in_thread.load(Ordering::Acquire) {
+                if token.is_cancelled() {
+                    for child in children {
+                        if let Ok(mut child) = child.lock() {
+                            let _ = child.kill();
+                        }
+                    }
+                    return;
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+        });
+        Self {
+            stop,
+            thread: Some(thread),
+        }
+    }
+}
+
+impl Drop for CancellationWatch {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
         }
     }
 }
@@ -96,6 +161,7 @@ struct ProbeStream {
     r_frame_rate: Option<String>,
     time_base: Option<String>,
     start_time: Option<String>,
+    duration: Option<String>,
     nb_frames: Option<String>,
     pix_fmt: Option<String>,
     color_transfer: Option<String>,
@@ -116,6 +182,11 @@ pub struct SourceInfo {
     pub frame_rate_den: u32,
     pub frame_count: u64,
     pub audio_codec: Option<String>,
+    pub video_start_us: i128,
+    pub audio_start_us: Option<i128>,
+    pub video_duration_us: Option<i128>,
+    pub audio_duration_us: Option<i128>,
+    pub variable_frame_rate: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -166,6 +237,156 @@ pub struct ConversionReport {
     pub adapter_fallback: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct SessionStatus {
+    pub device_generation: u64,
+    pub adapter_key: Option<String>,
+    pub active: bool,
+    pub switching: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionConversionReport {
+    pub device_generation: u64,
+    pub conversion: ConversionReport,
+}
+
+struct SessionState {
+    device_generation: u64,
+    adapter_key: Option<String>,
+    active: Option<CancellationToken>,
+    switching: bool,
+}
+
+/// A headless native execution context. GPU resources are created per job;
+/// switching waits for the old job to finish cleanup before a new one starts.
+pub struct NativeSession {
+    state: Mutex<SessionState>,
+    idle: Condvar,
+}
+
+struct ActiveSessionJob<'a> {
+    session: &'a NativeSession,
+}
+
+impl Drop for ActiveSessionJob<'_> {
+    fn drop(&mut self) {
+        let mut state = self.session.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.active = None;
+        self.session.idle.notify_all();
+    }
+}
+
+impl NativeSession {
+    pub fn new(adapter_key: Option<&str>) -> NativeResult<Self> {
+        if let Some(key) = adapter_key {
+            Self::validate_adapter(key)?;
+        }
+        Ok(Self {
+            state: Mutex::new(SessionState {
+                device_generation: 1,
+                adapter_key: adapter_key.map(str::to_owned),
+                active: None,
+                switching: false,
+            }),
+            idle: Condvar::new(),
+        })
+    }
+
+    fn validate_adapter(key: &str) -> NativeResult<()> {
+        if enumerate_adapters()
+            .iter()
+            .any(|adapter| adapter.key == key)
+        {
+            Ok(())
+        } else {
+            Err(format!("native GPU adapter is unavailable: {key}").into())
+        }
+    }
+
+    pub fn status(&self) -> SessionStatus {
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        SessionStatus {
+            device_generation: state.device_generation,
+            adapter_key: state.adapter_key.clone(),
+            active: state.active.is_some(),
+            switching: state.switching,
+        }
+    }
+
+    pub fn cancel_active(&self) -> bool {
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(token) = &state.active {
+            token.cancel();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn switch_adapter(&self, adapter_key: Option<&str>) -> NativeResult<u64> {
+        if let Some(key) = adapter_key {
+            Self::validate_adapter(key)?;
+        }
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.switching {
+            return Err("native GPU adapter switch is already in progress".into());
+        }
+        if state.adapter_key.as_deref() == adapter_key {
+            return Ok(state.device_generation);
+        }
+        let next_generation = state
+            .device_generation
+            .checked_add(1)
+            .ok_or("native device generation overflow")?;
+        state.switching = true;
+        if let Some(token) = &state.active {
+            token.cancel();
+        }
+        while state.active.is_some() {
+            state = self.idle.wait(state).unwrap_or_else(|e| e.into_inner());
+        }
+        state.adapter_key = adapter_key.map(str::to_owned);
+        state.device_generation = next_generation;
+        state.switching = false;
+        self.idle.notify_all();
+        Ok(next_generation)
+    }
+
+    pub fn convert(
+        &self,
+        input: &Path,
+        output: &Path,
+        resize: ResizeSpec,
+        profile: OutputProfileId,
+        route: ProcessingRoute,
+    ) -> NativeResult<SessionConversionReport> {
+        let (generation, adapter_key, token) = {
+            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            if state.switching || state.active.is_some() {
+                return Err("native session is busy".into());
+            }
+            let token = CancellationToken::default();
+            state.active = Some(token.clone());
+            (state.device_generation, state.adapter_key.clone(), token)
+        };
+        let _active_job = ActiveSessionJob { session: self };
+        let conversion = convert_with_control(
+            input,
+            output,
+            resize,
+            profile,
+            route,
+            adapter_key.as_deref(),
+            &token,
+        )?;
+        Ok(SessionConversionReport {
+            device_generation: generation,
+            conversion,
+        })
+    }
+}
+
 fn run_capture(program: &str, args: &[&OsStr]) -> NativeResult<Vec<u8>> {
     let output = Command::new(program).args(args).output()?;
     if !output.status.success() {
@@ -179,6 +400,15 @@ fn run_capture(program: &str, args: &[&OsStr]) -> NativeResult<Vec<u8>> {
 }
 
 pub fn probe_source(path: &Path) -> NativeResult<SourceInfo> {
+    inspect_source(path, true, &CancellationToken::default()).map(|(source, _)| source)
+}
+
+fn inspect_source(
+    path: &Path,
+    require_zero_origin_cfr: bool,
+    cancel: &CancellationToken,
+) -> NativeResult<(SourceInfo, Vec<i128>)> {
+    cancel.check()?;
     if !path.is_file() {
         return Err(format!("input is not a file: {}", path.display()).into());
     }
@@ -193,6 +423,7 @@ pub fn probe_source(path: &Path) -> NativeResult<SourceInfo> {
             path.as_os_str(),
         ],
     )?;
+    cancel.check()?;
     let parsed: Probe = serde_json::from_slice(&output)?;
     let video_tracks: Vec<_> = parsed
         .streams
@@ -244,18 +475,41 @@ pub fn probe_source(path: &Path) -> NativeResult<SourceInfo> {
     {
         return Err("native M4 harness currently accepts 8-bit video only".into());
     }
-    if video
+    let video_start_us = video
         .start_time
         .as_deref()
-        .is_some_and(|v| v.parse::<f64>().is_ok_and(|t| t.abs() > 0.000_001))
-    {
+        .map(parse_decimal_us)
+        .transpose()?
+        .unwrap_or(0);
+    let audio_start_us = audio_tracks
+        .first()
+        .and_then(|stream| stream.start_time.as_deref())
+        .map(parse_decimal_us)
+        .transpose()?;
+    let video_duration_us = video
+        .duration
+        .as_deref()
+        .map(parse_decimal_us)
+        .transpose()?;
+    let audio_duration_us = audio_tracks
+        .first()
+        .and_then(|stream| stream.duration.as_deref())
+        .map(parse_decimal_us)
+        .transpose()?;
+    if video_start_us < 0 || audio_start_us.is_some_and(|start| start < 0) {
+        return Err("native M4 harness does not yet support negative stream origins".into());
+    }
+    if require_zero_origin_cfr && video_start_us.abs() > 1 {
         return Err("native M4 harness currently requires zero-origin video".into());
+    }
+    if !require_zero_origin_cfr && !audio_tracks.is_empty() && audio_start_us.is_none() {
+        return Err("direct native timeline requires a known audio start time".into());
     }
     let rate = video
         .avg_frame_rate
         .as_deref()
         .ok_or("ffprobe omitted frame rate")?;
-    if video.r_frame_rate.as_deref() != Some(rate) {
+    if require_zero_origin_cfr && video.r_frame_rate.as_deref() != Some(rate) {
         return Err(
             "native M4 harness currently requires matching nominal and average frame rates".into(),
         );
@@ -273,25 +527,61 @@ pub fn probe_source(path: &Path) -> NativeResult<SourceInfo> {
     if frame_count == 0 {
         return Err("video has no frames".into());
     }
-    validate_cfr_timestamps(
+    let timeline = scan_video_timestamps(
         path,
-        video
-            .time_base
-            .as_deref()
-            .ok_or("ffprobe omitted video time base")?,
-        num,
-        den,
-        frame_count,
+        FrameScanSpec {
+            time_base: video
+                .time_base
+                .as_deref()
+                .ok_or("ffprobe omitted video time base")?,
+            rate_num: num,
+            rate_den: den,
+            frame_count,
+            size: Size::new(width, height)?,
+            require_zero_origin_cfr,
+        },
+        cancel,
     )?;
-    Ok(SourceInfo {
-        codec: video.codec_name.clone(),
-        width,
-        height,
-        frame_rate_num: num,
-        frame_rate_den: den,
-        frame_count,
-        audio_codec: audio_tracks.first().map(|v| v.codec_name.clone()),
-    })
+    let period_num = i128::from(den)
+        .checked_mul(1_000_000)
+        .ok_or("frame period overflow")?;
+    let period_den = i128::from(num);
+    let mut variable_frame_rate = video.r_frame_rate.as_deref() != Some(rate);
+    for (index, pts) in timeline.iter().enumerate() {
+        let offset = i128::try_from(index)?
+            .checked_mul(period_num)
+            .and_then(|v| v.checked_add(period_den / 2))
+            .ok_or("frame period overflow")?
+            / period_den;
+        let expected = timeline[0]
+            .checked_add(offset)
+            .ok_or("frame timestamp overflow")?;
+        variable_frame_rate |= pts
+            .checked_sub(expected)
+            .ok_or("frame timestamp overflow")?
+            .unsigned_abs()
+            > 150;
+    }
+    if require_zero_origin_cfr && variable_frame_rate {
+        return Err("native M4 harness currently requires constant frame timestamps".into());
+    }
+    Ok((
+        SourceInfo {
+            codec: video.codec_name.clone(),
+            width,
+            height,
+            frame_rate_num: num,
+            frame_rate_den: den,
+            frame_count,
+            audio_codec: audio_tracks.first().map(|v| v.codec_name.clone()),
+            video_start_us,
+            audio_start_us,
+            video_duration_us,
+            audio_duration_us,
+            variable_frame_rate,
+        },
+        timeline,
+    ))
 }
 
 fn parse_rational(value: &str) -> NativeResult<(i128, i128)> {
@@ -303,13 +593,59 @@ fn parse_rational(value: &str) -> NativeResult<(i128, i128)> {
     Ok((num, den))
 }
 
-fn validate_cfr_timestamps(
-    path: &Path,
-    time_base: &str,
+fn parse_decimal_us(value: &str) -> NativeResult<i128> {
+    let (negative, digits) = match value.strip_prefix('-') {
+        Some(digits) => (true, digits),
+        None => (false, value),
+    };
+    let (whole, fractional) = digits.split_once('.').unwrap_or((digits, ""));
+    let scale = 10_i128
+        .checked_pow(u32::try_from(fractional.len())?)
+        .ok_or("timestamp scale overflow")?;
+    let whole = whole.parse::<i128>()?;
+    let fraction = if fractional.is_empty() {
+        0
+    } else {
+        fractional.parse::<i128>()?
+    };
+    let scaled = whole
+        .checked_mul(scale)
+        .and_then(|v| v.checked_add(fraction))
+        .ok_or("timestamp overflow")?;
+    let microseconds = scaled.checked_mul(1_000_000).ok_or("timestamp overflow")?;
+    let microseconds = microseconds
+        .checked_add(scale / 2)
+        .ok_or("timestamp overflow")?
+        / scale;
+    Ok(if negative {
+        microseconds.checked_neg().ok_or("timestamp overflow")?
+    } else {
+        microseconds
+    })
+}
+
+struct FrameScanSpec<'a> {
+    time_base: &'a str,
     rate_num: u32,
     rate_den: u32,
     frame_count: u64,
-) -> NativeResult<()> {
+    size: Size,
+    require_zero_origin_cfr: bool,
+}
+
+fn scan_video_timestamps(
+    path: &Path,
+    spec: FrameScanSpec<'_>,
+    cancel: &CancellationToken,
+) -> NativeResult<Vec<i128>> {
+    let FrameScanSpec {
+        time_base,
+        rate_num,
+        rate_den,
+        frame_count,
+        size,
+        require_zero_origin_cfr,
+    } = spec;
     let (time_num, time_den) = parse_rational(time_base)?;
     let denominator = i128::from(rate_num)
         .checked_mul(time_num)
@@ -317,56 +653,173 @@ fn validate_cfr_timestamps(
     let numerator = i128::from(rate_den)
         .checked_mul(time_den)
         .ok_or("frame-time numerator overflow")?;
-    let mut child = Command::new("ffprobe")
+    let mut command = Command::new("ffprobe");
+    command
         .args([
             "-v",
             "error",
             "-select_streams",
             "v:0",
             "-show_entries",
-            "frame=best_effort_timestamp",
+            "frame=best_effort_timestamp,width,height",
             "-of",
             "csv=p=0",
         ])
         .arg(path)
-        .stdout(Stdio::piped())
-        .spawn()?;
-    let mut count = 0_u64;
+        .stdout(Stdio::piped());
+    let mut child = ChildGuard::spawn(&mut command)?;
+    let _watch = CancellationWatch::new(cancel, &[&child]);
+    let mut timeline = Vec::new();
     let result = (|| -> NativeResult<()> {
-        let stdout = child.stdout.take().ok_or("ffprobe stdout unavailable")?;
+        let stdout = child.take_stdout()?;
         for line in BufReader::new(stdout).lines() {
+            cancel.check()?;
             let line = line?;
             if line.trim().is_empty() {
                 continue;
             }
-            let pts = line
-                .split(',')
+            let mut fields = line.split(',');
+            let pts = fields
                 .next()
                 .ok_or("missing frame timestamp")?
                 .parse::<i128>()?;
-            let expected = i128::from(count)
-                .checked_mul(numerator)
-                .ok_or("frame-time calculation overflow")?;
-            let expected = (expected + denominator / 2) / denominator;
-            if (pts - expected).abs() > 1 {
-                return Err(format!("video is not zero-origin CFR at frame {count}: PTS={pts}, expected {expected}±1 tick").into());
+            if pts < 0 {
+                return Err(
+                    "native M4 harness does not yet support negative frame timestamps".into(),
+                );
             }
-            count += 1;
-            if count > frame_count {
+            let width = fields.next().ok_or("missing frame width")?.parse::<u32>()?;
+            let height = fields
+                .next()
+                .ok_or("missing frame height")?
+                .parse::<u32>()?;
+            if width != size.width || height != size.height {
+                return Err(format!(
+                    "mid-stream video geometry changed at frame {}",
+                    timeline.len()
+                )
+                .into());
+            }
+            if require_zero_origin_cfr {
+                let expected = i128::try_from(timeline.len())?
+                    .checked_mul(numerator)
+                    .ok_or("frame-time calculation overflow")?;
+                let expected = (expected + denominator / 2) / denominator;
+                if pts
+                    .checked_sub(expected)
+                    .ok_or("frame-time calculation overflow")?
+                    .unsigned_abs()
+                    > 1
+                {
+                    return Err(format!("video is not zero-origin CFR at frame {}: PTS={pts}, expected {expected}±1 tick", timeline.len()).into());
+                }
+            }
+            let micros = pts
+                .checked_mul(time_num)
+                .and_then(|v| v.checked_mul(1_000_000))
+                .ok_or("frame timestamp overflow")?;
+            let micros = micros
+                .checked_add(time_den / 2)
+                .ok_or("frame timestamp overflow")?
+                / time_den;
+            if timeline.last().is_some_and(|previous| micros <= *previous) {
+                return Err("video frame timestamps are not strictly increasing".into());
+            }
+            timeline.push(micros);
+            if u64::try_from(timeline.len())? > frame_count {
                 return Err("ffprobe decoded more frames than reported".into());
             }
         }
-        if count != frame_count {
-            return Err(format!("ffprobe decoded {count} frames, expected {frame_count}").into());
+        if u64::try_from(timeline.len())? != frame_count {
+            return Err(format!(
+                "ffprobe decoded {} frames, expected {frame_count}",
+                timeline.len()
+            )
+            .into());
         }
         Ok(())
     })();
-    if result.is_err() {
-        terminate_child(&mut child);
-        return result;
-    }
-    if !child.wait()?.success() {
+    cancel.check()?;
+    result?;
+    if !child.wait_cancellable(cancel)?.success() {
         return Err("ffprobe frame timeline inspection failed".into());
+    }
+    Ok(timeline)
+}
+
+fn verify_direct_timeline(
+    input: &SourceInfo,
+    input_timeline: &[i128],
+    output: &SourceInfo,
+    output_timeline: &[i128],
+) -> NativeResult<()> {
+    if input_timeline.len() != output_timeline.len() {
+        return Err("direct FFmpeg changed the video frame count".into());
+    }
+    let origin = input.audio_start_us.map_or(input.video_start_us, |audio| {
+        audio.min(input.video_start_us)
+    });
+    for (index, (&before, &after)) in input_timeline.iter().zip(output_timeline).enumerate() {
+        let expected = before
+            .checked_sub(origin)
+            .ok_or("timeline origin overflow")?;
+        if after
+            .checked_sub(expected)
+            .ok_or("timeline difference overflow")?
+            .unsigned_abs()
+            > 1_000
+        {
+            return Err(format!(
+                "direct FFmpeg changed frame {index} timing: expected {expected}µs, got {after}µs"
+            )
+            .into());
+        }
+    }
+    if input.audio_codec.is_some() {
+        let before = input
+            .audio_start_us
+            .ok_or("input audio start was unavailable")?;
+        let after = output
+            .audio_start_us
+            .ok_or("output audio start was unavailable")?;
+        let expected = before.checked_sub(origin).ok_or("audio origin overflow")?;
+        if after
+            .checked_sub(expected)
+            .ok_or("audio start difference overflow")?
+            .unsigned_abs()
+            > 25_000
+        {
+            return Err(format!(
+                "direct FFmpeg changed audio start: expected {expected}µs, got {after}µs"
+            )
+            .into());
+        }
+    }
+    if let Some(before) = input.video_duration_us {
+        let after = output
+            .video_duration_us
+            .ok_or("output video duration was unavailable")?;
+        if after
+            .checked_sub(before)
+            .ok_or("video duration difference overflow")?
+            .unsigned_abs()
+            > 1_000
+        {
+            return Err("direct FFmpeg changed video duration by more than 1 ms".into());
+        }
+    }
+    if let Some(before) = input.audio_duration_us {
+        let after = output
+            .audio_duration_us
+            .ok_or("output audio duration was unavailable")?;
+        if after
+            .checked_sub(before)
+            .ok_or("audio duration difference overflow")?
+            .unsigned_abs()
+            > 25_000
+        {
+            return Err("direct FFmpeg changed audio duration by more than one AAC packet".into());
+        }
     }
     Ok(())
 }
@@ -508,11 +961,6 @@ fn ffmpeg_base() -> Command {
     cmd
 }
 
-fn terminate_child(child: &mut Child) {
-    let _ = child.kill();
-    let _ = child.wait();
-}
-
 pub fn convert(
     input: &Path,
     output: &Path,
@@ -542,7 +990,8 @@ pub fn convert_with_control(
     cancel: &CancellationToken,
 ) -> NativeResult<ConversionReport> {
     cancel.check()?;
-    let source = probe_source(input)?;
+    let strict_cfr = route == ProcessingRoute::SharedWgpu;
+    let (source, input_timeline) = inspect_source(input, strict_cfr, cancel)?;
     cancel.check()?;
     if profile != OutputProfileId::Mp4H264Aac {
         return Err(format!(
@@ -571,7 +1020,7 @@ pub fn convert_with_control(
     let (adapter, uploaded, downloaded, fallback) = result?;
     let conversion_elapsed = started.elapsed().as_millis();
     let verification_started = Instant::now();
-    let verified = probe_source(&partial.path)?;
+    let (verified, output_timeline) = inspect_source(&partial.path, strict_cfr, cancel)?;
     cancel.check()?;
     if verified.width != output_size.width
         || verified.height != output_size.height
@@ -586,6 +1035,9 @@ pub fn convert_with_control(
         return Err(
             "native output stream metadata does not match expected size/frame/audio counts".into(),
         );
+    }
+    if route == ProcessingRoute::DirectFfmpeg {
+        verify_direct_timeline(&source, &input_timeline, &verified, &output_timeline)?;
     }
     let size = finish_output(&mut partial, output)?;
     Ok(ConversionReport {
@@ -618,7 +1070,10 @@ fn convert_direct(
 ) -> NativeResult<()> {
     cancel.check()?;
     let mut cmd = ffmpeg_base();
-    cmd.arg("-i").arg(input).args(["-map", "0:v:0"]);
+    cmd.args(["-copyts", "-start_at_zero"])
+        .arg("-i")
+        .arg(input)
+        .args(["-map", "0:v:0"]);
     if source.audio_codec.is_some() {
         cmd.args(["-map", "0:a:0"]);
     }
@@ -628,6 +1083,10 @@ fn convert_direct(
             "scale={}:{}:flags=bilinear,setsar=1",
             output.width, output.height
         ),
+        "-fps_mode",
+        "passthrough",
+        "-enc_time_base:v",
+        "1:90000",
         "-c:v",
         "libx264",
         "-preset",
@@ -701,26 +1160,27 @@ fn convert_gpu(
         .arg(partial)
         .stdin(Stdio::piped());
     let mut encoder = ChildGuard::spawn(&mut encoder)?;
+    // The main thread may block inside a pipe read or write. A separate watcher
+    // terminates both processes when cancellation is requested, releasing the pipes.
+    let _cancellation_watch = CancellationWatch::new(cancel, &[&decoder, &encoder]);
     let frame_len = usize::try_from(u64::from(source.width) * u64::from(source.height) * 4)?;
     let mut frame = vec![0_u8; frame_len];
     let result = (|| -> NativeResult<u64> {
-        let mut reader = decoder
-            .child
-            .stdout
-            .take()
-            .ok_or("decoder stdout was unavailable")?;
-        let mut writer = encoder
-            .child
-            .stdin
-            .take()
-            .ok_or("encoder stdin was unavailable")?;
+        let mut reader = decoder.take_stdout()?;
+        let mut writer = encoder.take_stdin()?;
         let mut count = 0_u64;
         loop {
             cancel.check()?;
             let mut filled = 0;
             while filled < frame.len() {
                 cancel.check()?;
-                let read = reader.read(&mut frame[filled..])?;
+                let read = match reader.read(&mut frame[filled..]) {
+                    Ok(read) => read,
+                    Err(error) => {
+                        cancel.check()?;
+                        return Err(error.into());
+                    }
+                };
                 if read == 0 {
                     break;
                 }
@@ -732,7 +1192,10 @@ fn convert_gpu(
             if filled != frame.len() {
                 return Err("decoder ended with a partial RGBA frame".into());
             }
-            gpu.process(&frame, &mut writer, cancel)?;
+            if let Err(error) = gpu.process(&frame, &mut writer, cancel) {
+                cancel.check()?;
+                return Err(error);
+            }
             count += 1;
             if count > source.frame_count {
                 return Err("decoder produced more frames than the probed source".into());
@@ -748,6 +1211,7 @@ fn convert_gpu(
         }
         Ok(count)
     })();
+    cancel.check()?;
     result?;
     let decode_status = decoder.wait_cancellable(cancel)?;
     let encode_status = encoder.wait_cancellable(cancel)?;
@@ -978,6 +1442,48 @@ impl GpuProcessor {
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
+    #[test]
+    fn cancellation_interrupts_blocked_child_pipes() {
+        for blocked_read in [true, false] {
+            let mut command = Command::new("powershell.exe");
+            command.args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Start-Sleep -Seconds 5",
+            ]);
+            if blocked_read {
+                command.stdout(Stdio::piped());
+            } else {
+                command.stdin(Stdio::piped());
+            }
+            let mut child = ChildGuard::spawn(&mut command).unwrap();
+            let token = CancellationToken::default();
+            let _watch = CancellationWatch::new(&token, &[&child]);
+            let signal = token.clone();
+            let timer = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(200));
+                signal.cancel();
+            });
+            let started = Instant::now();
+            if blocked_read {
+                let mut byte = [0_u8];
+                let _ = child.take_stdout().unwrap().read(&mut byte);
+            } else {
+                let bytes = vec![0_u8; 8 * 1024 * 1024];
+                let _ = child.take_stdin().unwrap().write_all(&bytes);
+            }
+            timer.join().unwrap();
+            assert!(token.is_cancelled());
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "blocked pipe did not close promptly"
+            );
+            assert!(child.wait_cancellable(&token).is_err());
+        }
+    }
+
     fn fixture(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures")
@@ -1054,6 +1560,23 @@ mod tests {
             assert!(!cancelled_output.exists());
             assert!(!partial_path(&cancelled_output).unwrap().exists());
 
+            // FFmpeg cannot open this output directory. Both routes must reap
+            // their children and leave the process usable for the next job.
+            let failed_output = directory
+                .join("missing-parent")
+                .join(format!("{name}-failed.mp4"));
+            let failure = convert_with_control(
+                &fixture("m2-h264-aac.mp4"),
+                &failed_output,
+                ResizeSpec::Percent(50),
+                OutputProfileId::Mp4H264Aac,
+                route,
+                None,
+                &CancellationToken::default(),
+            );
+            assert!(failure.is_err());
+            assert!(!failed_output.exists());
+
             let retry_output = directory.join(format!("{name}-retry.mp4"));
             let report = convert_with_control(
                 &fixture("m2-h264-aac.mp4"),
@@ -1067,6 +1590,94 @@ mod tests {
             .unwrap();
             assert_eq!(report.frames_processed, 60);
             assert_eq!(probe_source(&retry_output).unwrap().frame_count, 60);
+        }
+
+        let adapters = enumerate_adapters();
+        let discrete = adapters
+            .iter()
+            .find(|adapter| adapter.device_type == "DiscreteGpu");
+        let integrated = adapters
+            .iter()
+            .find(|adapter| adapter.device_type == "IntegratedGpu");
+        if let (Some(discrete), Some(integrated)) = (discrete, integrated) {
+            let session = Arc::new(NativeSession::new(Some(&discrete.key)).unwrap());
+            assert_eq!(session.status().device_generation, 1);
+            assert_eq!(session.switch_adapter(Some(&discrete.key)).unwrap(), 1);
+            assert!(
+                session
+                    .switch_adapter(Some("missing-native-adapter"))
+                    .is_err()
+            );
+            assert_eq!(session.status().device_generation, 1);
+            let session_job = session.clone();
+            let job_input = input.clone();
+            let interrupted_output = directory.join("switch-interrupted.mp4");
+            let job_output = interrupted_output.clone();
+            let job = thread::spawn(move || {
+                session_job.convert(
+                    &job_input,
+                    &job_output,
+                    ResizeSpec::Percent(50),
+                    OutputProfileId::Mp4H264Aac,
+                    ProcessingRoute::SharedWgpu,
+                )
+            });
+            let partial = partial_path(&interrupted_output).unwrap();
+            let started = Instant::now();
+            while !partial.exists() && started.elapsed() < Duration::from_secs(10) {
+                thread::sleep(Duration::from_millis(5));
+            }
+            assert!(
+                partial.exists(),
+                "switch test did not start an active GPU job"
+            );
+            assert!(session.status().active);
+            let overlapping_output = directory.join("overlapping-job.mp4");
+            assert!(
+                session
+                    .convert(
+                        &fixture("m2-h264-aac.mp4"),
+                        &overlapping_output,
+                        ResizeSpec::Percent(50),
+                        OutputProfileId::Mp4H264Aac,
+                        ProcessingRoute::SharedWgpu,
+                    )
+                    .unwrap_err()
+                    .to_string()
+                    .contains("busy")
+            );
+            assert!(!overlapping_output.exists());
+            assert_eq!(session.switch_adapter(Some(&integrated.key)).unwrap(), 2);
+            assert!(
+                job.join()
+                    .unwrap()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("cancelled")
+            );
+            assert!(!interrupted_output.exists());
+            assert!(!partial.exists());
+            let status = session.status();
+            assert_eq!(status.device_generation, 2);
+            assert_eq!(status.adapter_key.as_deref(), Some(integrated.key.as_str()));
+            assert!(!status.active && !status.switching);
+            let switched_output = directory.join("switch-retry.mp4");
+            let switched = session
+                .convert(
+                    &fixture("m2-h264-aac.mp4"),
+                    &switched_output,
+                    ResizeSpec::Percent(50),
+                    OutputProfileId::Mp4H264Aac,
+                    ProcessingRoute::SharedWgpu,
+                )
+                .unwrap();
+            assert_eq!(switched.device_generation, 2);
+            assert_eq!(switched.conversion.adapter.unwrap().key, integrated.key);
+            assert_eq!(probe_source(&switched_output).unwrap().frame_count, 60);
+        } else {
+            eprintln!(
+                "cross-GPU session switch skipped: discrete and integrated adapters are both required"
+            );
         }
         fs::remove_dir_all(&directory).unwrap();
     }
@@ -1107,6 +1718,42 @@ mod tests {
             error.contains("zero-origin") || error.contains("frame rates") || error.contains("CFR"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn direct_route_inspects_vfr_and_detects_timeline_or_geometry_corruption() {
+        let (source, timeline) = inspect_source(
+            &fixture("m35-vfr-offset.mp4"),
+            false,
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert_eq!(source.frame_count, 36);
+        assert!(source.variable_frame_rate);
+        assert_eq!(source.video_start_us, 1_250_000);
+        assert_eq!(source.audio_start_us, Some(1_228_000));
+        assert_eq!(timeline[0], 1_250_000);
+        let mut output = source.clone();
+        output.video_start_us = 22_000;
+        output.audio_start_us = Some(0);
+        let mut normalized: Vec<_> = timeline.iter().map(|pts| pts - 1_228_000).collect();
+        verify_direct_timeline(&source, &timeline, &output, &normalized).unwrap();
+        normalized[5] += 2_000;
+        assert!(
+            verify_direct_timeline(&source, &timeline, &output, &normalized)
+                .unwrap_err()
+                .to_string()
+                .contains("frame 5")
+        );
+
+        let error = inspect_source(
+            &fixture("m35-resolution-change.mp4"),
+            false,
+            &CancellationToken::default(),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("geometry changed"), "{error}");
     }
 
     #[test]

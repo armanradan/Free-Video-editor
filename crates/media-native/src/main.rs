@@ -9,7 +9,7 @@ fn usage() -> &'static str {
     "native-convert list-gpus\n\
      native-convert save-gpu --adapter-key KEY --preference FILE\n\
      native-convert convert --input FILE --output FILE --route direct|wgpu [--profile mp4-h264-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
-     The output must not already exist. M4's initial native harness accepts 8-bit, square-pixel, zero-origin, fixed-size, unrotated CFR MP4 input with one video and at most one audio track."
+     The output must not already exist. Direct FFmpeg accepts 8-bit, square-pixel, fixed-size, unrotated MP4 input with VFR and non-negative A/V origins; shared wgpu currently requires zero-origin CFR. Both accept one video and at most one audio track."
 }
 
 fn argument(args: &[String], key: &str) -> Option<String> {

@@ -69,18 +69,53 @@ const staleOutput = path.join(directory, `fallback-${process.pid}.mp4`);
 const fallback = convert("wgpu", staleOutput, ["--adapter-key", "missing-native-adapter"]);
 assert.match(fallback.adapter_fallback, /unavailable/);
 assert.ok(fallback.adapter);
-const vfrOutput = path.join(directory, `rejected-vfr-${process.pid}.mp4`);
-const rejectedVfr = spawnSync(executable, ["convert", "--input", path.resolve("fixtures/m35-vfr-offset.mp4"),
-  "--output", vfrOutput, "--route", "direct"], { encoding: "utf8" });
-assert.notEqual(rejectedVfr.status, 0);
-assert.equal(fs.existsSync(vfrOutput), false);
+const vfrInput = path.resolve("fixtures/m35-vfr-offset.mp4");
+const vfrOutput = path.join(directory, `direct-vfr-${process.pid}.mp4`);
+const vfr = JSON.parse(run(executable, ["convert", "--input", vfrInput,
+  "--output", vfrOutput, "--route", "direct", "--resize", "50"]).stdout);
+assert.equal(vfr.frames_processed, 36);
+assert.equal(vfr.input.variable_frame_rate, true);
+const vfrProbe = JSON.parse(run("ffprobe", ["-v", "error", "-show_entries",
+  "stream=codec_name,codec_type,width,height,start_time,nb_frames", "-of", "json", vfrOutput]).stdout);
+const vfrVideo = vfrProbe.streams.find(stream => stream.codec_type === "video");
+const vfrAudio = vfrProbe.streams.find(stream => stream.codec_type === "audio");
+assert.equal(vfrVideo.codec_name, "h264");
+assert.equal(vfrVideo.width, 160);
+assert.equal(vfrVideo.height, 90);
+assert.equal(Number(vfrVideo.nb_frames), 36);
+assert.equal(vfrAudio.codec_name, "aac");
+const frameTimes = file => run("ffprobe", ["-v", "error", "-select_streams", "v:0",
+  "-show_entries", "frame=best_effort_timestamp_time", "-of", "csv=p=0", file]).stdout
+  .split(/\r?\n/).filter(line => line.trim()).map(line => Number(line.split(",")[0]));
+const before = frameTimes(vfrInput);
+const after = frameTimes(vfrOutput);
+assert.equal(before.length, 36);
+assert.equal(after.length, 36);
+const frameTimelineMaxErrorUs = Math.max(...before.map((seconds, index) =>
+  Math.abs((seconds - 1.228) - after[index]) * 1_000_000));
+assert.ok(frameTimelineMaxErrorUs <= 1000, `VFR timeline changed by ${frameTimelineMaxErrorUs} µs`);
+const avOffsetErrorUs = Math.abs(((Number(vfrVideo.start_time) - Number(vfrAudio.start_time))
+  - (1.250 - 1.228)) * 1_000_000);
+assert.ok(avOffsetErrorUs <= 1000, `A/V offset changed by ${avOffsetErrorUs} µs`);
+run("ffmpeg", ["-v", "error", "-i", vfrOutput, "-f", "null", "-"]);
+const vfrVolume = run("ffmpeg", ["-hide_banner", "-i", vfrOutput, "-map", "0:a:0",
+  "-af", "volumedetect", "-f", "null", "-"]).stderr;
+const vfrAudioMaxDb = Number(vfrVolume.match(/max_volume:\s*([-\d.]+) dB/)?.[1]);
+assert.ok(Number.isFinite(vfrAudioMaxDb) && vfrAudioMaxDb > -60);
+const gpuVfrOutput = path.join(directory, `wgpu-vfr-rejected-${process.pid}.mp4`);
+const rejectedGpuVfr = spawnSync(executable, ["convert", "--input", vfrInput,
+  "--output", gpuVfrOutput, "--route", "wgpu"], { encoding: "utf8" });
+assert.notEqual(rejectedGpuVfr.status, 0);
+assert.match(rejectedGpuVfr.stderr, /zero-origin|frame rates|CFR/);
+assert.equal(fs.existsSync(gpuVfrOutput), false);
 const overwrite = spawnSync(executable, ["convert", "--input", input, "--output", directOutput,
   "--route", "direct"], { encoding: "utf8" });
 assert.notEqual(overwrite.status, 0);
 assert.match(overwrite.stderr, /refusing to overwrite output/);
 const evidence = { fixture: "fixtures/m2-h264-aac.mp4 (CC0-1.0)", adapter: selected,
   direct, gpu, directInspection, gpuInspection, decodedVideoPsnrDb: psnrDb,
-  staleAdapterFallback: fallback.adapter_fallback, vfrRejected: true, overwriteRejected: true,
+  staleAdapterFallback: fallback.adapter_fallback, directVfr: { report: vfr,
+    frameTimelineMaxErrorUs, avOffsetErrorUs, audioMaxDb: vfrAudioMaxDb }, gpuVfrRejected: true, overwriteRejected: true,
   limitations: "Single debug-build run; software FFmpeg encode; GPU route performs explicit upload/readback and blocks per frame." };
 fs.writeFileSync(path.join(directory, `evidence-${process.pid}.json`), JSON.stringify(evidence, null, 2));
 console.log(JSON.stringify(evidence, null, 2));
