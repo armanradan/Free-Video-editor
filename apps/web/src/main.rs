@@ -30,21 +30,23 @@ fn App() -> Element {
     let mut download_name = use_signal(String::new);
     let mut profile = use_signal(|| OutputProfileId::PREFERRED);
     let mut acceleration = use_signal(CodecAcceleration::default);
-    let mut resize_mode = use_signal(|| "percent-50".to_string());
+    let mut resize_mode = use_signal(|| "original".to_string());
     let mut exact_width = use_signal(|| "320".to_string());
     let mut exact_height = use_signal(|| "180".to_string());
     let mut preserve_aspect_ratio = use_signal(|| true);
     let resolved_size = use_signal(String::new);
     let mut source_metadata = use_signal(String::new);
     let mut has_source = use_signal(|| false);
+    let mut profile_ready = use_signal(|| false);
     let mp4_supported = use_signal(|| false);
-    let mp4_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
+    let mp4_reason = use_signal(String::new);
     let hevc_supported = use_signal(|| false);
-    let hevc_reason = use_signal(|| "Select a source file to probe this profile.".to_string());
+    let hevc_reason = use_signal(String::new);
     let mut probe_generation = use_signal(|| 0_u64);
     let probe_signals = ProbeSignals {
         generation: probe_generation,
         running,
+        profile_ready,
         mp4_supported,
         mp4_reason,
         hevc_supported,
@@ -56,6 +58,10 @@ fn App() -> Element {
     };
 
     let convert = move |_| {
+        if !profile_ready() {
+            status.set("Select an input and wait for its output profile checks.".to_string());
+            return;
+        }
         let selected_resize = match requested_resize(
             &resize_mode(),
             &exact_width(),
@@ -121,6 +127,7 @@ fn App() -> Element {
     };
     let file_changed = move |_| {
         has_source.set(true);
+        profile_ready.set(false);
         source_metadata.set(String::new());
         let resize = match requested_resize(
             &resize_mode(),
@@ -230,6 +237,7 @@ fn App() -> Element {
                 preserve_aspect_ratio: preserve_aspect_ratio(),
                 resolved_size: resolved_size(),
                 source_metadata: source_metadata(),
+                profile_ready: profile_ready(),
                 mp4_supported: mp4_supported(),
                 mp4_reason: mp4_reason(),
                 hevc_supported: hevc_supported(),
@@ -265,6 +273,7 @@ fn App() -> Element {
 struct ProbeSignals {
     generation: Signal<u64>,
     running: Signal<bool>,
+    profile_ready: Signal<bool>,
     mp4_supported: Signal<bool>,
     mp4_reason: Signal<String>,
     hevc_supported: Signal<bool>,
@@ -324,6 +333,7 @@ fn reprobe_if_ready(
     let resize = match requested_resize(mode, exact_width, exact_height, preserve_aspect_ratio) {
         Ok(resize) => resize,
         Err(error) => {
+            signals.profile_ready.set(false);
             signals.mp4_supported.set(false);
             signals.hevc_supported.set(false);
             signals.resolved_size.set(String::new());
@@ -337,6 +347,10 @@ fn reprobe_if_ready(
 }
 
 async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSignals) {
+    if (signals.generation)() != generation {
+        return;
+    }
+    signals.profile_ready.set(false);
     signals.mp4_supported.set(false);
     signals.hevc_supported.set(false);
     signals
@@ -372,6 +386,7 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
             if !capabilities.hevc_supported && (signals.profile)() == OutputProfileId::Mp4H265Aac {
                 signals.profile.set(OutputProfileId::PREFERRED);
             }
+            signals.profile_ready.set(true);
             let mut available = vec!["WebM/VP8/Opus"];
             if capabilities.mp4_supported {
                 available.push("MP4/H.264/AAC");

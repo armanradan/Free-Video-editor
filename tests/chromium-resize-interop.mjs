@@ -63,12 +63,21 @@ try {
   await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full` });
   await waitFor('!!document.querySelector("#convert")');
   await new Promise(resolve => setTimeout(resolve, 250));
+  evidence.beforeInput = await evaluate('({profileDisabled:document.querySelector("#output-profile").disabled,convertDisabled:document.querySelector("#convert").disabled,note:Array.from(document.querySelectorAll(".note")).map(node=>node.textContent).find(text=>text.startsWith("Select an input to check output profiles"))})');
+  assert.equal(evidence.beforeInput.profileDisabled, true);
+  assert.equal(evidence.beforeInput.convertDisabled, true);
+  assert.ok(evidence.beforeInput.note);
   evidence.opfsBaseline = await evaluate(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);return names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")).sort();})()`);
   const document = await send("DOM.getDocument");
   const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" });
   await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
   await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
-  await waitFor(`${statusExpression}.includes("Output resolves to 320×180") && document.querySelector("#resolved-size")?.textContent.includes("320×180")`);
+  await waitFor(`${statusExpression}.includes("Output resolves to 640×360") && document.querySelector("#resolved-size")?.textContent.includes("640×360")`);
+  assert.equal(await evaluate('document.querySelector("#resize-preset").value'), 'original');
+  evidence.afterInput = await evaluate('({profileDisabled:document.querySelector("#output-profile").disabled,convertDisabled:document.querySelector("#convert").disabled,mp4Disabled:document.querySelector("#output-profile option[value=\\"mp4-h264-aac\\"]").disabled})');
+  assert.equal(evidence.afterInput.profileDisabled, false);
+  assert.equal(evidence.afterInput.convertDisabled, false);
+  assert.equal(evidence.afterInput.mp4Disabled, false);
   evidence.sourceMetadata = await waitFor('document.querySelector("#source-metadata")?.textContent');
   assert.match(evidence.sourceMetadata, /display 640×360 · coded 640×360/);
   assert.match(evidence.sourceMetadata, /Video: H\.264\/AVC \(avc1\./);
@@ -189,6 +198,7 @@ try {
   await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full&output=memory` });
   await waitFor('!!document.querySelector("#convert")');
   await new Promise(resolve => setTimeout(resolve, 250));
+  await evaluate('{const s=document.querySelector("#resize-preset");s.value="percent-50";s.dispatchEvent(new Event("change",{bubbles:true}));}');
   const fallbackDocument = await send("DOM.getDocument");
   const fallbackInput = await send("DOM.querySelector", { nodeId: fallbackDocument.root.nodeId, selector: "#source-file" });
   await send("DOM.setFileInputFiles", { nodeId: fallbackInput.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
@@ -216,6 +226,7 @@ try {
   await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full&execution=main` });
   await waitFor('!!document.querySelector("#convert")');
   await evaluate('Object.defineProperty(navigator.storage,"getDirectory",{configurable:true,value:undefined})');
+  await evaluate('{const s=document.querySelector("#resize-preset");s.value="percent-50";s.dispatchEvent(new Event("change",{bubbles:true}));}');
   const automaticFallbackDocument = await send("DOM.getDocument");
   const automaticFallbackInput = await send("DOM.querySelector", { nodeId: automaticFallbackDocument.root.nodeId, selector: "#source-file" });
   await send("DOM.setFileInputFiles", { nodeId: automaticFallbackInput.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });

@@ -16,6 +16,7 @@ pub fn ConverterControls(
     preserve_aspect_ratio: bool,
     resolved_size: String,
     source_metadata: String,
+    profile_ready: bool,
     mp4_supported: bool,
     mp4_reason: String,
     hevc_supported: bool,
@@ -102,7 +103,7 @@ pub fn ConverterControls(
             label { r#for: "output-profile", "Output profile" }
             select {
                 id: "output-profile",
-                disabled: running,
+                disabled: running || !profile_ready,
                 onchange: move |event| on_profile_change.call(event),
                 option {
                     value: OutputProfileId::WebmVp8Opus.as_str(),
@@ -127,10 +128,13 @@ pub fn ConverterControls(
                     if hevc_supported { "MP4 — H.265/HEVC + AAC" } else { "MP4 — H.265/HEVC + AAC (unavailable)" }
                 }
             }
-            if !mp4_supported && !mp4_reason.is_empty() {
+            if !profile_ready {
+                p { class: "note", "Select an input to check output profiles for its codec, audio, and resolved size." }
+            }
+            if profile_ready && !mp4_supported && !mp4_reason.is_empty() {
                 p { class: "note", "H.264 MP4 unavailable: {mp4_reason}" }
             }
-            if !hevc_supported && !hevc_reason.is_empty() {
+            if profile_ready && !hevc_supported && !hevc_reason.is_empty() {
                 p { class: "note", "H.265/HEVC MP4 unavailable: {hevc_reason}" }
             }
             label { r#for: "codec-acceleration", "Codec acceleration" }
@@ -151,7 +155,7 @@ pub fn ConverterControls(
             }
         }
         div { class: "actions",
-            button { id: "convert", disabled: running, onclick: move |event| on_convert.call(event), "Convert" }
+            button { id: "convert", disabled: running || !profile_ready, onclick: move |event| on_convert.call(event), "Convert" }
             button { id: "cancel", disabled: !running, onclick: move |event| on_cancel.call(event), "Cancel" }
             if !download_url.is_empty() {
                 a { id: "download", class: "button-link", href: download_url, download: download_name, "Download output" }

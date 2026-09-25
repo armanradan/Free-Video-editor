@@ -79,8 +79,8 @@ try {
   await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?${query}` });
   await send("Page.bringToFront");
   await waitFor('!!document.querySelector("#convert")');
-  await click("#convert");
-  assert.match(await terminal(), /select an MP4 file first/);
+  assert.equal(await evaluate('document.querySelector("#convert").disabled'), true);
+  await evaluate('{const s=document.querySelector("#resize-preset");s.value="percent-50";s.dispatchEvent(new Event("change",{bubbles:true}));}');
   const document = await send("DOM.getDocument");
   const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" });
   await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });

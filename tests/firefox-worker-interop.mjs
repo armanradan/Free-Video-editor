@@ -62,8 +62,8 @@ try {
     context, url: `http://127.0.0.1:8084/?${query}`, wait: "complete",
   });
   await waitFor('!!document.querySelector("#convert")');
-  await click("#convert");
-  assert.match(await terminal(), /select an MP4 file first/);
+  assert.equal(await evaluate('document.querySelector("#convert").disabled'), true);
+  await evaluate('{const s=document.querySelector("#resize-preset");s.value="percent-50";s.dispatchEvent(new Event("change",{bubbles:true}));}');
   const element = await send("script.evaluate", { expression: 'document.querySelector("#source-file")', target: { context }, awaitPromise: true });
   await send("input.setFiles", { context, element: { sharedId: element.result.sharedId }, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
   await waitFor(`${status}.startsWith("Ready.")`, 45_000);

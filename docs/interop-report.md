@@ -690,7 +690,7 @@ This is evidence for deterministic cleanup and a clean restart after an applicat
 
 ## Final limits, cleanup, fallback, and stress acceptance, 2026-09-25
 
-The final resize runs added the default 50% mode to every enabled profile. Chromium completed 18 size/profile combinations and Firefox completed 12; every one passed full output re-decode, playback geometry, timing, audio where applicable, and zero application-owned cleanup. M3.5 geometry/VFR/HDR/resolution-change regressions and the eight controlled recovery/restart scenarios were rerun after the storage and verification changes and remained green.
+The final resize runs added the 50% mode to every enabled profile. Chromium completed 18 size/profile combinations and Firefox completed 12; every one passed full output re-decode, playback geometry, timing, audio where applicable, and zero application-owned cleanup. M3.5 geometry/VFR/HDR/resolution-change regressions and the eight controlled recovery/restart scenarios were rerun after the storage and verification changes and remained green.
 
 The selected Chromium WebGPU adapter reported `maxTextureDimension2D = 16384`. `GpuSession::configure` now rejects input or output dimensions exceeding the actual requested device's 2D texture limit before canvas/texture allocation. Exact `VideoEncoder.isConfigSupported` VP8 probes in the same browser accepted 8192×8192 and rejected 16384×16384, 32768×32768, and 65536×65536. Normal profile probing still gates every resolved output size; no oversized allocation was attempted. The low-resolution deterministic conversion fixture cannot validly request those outputs because the independent no-upscale rule rejects them first.
 
@@ -699,3 +699,11 @@ The existing local 70,439,352-byte input provided the long-run/large-compressed-
 That stress run also exposed valid WebM packets with omitted duration fields before the final packet. Verification now derives an omitted non-final duration from the next packet timestamp, as WebM timing permits, while applying the same 1 ms endpoint tolerance; final coverage remains independently checked against track duration. The M3.5 VFR/non-zero-origin fixtures passed after this correction, preventing the compatibility rule from weakening timestamp validation.
 
 With these results, the M3.6 acceptance gate is passed for the available Firefox/Chromium environments and core M3 browser robustness is complete. M3.7 remains an optional FFmpeg WASM compatibility spike rather than required follow-up work.
+
+## Profile selector before input selection, 2026-09-25
+
+The output selector and Convert button now stay disabled until an input-specific profile probe succeeds. Selecting another file or changing the output size invalidates the previous profile result until the new check completes. This is necessary because the exact check includes the input decoder, audio presence/channel count, frame rate, and resolved output dimensions; a browser-wide encoder probe alone cannot establish whether that file can use an MP4 profile.
+
+The Chromium and Firefox resize harnesses checked the initial disabled state and then loaded the deterministic H.264/AAC fixture. After its probe, both controls became active. H.264 MP4 became selectable in Chromium and remained disabled with its capability reason in Firefox. The existing 18 Chromium and 12 Firefox full re-decode cases then passed unchanged.
+
+The UI now selects Original size at startup. Both browser resize harnesses assert that selection and the resolved 640×360 geometry for the 640×360 fixture before exercising the six-size matrix. The earlier half-size worker, recovery, geometry, and stress harnesses now select 50% explicitly so their historical 320×180 and 960×540 expectations remain meaningful.

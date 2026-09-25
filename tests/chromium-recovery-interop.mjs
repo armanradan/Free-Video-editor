@@ -58,7 +58,7 @@ async function runScenario(mode, failureMode) {
     const document = await send("DOM.getDocument", {}, sessionId);
     const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" }, sessionId);
     await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] }, sessionId);
-    await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
+    await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));const s=document.querySelector("#resize-preset");s.value="percent-50";s.dispatchEvent(new Event("change",{bubbles:true}));}');
     await waitFor(`${status}.includes("Output resolves to 320×180")`);
 
     await evaluate('document.querySelector("#convert").click()');

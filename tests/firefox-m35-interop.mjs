@@ -50,6 +50,7 @@ try {
   const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
   await send("browsingContext.navigate", { context, url: `http://127.0.0.1:${appPort}/?verify=full`, wait: "complete" });
   await waitFor('!!document.querySelector("#convert")');
+  await evaluate('{const s=document.querySelector("#resize-preset");s.value="percent-50";s.dispatchEvent(new Event("change",{bubbles:true}));}');
   const element = await send("script.evaluate", { expression: 'document.querySelector("#source-file")', target: { context }, awaitPromise: true });
   const selectFile = async name => {
     await send("input.setFiles", { context, element: { sharedId: element.result.sharedId }, files: [path.resolve(`fixtures/${name}`)] });
