@@ -433,6 +433,12 @@ pub fn probe_source(path: &Path) -> NativeResult<SourceInfo> {
     inspect_source(path, true, true, &CancellationToken::default()).map(|(source, _)| source)
 }
 
+/// Inspect a source using the direct route's timing and display-geometry policy.
+/// Conversion still performs profile- and route-specific preflight before output.
+pub fn probe_source_direct(path: &Path) -> NativeResult<SourceInfo> {
+    inspect_source(path, false, true, &CancellationToken::default()).map(|(source, _)| source)
+}
+
 fn inspect_source(
     path: &Path,
     require_zero_origin_cfr: bool,
@@ -2005,6 +2011,19 @@ mod tests {
             error.contains("zero-origin") || error.contains("frame rates") || error.contains("CFR"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn ui_direct_probe_accepts_supported_vfr_and_display_geometry() {
+        let vfr = probe_source_direct(&fixture("m35-vfr-offset.mp4")).unwrap();
+        assert!(vfr.variable_frame_rate);
+        assert_eq!(vfr.video_start_us, 1_250_000);
+        let transformed = probe_source_direct(&fixture("m35-geometry-color.mp4")).unwrap();
+        assert_eq!(
+            (transformed.display_width, transformed.display_height),
+            (180, 421)
+        );
+        assert!(transformed.has_display_matrix);
     }
 
     #[test]

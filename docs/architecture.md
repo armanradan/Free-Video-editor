@@ -484,6 +484,8 @@ The direct route additionally offers `mp4-h265-main10-aac` for 10-bit BT.709 lim
 
 ### M5 — Dioxus Native/Blitz and hardware interop
 
+Implementation start (2026-09-25): `apps/native` is a separate Dioxus 0.7.10 `native`/Blitz launcher, not a `dioxus-desktop` webview. It reuses `media-native::NativeSession` for a single active conversion, cancellation, device-generation-safe GPU preference switching, and the M4 direct-FFmpeg default. Source/output paths and native file dialogs remain at the UI boundary; only metadata and status enter Dioxus signals. The resize preset selector is shared with the web UI through `crates/ui`. This first slice does **not** establish native preview, a shared Blitz/processor wgpu device, hardware decoder/encoder surfaces, or a speedup. Blitz 0.7.10 currently pulls wgpu 26 while `media-gpu` uses wgpu 30.0.1; never pass textures between them merely because both are wgpu. Preview and same-adapter codec-surface bridging require separate version/handle/synchronization proofs and complete conversion benchmarks. Direct FFmpeg remains the fallback.
+
 - Add native Dioxus launcher, shared controls, and native source/sink handling.
 - Add a native GPU selector backed by the M4 adapter descriptors. Display the active adapter and disable switching while teardown/recreation is incomplete; browser builds continue to display the browser-selected adapter without claiming exact-selection control.
 - Prove preview integration independently: compatible device/version sharing or a documented surface/compositor path. Preview must not force conversion through a CPU image format.

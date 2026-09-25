@@ -1,0 +1,14 @@
+[package]
+name = "converter-native"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+dioxus = { workspace = true, features = ["native", "minimal"] }
+futures-channel.workspace = true
+media-core.workspace = true
+media-native = { path = "../../crates/media-native" }
+rfd.workspace = true
+ui.workspace = true

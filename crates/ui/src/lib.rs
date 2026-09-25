@@ -4,6 +4,35 @@ use dioxus::prelude::*;
 use media_core::{CodecAcceleration, OutputProfileId};
 
 #[component]
+pub fn ResizePresetSelect(
+    running: bool,
+    resize_mode: String,
+    show_exact: bool,
+    on_change: EventHandler<FormEvent>,
+) -> Element {
+    rsx! {
+        label { r#for: "resize-preset", "Resize" }
+        select {
+            id: "resize-preset",
+            disabled: running,
+            onchange: move |event| on_change.call(event),
+            option { value: "original", selected: resize_mode == "original", "Original size" }
+            option { value: "percent-75", selected: resize_mode == "percent-75", "75%" }
+            option { value: "percent-50", selected: resize_mode == "percent-50", "50%" }
+            option { value: "percent-25", selected: resize_mode == "percent-25", "25%" }
+            option { value: "hd-720p", selected: resize_mode == "hd-720p", "HD / 720p" }
+            option { value: "fhd-1080p", selected: resize_mode == "fhd-1080p", "Full HD / 1080p" }
+            option { value: "dci-2k", selected: resize_mode == "dci-2k", "2K width" }
+            option { value: "qhd-1440p", selected: resize_mode == "qhd-1440p", "QHD / 1440p" }
+            option { value: "uhd-2160p", selected: resize_mode == "uhd-2160p", "4K UHD / 2160p" }
+            if show_exact {
+                option { value: "exact", selected: resize_mode == "exact", "Exact bounding size" }
+            }
+        }
+    }
+}
+
+#[component]
 pub fn ConverterControls(
     ffmpeg_spike: bool,
     running: bool,
@@ -49,21 +78,11 @@ pub fn ConverterControls(
                     p { id: "source-metadata", "{source_metadata}" }
                 }
             }
-            label { r#for: "resize-preset", "Resize" }
-            select {
-                id: "resize-preset",
-                disabled: running,
-                onchange: move |event| on_resize_mode_change.call(event),
-                option { value: "original", selected: resize_mode == "original", "Original size" }
-                option { value: "percent-75", selected: resize_mode == "percent-75", "75%" }
-                option { value: "percent-50", selected: resize_mode == "percent-50", "50%" }
-                option { value: "percent-25", selected: resize_mode == "percent-25", "25%" }
-                option { value: "hd-720p", selected: resize_mode == "hd-720p", "HD / 720p (up to 1280×720)" }
-                option { value: "fhd-1080p", selected: resize_mode == "fhd-1080p", "Full HD / 1080p (up to 1920×1080)" }
-                option { value: "dci-2k", selected: resize_mode == "dci-2k", "2K width (2048 px, aspect preserved)" }
-                option { value: "qhd-1440p", selected: resize_mode == "qhd-1440p", "QHD / 1440p (up to 2560×1440)" }
-                option { value: "uhd-2160p", selected: resize_mode == "uhd-2160p", "4K UHD / 2160p (up to 3840×2160)" }
-                option { value: "exact", selected: resize_mode == "exact", "Exact bounding size" }
+            ResizePresetSelect {
+                running,
+                resize_mode: resize_mode.clone(),
+                show_exact: true,
+                on_change: on_resize_mode_change,
             }
             if resize_mode == "exact" {
                 label { r#for: "resize-width", "Maximum width" }

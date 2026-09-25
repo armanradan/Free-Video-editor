@@ -35,6 +35,8 @@ The Windows native correctness harness uses installed FFmpeg/FFprobe 8.0.1 on `P
 
 The native GPU route also detects wgpu device loss as a failed job and discards its unpublished output; an application-triggered `Device::destroy()` test passes cleanup and a fresh same-process retry. This does not establish spontaneous driver-loss or hung-driver recovery.
 
+M5 has started with a separate Dioxus Native/Blitz window. Run `cargo run --locked -p converter-native` with FFmpeg and FFprobe on `PATH`. Choose input/output MP4 paths, inspect the input, then convert through the default direct-FFmpeg route or explicitly select the limited shared-wgpu route. The window offers cancellation and processing-GPU preference; direct FFmpeg does not use that GPU preference. Native video preview and hardware codec-surface sharing are not implemented yet.
+
 ```powershell
 cargo run --locked -p media-native --bin native-convert -- list-gpus
 cargo run --locked -p media-native --bin native-convert -- convert --input fixtures/m2-h264-aac.mp4 --output tmp/m4/direct-output.mp4 --resize 50
