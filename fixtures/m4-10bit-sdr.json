@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "name": "m4-10bit-sdr.mp4",
+  "purpose": "M4 native HEVC Main 10 BT.709 SDR input/output precision and audio interoperability",
+  "license": "CC0-1.0",
+  "generated_utc": "2026-09-25",
+  "generator": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "command": "pwsh -File tools/generate-m4-10bit-fixture.ps1",
+  "expected": {
+    "container": "MP4",
+    "video_codec": "HEVC Main 10 (hvc1)",
+    "pixel_format": "yuv420p10le",
+    "width": 160,
+    "height": 96,
+    "frame_rate": "24/1",
+    "frame_count": 24,
+    "color": "BT.709 limited-range SDR",
+    "luma_chroma": "Deterministic 10-bit gradients with samples not divisible by four",
+    "audio": "AAC LC, mono, 48000 Hz, 440 Hz tone",
+    "duration_seconds": 1.0
+  },
+  "size_bytes": 147840,
+  "sha256": "7e4ab455163e60d140ac727e1483be6d19e9003a2dced5aca199ccbfe9342cfb"
+}

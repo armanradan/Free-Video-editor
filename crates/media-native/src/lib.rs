@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use media_core::{OutputProfileId, ResizeSpec, Rotation, Size};
+use media_core::{FrameGeometry, OutputProfileId, Rect, ResizeSpec, Rotation, Size};
 use media_gpu::ResizePipeline;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -106,13 +106,25 @@ struct CancellationWatch {
 
 impl CancellationWatch {
     fn new(cancel: &CancellationToken, children: &[&ChildGuard]) -> Self {
+        Self::new_with_failure(cancel, children, None)
+    }
+
+    fn new_with_failure(
+        cancel: &CancellationToken,
+        children: &[&ChildGuard],
+        failure: Option<Arc<AtomicBool>>,
+    ) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_in_thread = stop.clone();
         let token = cancel.clone();
         let children: Vec<_> = children.iter().map(|guard| guard.child.clone()).collect();
         let thread = thread::spawn(move || {
             while !stop_in_thread.load(Ordering::Acquire) {
-                if token.is_cancelled() {
+                if token.is_cancelled()
+                    || failure
+                        .as_ref()
+                        .is_some_and(|signal| signal.load(Ordering::Acquire))
+                {
                     for child in children {
                         if let Ok(mut child) = child.lock() {
                             let _ = child.kill();
@@ -154,6 +166,7 @@ struct Probe {
 struct ProbeStream {
     codec_type: String,
     codec_name: String,
+    codec_tag_string: Option<String>,
     width: Option<u32>,
     height: Option<u32>,
     sample_aspect_ratio: Option<String>,
@@ -164,20 +177,37 @@ struct ProbeStream {
     duration: Option<String>,
     nb_frames: Option<String>,
     pix_fmt: Option<String>,
+    profile: Option<String>,
+    color_range: Option<String>,
+    color_space: Option<String>,
     color_transfer: Option<String>,
+    color_primaries: Option<String>,
     side_data_list: Option<Vec<SideData>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct SideData {
+    side_data_type: Option<String>,
     rotation: Option<i32>,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SourceInfo {
     pub codec: String,
+    pub codec_tag: Option<String>,
+    pub codec_profile: Option<String>,
+    pub pixel_format: String,
     pub width: u32,
     pub height: u32,
+    pub display_width: u32,
+    pub display_height: u32,
+    pub sample_aspect_ratio: String,
+    pub rotation_degrees: i32,
+    pub has_display_matrix: bool,
+    pub color_range: Option<String>,
+    pub color_space: Option<String>,
+    pub color_transfer: Option<String>,
+    pub color_primaries: Option<String>,
     pub frame_rate_num: u32,
     pub frame_rate_den: u32,
     pub frame_count: u64,
@@ -400,12 +430,13 @@ fn run_capture(program: &str, args: &[&OsStr]) -> NativeResult<Vec<u8>> {
 }
 
 pub fn probe_source(path: &Path) -> NativeResult<SourceInfo> {
-    inspect_source(path, true, &CancellationToken::default()).map(|(source, _)| source)
+    inspect_source(path, true, true, &CancellationToken::default()).map(|(source, _)| source)
 }
 
 fn inspect_source(
     path: &Path,
     require_zero_origin_cfr: bool,
+    allow_10bit: bool,
     cancel: &CancellationToken,
 ) -> NativeResult<(SourceInfo, Vec<i128>)> {
     cancel.check()?;
@@ -444,37 +475,53 @@ fn inspect_source(
     }
     let width = video.width.ok_or("ffprobe omitted video width")?;
     let height = video.height.ok_or("ffprobe omitted video height")?;
-    let _ = Size::new(width, height)?;
-    if video
-        .sample_aspect_ratio
-        .as_deref()
-        .is_some_and(|v| v != "1:1")
-    {
-        return Err("native M4 harness currently requires square-pixel input".into());
-    }
-    if video
+    let coded = Size::new(width, height)?;
+    let sample_aspect_ratio = video.sample_aspect_ratio.as_deref().unwrap_or("1:1");
+    let (sar_num, sar_den) = if sample_aspect_ratio == "N/A" {
+        (1, 1)
+    } else {
+        let ratio = sample_aspect_ratio.replace(':', "/");
+        parse_rational(&ratio)?
+    };
+    let rotation_degrees = video
         .side_data_list
         .as_deref()
         .unwrap_or_default()
         .iter()
-        .any(|v| v.rotation.unwrap_or(0) != 0)
-    {
-        return Err("native M4 harness does not yet implement source rotation".into());
-    }
-    if video
-        .color_transfer
+        .find_map(|side| side.rotation)
+        .unwrap_or(0);
+    let has_display_matrix = video
+        .side_data_list
         .as_deref()
-        .is_some_and(|v| matches!(v, "smpte2084" | "arib-std-b67"))
-    {
-        return Err("native M4 harness does not yet implement HDR transfer".into());
+        .unwrap_or_default()
+        .iter()
+        .any(|side| side.side_data_type.as_deref() == Some("Display Matrix"));
+    if require_zero_origin_cfr && (sar_num, sar_den) != (1, 1) {
+        return Err("native M4 harness currently requires square-pixel input".into());
     }
-    if video
-        .pix_fmt
-        .as_deref()
-        .is_some_and(|v| v.contains("10") || v.contains("12"))
-    {
-        return Err("native M4 harness currently accepts 8-bit video only".into());
+    if require_zero_origin_cfr && has_display_matrix {
+        return Err(
+            "native M4 shared-wgpu route does not yet implement source display matrices".into(),
+        );
     }
+    let angle = rotation_degrees.unsigned_abs() % 360;
+    let rotation = Rotation::from_degrees(angle)?;
+    let square_width = u32::try_from(
+        i128::from(width)
+            .checked_mul(sar_num)
+            .and_then(|value| value.checked_add(sar_den / 2))
+            .ok_or("sample aspect ratio overflow")?
+            / sar_den,
+    )?;
+    let geometry = FrameGeometry::new(
+        coded,
+        Rect::new(0, 0, width, height)?,
+        Size::new(square_width, height)?,
+        rotation,
+        false,
+    )?;
+    let display = geometry.display_size();
+    validate_native_sdr(video, allow_10bit)?;
     let video_start_us = video
         .start_time
         .as_deref()
@@ -537,7 +584,7 @@ fn inspect_source(
             rate_num: num,
             rate_den: den,
             frame_count,
-            size: Size::new(width, height)?,
+            size: require_zero_origin_cfr.then_some(coded),
             require_zero_origin_cfr,
         },
         cancel,
@@ -568,8 +615,23 @@ fn inspect_source(
     Ok((
         SourceInfo {
             codec: video.codec_name.clone(),
+            codec_tag: video.codec_tag_string.clone(),
+            codec_profile: video.profile.clone(),
+            pixel_format: video
+                .pix_fmt
+                .clone()
+                .ok_or("ffprobe omitted pixel format")?,
             width,
             height,
+            display_width: display.width,
+            display_height: display.height,
+            sample_aspect_ratio: sample_aspect_ratio.to_owned(),
+            rotation_degrees,
+            has_display_matrix,
+            color_range: video.color_range.clone(),
+            color_space: video.color_space.clone(),
+            color_transfer: video.color_transfer.clone(),
+            color_primaries: video.color_primaries.clone(),
             frame_rate_num: num,
             frame_rate_den: den,
             frame_count,
@@ -582,6 +644,38 @@ fn inspect_source(
         },
         timeline,
     ))
+}
+
+fn validate_native_sdr(video: &ProbeStream, allow_10bit: bool) -> NativeResult<()> {
+    for (label, value, accepted) in [
+        ("range", video.color_range.as_deref(), "tv"),
+        ("matrix", video.color_space.as_deref(), "bt709"),
+        ("transfer", video.color_transfer.as_deref(), "bt709"),
+        ("primaries", video.color_primaries.as_deref(), "bt709"),
+    ] {
+        if value.is_some_and(|tag| tag != accepted && tag != "unknown") {
+            return Err(format!(
+                "native M4 supports only BT.709 limited-range SDR; unsupported {label}: {}",
+                value.unwrap_or_default()
+            )
+            .into());
+        }
+    }
+    if !matches!(video.pix_fmt.as_deref(), Some("yuv420p" | "nv12"))
+        && !(allow_10bit && matches!(video.pix_fmt.as_deref(), Some("yuv420p10le" | "p010le")))
+    {
+        return Err(format!(
+            "native M4 supports only opaque 8-bit YUV 4:2:0{} input; unsupported pixel format: {}",
+            if allow_10bit {
+                " or direct-route 10-bit YUV 4:2:0"
+            } else {
+                ""
+            },
+            video.pix_fmt.as_deref().unwrap_or("missing")
+        )
+        .into());
+    }
+    Ok(())
 }
 
 fn parse_rational(value: &str) -> NativeResult<(i128, i128)> {
@@ -629,7 +723,7 @@ struct FrameScanSpec<'a> {
     rate_num: u32,
     rate_den: u32,
     frame_count: u64,
-    size: Size,
+    size: Option<Size>,
     require_zero_origin_cfr: bool,
 }
 
@@ -670,6 +764,7 @@ fn scan_video_timestamps(
     let mut child = ChildGuard::spawn(&mut command)?;
     let _watch = CancellationWatch::new(cancel, &[&child]);
     let mut timeline = Vec::new();
+    let mut decoded_size = size;
     let result = (|| -> NativeResult<()> {
         let stdout = child.take_stdout()?;
         for line in BufReader::new(stdout).lines() {
@@ -693,13 +788,15 @@ fn scan_video_timestamps(
                 .next()
                 .ok_or("missing frame height")?
                 .parse::<u32>()?;
-            if width != size.width || height != size.height {
+            let current_size = Size::new(width, height)?;
+            if decoded_size.is_some_and(|expected| expected != current_size) {
                 return Err(format!(
                     "mid-stream video geometry changed at frame {}",
                     timeline.len()
                 )
                 .into());
             }
+            decoded_size = Some(current_size);
             if require_zero_origin_cfr {
                 let expected = i128::try_from(timeline.len())?
                     .checked_mul(numerator)
@@ -989,23 +1086,65 @@ pub fn convert_with_control(
     adapter_key: Option<&str>,
     cancel: &CancellationToken,
 ) -> NativeResult<ConversionReport> {
+    convert_with_control_inner(
+        input,
+        output,
+        resize,
+        profile,
+        route,
+        NativeRunOptions {
+            adapter_key,
+            inject_device_loss_after_frames: None,
+        },
+        cancel,
+    )
+}
+
+struct NativeRunOptions<'a> {
+    adapter_key: Option<&'a str>,
+    inject_device_loss_after_frames: Option<u64>,
+}
+
+fn convert_with_control_inner(
+    input: &Path,
+    output: &Path,
+    resize: ResizeSpec,
+    profile: OutputProfileId,
+    route: ProcessingRoute,
+    options: NativeRunOptions<'_>,
+    cancel: &CancellationToken,
+) -> NativeResult<ConversionReport> {
     cancel.check()?;
-    let strict_cfr = route == ProcessingRoute::SharedWgpu;
-    let (source, input_timeline) = inspect_source(input, strict_cfr, cancel)?;
-    cancel.check()?;
-    if profile != OutputProfileId::Mp4H264Aac {
+    if !matches!(
+        profile,
+        OutputProfileId::Mp4H264Aac | OutputProfileId::Mp4H265Main10Aac
+    ) {
         return Err(format!(
             "native M4 harness does not yet implement profile {}",
             profile.as_str()
         )
         .into());
     }
-    let output_size = resize.output_size(Size::new(source.width, source.height)?)?;
+    if route == ProcessingRoute::SharedWgpu && profile == OutputProfileId::Mp4H265Main10Aac {
+        return Err(
+            "shared-wgpu route cannot preserve 10-bit precision through its RGBA8 bridge".into(),
+        );
+    }
+    let strict_cfr = route == ProcessingRoute::SharedWgpu;
+    let allow_10bit = profile == OutputProfileId::Mp4H265Main10Aac;
+    let (source, input_timeline) = inspect_source(input, strict_cfr, allow_10bit, cancel)?;
+    cancel.check()?;
+    let input_size = if route == ProcessingRoute::DirectFfmpeg {
+        Size::new(source.display_width, source.display_height)?
+    } else {
+        Size::new(source.width, source.height)?
+    };
+    let output_size = resize.output_size(input_size)?;
     let mut partial = create_partial(output)?;
     let started = Instant::now();
     let result = match route {
         ProcessingRoute::DirectFfmpeg => {
-            convert_direct(input, &partial.path, output_size, &source, cancel)
+            convert_direct(input, &partial.path, output_size, &source, profile, cancel)
                 .map(|()| (None, 0, 0, None))
         }
         ProcessingRoute::SharedWgpu => convert_gpu(
@@ -1013,20 +1152,34 @@ pub fn convert_with_control(
             &partial.path,
             output_size,
             &source,
-            adapter_key,
+            options.adapter_key,
             cancel,
+            options.inject_device_loss_after_frames,
         ),
     };
     let (adapter, uploaded, downloaded, fallback) = result?;
     let conversion_elapsed = started.elapsed().as_millis();
     let verification_started = Instant::now();
-    let (verified, output_timeline) = inspect_source(&partial.path, strict_cfr, cancel)?;
+    let (verified, output_timeline) =
+        inspect_source(&partial.path, strict_cfr, allow_10bit, cancel)?;
     cancel.check()?;
     if verified.width != output_size.width
         || verified.height != output_size.height
         || verified.frame_count != source.frame_count
         || verified.audio_codec.is_some() != source.audio_codec.is_some()
-        || verified.codec != "h264"
+        || verified.codec != if allow_10bit { "hevc" } else { "h264" }
+        || verified.pixel_format
+            != if allow_10bit {
+                "yuv420p10le"
+            } else {
+                "yuv420p"
+            }
+        || (allow_10bit
+            && (verified.codec_profile.as_deref() != Some("Main 10")
+                || verified.codec_tag.as_deref() != Some("hvc1")))
+        || verified.sample_aspect_ratio != "1:1"
+        || verified.rotation_degrees != 0
+        || verified.has_display_matrix
         || verified
             .audio_codec
             .as_deref()
@@ -1038,6 +1191,23 @@ pub fn convert_with_control(
     }
     if route == ProcessingRoute::DirectFfmpeg {
         verify_direct_timeline(&source, &input_timeline, &verified, &output_timeline)?;
+    }
+    for (label, input_tag, output_tag) in [
+        ("range", &source.color_range, &verified.color_range),
+        ("space", &source.color_space, &verified.color_space),
+        ("transfer", &source.color_transfer, &verified.color_transfer),
+        (
+            "primaries",
+            &source.color_primaries,
+            &verified.color_primaries,
+        ),
+    ] {
+        if input_tag.as_deref().is_some_and(|tag| tag != "unknown") && input_tag != output_tag {
+            return Err(format!(
+                "native output color {label} changed from {input_tag:?} to {output_tag:?}"
+            )
+            .into());
+        }
     }
     let size = finish_output(&mut partial, output)?;
     Ok(ConversionReport {
@@ -1066,6 +1236,7 @@ fn convert_direct(
     partial: &Path,
     output: Size,
     source: &SourceInfo,
+    profile: OutputProfileId,
     cancel: &CancellationToken,
 ) -> NativeResult<()> {
     cancel.check()?;
@@ -1080,22 +1251,58 @@ fn convert_direct(
     cmd.args([
         "-vf",
         &format!(
-            "scale={}:{}:flags=bilinear,setsar=1",
-            output.width, output.height
+            "scale={}:{}:flags=bilinear,format={},setsar=1",
+            output.width,
+            output.height,
+            if profile.video_bit_depth() == 10 {
+                "yuv420p10le"
+            } else {
+                "yuv420p"
+            }
         ),
         "-fps_mode",
         "passthrough",
         "-enc_time_base:v",
         "1:90000",
         "-c:v",
-        "libx264",
+        if profile.video_bit_depth() == 10 {
+            "libx265"
+        } else {
+            "libx264"
+        },
         "-preset",
         "veryfast",
         "-crf",
         "20",
         "-pix_fmt",
-        "yuv420p",
+        if profile.video_bit_depth() == 10 {
+            "yuv420p10le"
+        } else {
+            "yuv420p"
+        },
     ]);
+    if profile.video_bit_depth() == 10 {
+        cmd.args(["-tag:v", "hvc1"]);
+        let mut x265_color = vec!["log-level=error".to_owned()];
+        for (key, value) in [
+            (
+                "range",
+                source
+                    .color_range
+                    .as_deref()
+                    .filter(|tag| *tag != "unknown")
+                    .map(|_| "limited"),
+            ),
+            ("colormatrix", source.color_space.as_deref()),
+            ("transfer", source.color_transfer.as_deref()),
+            ("colorprim", source.color_primaries.as_deref()),
+        ] {
+            if let Some(value) = value.filter(|value| *value != "unknown") {
+                x265_color.push(format!("{key}={value}"));
+            }
+        }
+        cmd.arg("-x265-params").arg(x265_color.join(":"));
+    }
     if source.audio_codec.is_some() {
         cmd.args(["-c:a", "aac", "-b:a", "192k", "-ar", "48000"]);
     }
@@ -1116,6 +1323,7 @@ fn convert_gpu(
     source: &SourceInfo,
     adapter_key: Option<&str>,
     cancel: &CancellationToken,
+    inject_device_loss_after_frames: Option<u64>,
 ) -> NativeResult<(Option<AdapterDescriptor>, u64, u64, Option<String>)> {
     cancel.check()?;
     let mut gpu = GpuProcessor::new(Size::new(source.width, source.height)?, output, adapter_key)?;
@@ -1152,6 +1360,33 @@ fn convert_gpu(
     encoder.args([
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
     ]);
+    for (flag, value) in [
+        ("-color_range", &source.color_range),
+        ("-colorspace", &source.color_space),
+        ("-color_trc", &source.color_transfer),
+        ("-color_primaries", &source.color_primaries),
+    ] {
+        if let Some(value) = value.as_deref().filter(|value| *value != "unknown") {
+            encoder.arg(flag).arg(value);
+        }
+    }
+    let x264_color: Vec<_> = [
+        ("range", &source.color_range),
+        ("colormatrix", &source.color_space),
+        ("transfer", &source.color_transfer),
+        ("colorprim", &source.color_primaries),
+    ]
+    .into_iter()
+    .filter_map(|(key, value)| {
+        value
+            .as_deref()
+            .filter(|value| *value != "unknown")
+            .map(|value| format!("{key}={value}"))
+    })
+    .collect();
+    if !x264_color.is_empty() {
+        encoder.arg("-x264-params").arg(x264_color.join(":"));
+    }
     if source.audio_codec.is_some() {
         encoder.args(["-c:a", "aac", "-b:a", "192k", "-ar", "48000"]);
     }
@@ -1162,7 +1397,11 @@ fn convert_gpu(
     let mut encoder = ChildGuard::spawn(&mut encoder)?;
     // The main thread may block inside a pipe read or write. A separate watcher
     // terminates both processes when cancellation is requested, releasing the pipes.
-    let _cancellation_watch = CancellationWatch::new(cancel, &[&decoder, &encoder]);
+    let _cancellation_watch = CancellationWatch::new_with_failure(
+        cancel,
+        &[&decoder, &encoder],
+        Some(gpu.device_lost_signal.clone()),
+    );
     let frame_len = usize::try_from(u64::from(source.width) * u64::from(source.height) * 4)?;
     let mut frame = vec![0_u8; frame_len];
     let result = (|| -> NativeResult<u64> {
@@ -1171,13 +1410,16 @@ fn convert_gpu(
         let mut count = 0_u64;
         loop {
             cancel.check()?;
+            gpu.check_device_lost()?;
             let mut filled = 0;
             while filled < frame.len() {
                 cancel.check()?;
+                gpu.check_device_lost()?;
                 let read = match reader.read(&mut frame[filled..]) {
                     Ok(read) => read,
                     Err(error) => {
                         cancel.check()?;
+                        gpu.check_device_lost()?;
                         return Err(error.into());
                     }
                 };
@@ -1187,6 +1429,7 @@ fn convert_gpu(
                 filled += read;
             }
             if filled == 0 {
+                gpu.check_device_lost()?;
                 break;
             }
             if filled != frame.len() {
@@ -1197,11 +1440,15 @@ fn convert_gpu(
                 return Err(error);
             }
             count += 1;
+            if inject_device_loss_after_frames == Some(count) {
+                gpu.device.destroy();
+            }
             if count > source.frame_count {
                 return Err("decoder produced more frames than the probed source".into());
             }
         }
         drop(writer);
+        gpu.check_device_lost()?;
         if count != source.frame_count {
             return Err(format!(
                 "decoder produced {count} frames, expected {}",
@@ -1245,6 +1492,8 @@ struct GpuProcessor {
     fallback: Option<String>,
     uploaded: u64,
     downloaded: u64,
+    device_lost: Arc<Mutex<Option<String>>>,
+    device_lost_signal: Arc<AtomicBool>,
 }
 
 impl GpuProcessor {
@@ -1262,6 +1511,16 @@ impl GpuProcessor {
         }
         let (device, queue) =
             pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))?;
+        let device_lost = Arc::new(Mutex::new(None));
+        let device_lost_signal = Arc::new(AtomicBool::new(false));
+        let callback_state = device_lost.clone();
+        let callback_signal = device_lost_signal.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            if let Ok(mut state) = callback_state.lock() {
+                *state = Some(format!("native GPU device lost ({reason:?}): {message}"));
+            }
+            callback_signal.store(true, Ordering::Release);
+        });
         let format = wgpu::TextureFormat::Rgba8Unorm;
         let make_texture = |size: Size, usage: wgpu::TextureUsages| {
             device.create_texture(&wgpu::TextureDescriptor {
@@ -1317,7 +1576,21 @@ impl GpuProcessor {
             fallback,
             uploaded: 0,
             downloaded: 0,
+            device_lost,
+            device_lost_signal,
         })
+    }
+
+    fn check_device_lost(&self) -> NativeResult<()> {
+        if let Some(message) = self
+            .device_lost
+            .lock()
+            .map_err(|_| "GPU device-loss state was poisoned")?
+            .as_ref()
+        {
+            return Err(message.clone().into());
+        }
+        Ok(())
     }
 
     fn process(
@@ -1327,6 +1600,12 @@ impl GpuProcessor {
         cancel: &CancellationToken,
     ) -> NativeResult<()> {
         cancel.check()?;
+        self.check_device_lost()?;
+        if let Err(error) = self.device.poll(wgpu::PollType::Poll) {
+            self.check_device_lost()?;
+            return Err(error.into());
+        }
+        self.check_device_lost()?;
         let input_len = u64::from(self.input_size.width) * u64::from(self.input_size.height) * 4;
         if u64::try_from(input.len())? != input_len {
             return Err("invalid input frame byte count".into());
@@ -1393,9 +1672,13 @@ impl GpuProcessor {
         let wait_started = Instant::now();
         loop {
             cancel.check()?;
+            self.check_device_lost()?;
             match receiver.try_recv() {
                 Ok(result) => {
-                    result?;
+                    if let Err(error) = result {
+                        self.check_device_lost()?;
+                        return Err(error.into());
+                    }
                     break;
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {
@@ -1411,21 +1694,25 @@ impl GpuProcessor {
                 timeout: Some(Duration::from_millis(100)),
             }) {
                 Ok(_) | Err(wgpu::PollError::Timeout) => {}
-                Err(error) => return Err(error.into()),
+                Err(error) => {
+                    self.check_device_lost()?;
+                    return Err(error.into());
+                }
             }
         }
         cancel.check()?;
-        {
+        self.check_device_lost()?;
+        let write_result = {
             let mapped = slice.get_mapped_range()?;
             let row_bytes = usize::try_from(self.output_size.width * 4)?;
-            for row in mapped
+            mapped
                 .chunks_exact(self.padded_bytes_per_row as usize)
                 .take(self.output_size.height as usize)
-            {
-                output.write_all(&row[..row_bytes])?;
-            }
-        }
+                .try_for_each(|row| output.write_all(&row[..row_bytes]))
+        };
         self.readback.unmap();
+        self.check_device_lost()?;
+        write_result?;
         self.uploaded = self
             .uploaded
             .checked_add(input_len)
@@ -1725,6 +2012,7 @@ mod tests {
         let (source, timeline) = inspect_source(
             &fixture("m35-vfr-offset.mp4"),
             false,
+            false,
             &CancellationToken::default(),
         )
         .unwrap();
@@ -1749,6 +2037,7 @@ mod tests {
         let error = inspect_source(
             &fixture("m35-resolution-change.mp4"),
             false,
+            false,
             &CancellationToken::default(),
         )
         .unwrap_err()
@@ -1757,10 +2046,100 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unimplemented_sample_aspect_and_rotation() {
+    fn gpu_rejects_sample_aspect_and_rotation_but_direct_resolves_display_size() {
         let error = probe_source(&fixture("m35-geometry-color.mp4"))
             .unwrap_err()
             .to_string();
         assert!(error.contains("square-pixel"), "{error}");
+        let (source, timeline) = inspect_source(
+            &fixture("m35-geometry-color.mp4"),
+            false,
+            false,
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert_eq!((source.width, source.height), (316, 180));
+        assert_eq!((source.display_width, source.display_height), (180, 421));
+        assert_eq!(source.rotation_degrees, -90);
+        assert_eq!(source.sample_aspect_ratio, "4:3");
+        assert_eq!(timeline.len(), 24);
+    }
+
+    #[test]
+    fn rejects_hdr_and_wide_color_before_native_conversion() {
+        for strict in [false, true] {
+            let error = inspect_source(
+                &fixture("m35-hdr-tagged.mp4"),
+                strict,
+                false,
+                &CancellationToken::default(),
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(error.contains("unsupported matrix: bt2020nc"), "{error}");
+        }
+    }
+
+    #[test]
+    fn probes_true_10bit_sdr_without_treating_it_as_an_8bit_gpu_source() {
+        let input = fixture("m4-10bit-sdr.mp4");
+        let source = probe_source(&input).unwrap();
+        assert_eq!(source.codec_profile.as_deref(), Some("Main 10"));
+        assert_eq!(source.pixel_format, "yuv420p10le");
+        assert_eq!(source.frame_count, 24);
+        let error = inspect_source(&input, true, false, &CancellationToken::default())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("unsupported pixel format: yuv420p10le"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    #[ignore = "requires FFmpeg, FFprobe and a native wgpu adapter"]
+    fn injected_device_loss_cleans_job_and_allows_fresh_gpu_job() {
+        let directory = std::env::temp_dir().join(format!(
+            "media-native-device-loss-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let failed_output = directory.join("lost.mp4");
+        let source = fixture("m2-h264-aac.mp4");
+        let failed = convert_with_control_inner(
+            &source,
+            &failed_output,
+            ResizeSpec::Percent(50),
+            OutputProfileId::Mp4H264Aac,
+            ProcessingRoute::SharedWgpu,
+            NativeRunOptions {
+                adapter_key: None,
+                inject_device_loss_after_frames: Some(1),
+            },
+            &CancellationToken::default(),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(failed.contains("GPU device lost (Destroyed)"), "{failed}");
+        assert!(!failed_output.exists());
+        assert!(!partial_path(&failed_output).unwrap().exists());
+
+        let retry_output = directory.join("retry.mp4");
+        let retry = convert_with_control(
+            &source,
+            &retry_output,
+            ResizeSpec::Percent(50),
+            OutputProfileId::Mp4H264Aac,
+            ProcessingRoute::SharedWgpu,
+            None,
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert_eq!(retry.frames_processed, 60);
+        assert_eq!(probe_source(&retry_output).unwrap().frame_count, 60);
     }
 }

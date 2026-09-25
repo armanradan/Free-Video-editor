@@ -8,8 +8,8 @@ use std::path::PathBuf;
 fn usage() -> &'static str {
     "native-convert list-gpus\n\
      native-convert save-gpu --adapter-key KEY --preference FILE\n\
-     native-convert convert --input FILE --output FILE --route direct|wgpu [--profile mp4-h264-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
-     The output must not already exist. Direct FFmpeg accepts 8-bit, square-pixel, fixed-size, unrotated MP4 input with VFR and non-negative A/V origins; shared wgpu currently requires zero-origin CFR. Both accept one video and at most one audio track."
+     native-convert convert --input FILE --output FILE [--route direct|wgpu] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
+     Direct FFmpeg is the default route; shared wgpu is an explicit comparison route. The output must not already exist. Both routes accept 8-bit opaque YUV 4:2:0 BT.709 limited-range SDR or unspecified color tags; the direct-only Main 10 profile also accepts 10-bit YUV 4:2:0 SDR. HDR, wide color, and full range are not yet supported. Direct FFmpeg accepts tested crop/SAR/orientation inputs, VFR and non-negative A/V origins; shared wgpu currently requires square-pixel, unrotated, zero-origin CFR. Both accept one video and at most one audio track."
 }
 
 fn argument(args: &[String], key: &str) -> Option<String> {
@@ -51,7 +51,7 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Some("convert") => {
             let input = PathBuf::from(required(&args, "--input")?);
             let output = PathBuf::from(required(&args, "--output")?);
-            let route = match required(&args, "--route")?.as_str() {
+            let route = match argument(&args, "--route").as_deref().unwrap_or("direct") {
                 "direct" => ProcessingRoute::DirectFfmpeg,
                 "wgpu" => ProcessingRoute::SharedWgpu,
                 other => return Err(format!("unknown route {other}").into()),
@@ -62,6 +62,7 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .unwrap_or("mp4-h264-aac")
             {
                 "mp4-h264-aac" => OutputProfileId::Mp4H264Aac,
+                "mp4-h265-main10-aac" => OutputProfileId::Mp4H265Main10Aac,
                 other => {
                     return Err(format!(
                         "native M4 harness does not yet implement profile {other}"

@@ -15,6 +15,7 @@ pub enum OutputProfileId {
     WebmVp8VideoOnly,
     Mp4H264Aac,
     Mp4H265Aac,
+    Mp4H265Main10Aac,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -43,6 +44,7 @@ impl OutputProfileId {
             Self::WebmVp8VideoOnly => "webm-vp8-video-only",
             Self::Mp4H264Aac => "mp4-h264-aac",
             Self::Mp4H265Aac => "mp4-h265-aac",
+            Self::Mp4H265Main10Aac => "mp4-h265-main10-aac",
         }
     }
 
@@ -50,14 +52,16 @@ impl OutputProfileId {
         match self {
             Self::WebmVp8Opus => AudioPolicy::Transcode(AudioCodec::Opus),
             Self::WebmVp8VideoOnly => AudioPolicy::Omit,
-            Self::Mp4H264Aac | Self::Mp4H265Aac => AudioPolicy::Transcode(AudioCodec::Aac),
+            Self::Mp4H264Aac | Self::Mp4H265Aac | Self::Mp4H265Main10Aac => {
+                AudioPolicy::Transcode(AudioCodec::Aac)
+            }
         }
     }
 
     pub const fn container(self) -> ContainerFormat {
         match self {
             Self::WebmVp8Opus | Self::WebmVp8VideoOnly => ContainerFormat::WebM,
-            Self::Mp4H264Aac | Self::Mp4H265Aac => ContainerFormat::Mp4,
+            Self::Mp4H264Aac | Self::Mp4H265Aac | Self::Mp4H265Main10Aac => ContainerFormat::Mp4,
         }
     }
 
@@ -65,7 +69,14 @@ impl OutputProfileId {
         match self {
             Self::WebmVp8Opus | Self::WebmVp8VideoOnly => VideoCodec::Vp8,
             Self::Mp4H264Aac => VideoCodec::H264,
-            Self::Mp4H265Aac => VideoCodec::H265,
+            Self::Mp4H265Aac | Self::Mp4H265Main10Aac => VideoCodec::H265,
+        }
+    }
+
+    pub const fn video_bit_depth(self) -> u8 {
+        match self {
+            Self::Mp4H265Main10Aac => 10,
+            _ => 8,
         }
     }
 }
@@ -631,6 +642,16 @@ mod tests {
             ContainerFormat::Mp4
         );
         assert_eq!(OutputProfileId::Mp4H265Aac.video_codec(), VideoCodec::H265);
+        assert_eq!(
+            OutputProfileId::Mp4H265Main10Aac.video_codec(),
+            VideoCodec::H265
+        );
+        assert_eq!(OutputProfileId::Mp4H265Main10Aac.video_bit_depth(), 10);
+        assert_eq!(
+            OutputProfileId::Mp4H265Main10Aac.container(),
+            ContainerFormat::Mp4
+        );
+        assert_eq!(OutputProfileId::Mp4H264Aac.video_bit_depth(), 8);
     }
 
     #[test]

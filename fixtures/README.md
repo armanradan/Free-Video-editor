@@ -40,3 +40,7 @@ The geometry fixture deliberately records both source/container intent and obser
 ## M3.6 large-input validation fixture
 
 `tests/large-input-fixture.mjs` reproducibly copies the CC0 M2 fixture into ignored `tmp/m36-streaming` and appends a valid 257 MiB MP4 `free` box. The resulting logical 269,763,667-byte file retains the original 60-frame H.264/AAC tracks and is sparse on filesystems that support sparse extension. It exists only to cross the former 256 MiB policy boundary without checking a large binary into the repository; it does not represent a long-duration or large-compressed-output workload.
+
+## M4 10-bit SDR fixture
+
+`m4-10bit-sdr.mp4` is a one-second, 24-frame, 160×96 HEVC Main 10 (`hvc1`) and AAC MP4. FFmpeg `geq` generates deterministic 10-bit Y, U, and V gradients with values between 8-bit code steps; libx265 encodes the fixture losslessly. BT.709 limited-range SDR tags distinguish bit depth from HDR. It contains no third-party media and is CC0-1.0. Its JSON manifest records the generation command, size, and SHA-256. Regenerate it with `pwsh -File tools/generate-m4-10bit-fixture.ps1` using the recorded FFmpeg build.
