@@ -5,6 +5,7 @@ use media_core::{CodecAcceleration, OutputProfileId};
 
 #[component]
 pub fn ConverterControls(
+    ffmpeg_spike: bool,
     running: bool,
     download_url: String,
     download_name: String,
@@ -16,6 +17,7 @@ pub fn ConverterControls(
     preserve_aspect_ratio: bool,
     resolved_size: String,
     source_metadata: String,
+    has_source: bool,
     profile_ready: bool,
     mp4_supported: bool,
     mp4_reason: String,
@@ -108,11 +110,13 @@ pub fn ConverterControls(
                 option {
                     value: OutputProfileId::WebmVp8Opus.as_str(),
                     selected: profile == OutputProfileId::WebmVp8Opus,
+                    disabled: ffmpeg_spike,
                     "WebM — VP8 + Opus (preserve audio)"
                 }
                 option {
                     value: OutputProfileId::WebmVp8VideoOnly.as_str(),
                     selected: profile == OutputProfileId::WebmVp8VideoOnly,
+                    disabled: ffmpeg_spike,
                     "WebM — VP8 video only"
                 }
                 option {
@@ -124,14 +128,20 @@ pub fn ConverterControls(
                 option {
                     value: OutputProfileId::Mp4H265Aac.as_str(),
                     selected: profile == OutputProfileId::Mp4H265Aac,
-                    disabled: !hevc_supported,
+                    disabled: ffmpeg_spike || !hevc_supported,
                     if hevc_supported { "MP4 — H.265/HEVC + AAC" } else { "MP4 — H.265/HEVC + AAC (unavailable)" }
                 }
             }
-            if !profile_ready {
+            if ffmpeg_spike {
+                p { class: "note", "Backend: FFmpeg WASM software encoder (experimental). Reload without ?backend=ffmpeg-wasm for WebCodecs. Input/raw-frame memory caps and explicit GPU readbacks apply." }
+            }
+            if !has_source {
                 p { class: "note", "Select an input to check output profiles for its codec, audio, and resolved size." }
             }
-            if profile_ready && !mp4_supported && !mp4_reason.is_empty() {
+            if has_source && !profile_ready && mp4_reason.starts_with("Checking") {
+                p { class: "note", "Checking output compatibility for the selected input…" }
+            }
+            if has_source && !mp4_supported && !mp4_reason.is_empty() && !mp4_reason.starts_with("Checking") {
                 p { class: "note", "H.264 MP4 unavailable: {mp4_reason}" }
             }
             if profile_ready && !hevc_supported && !hevc_reason.is_empty() {

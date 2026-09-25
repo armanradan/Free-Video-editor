@@ -28,6 +28,7 @@ if (inWorker) {
     active = id;
     try {
       if (operation === "init") {
+        self.__DIAXUS_FFMPEG_ASSETS__ = data.ffmpeg;
         if (!self.isSecureContext) throw Error("worker requires a secure context");
         for (const name of ["VideoDecoder", "VideoEncoder", "VideoFrame", "AudioDecoder", "AudioEncoder", "OffscreenCanvas"]) {
           if (typeof self[name] !== "function") throw Error(`worker ${name} is unavailable`);
@@ -42,6 +43,7 @@ if (inWorker) {
         self.postMessage({ id, type: "result", result: {} });
       } else {
         if (!runtime) throw Error("media worker was not initialized");
+        self.__DIAXUS_BACKEND__ = data.backend;
         const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration, data.resize, `${data.outputMode}:${data.verify ? 1 : 0}:${data.failureMode}`,
           status => self.postMessage({ id, type: "progress", status }));
         self.postMessage({ id, type: "result", result });
@@ -83,6 +85,12 @@ if (!inWorker) {
 
 export function setupRuntime(m1, pipeline, wasm) {
   assets = { m1: new URL(m1, document.baseURI).href, pipeline: new URL(pipeline, document.baseURI).href, wasm };
+}
+
+export function setFfmpegAssets(core, wasm, worker) {
+  const ffmpeg = { coreURL: new URL(core, document.baseURI).href, wasmURL: new URL(wasm, document.baseURI).href, classWorkerURL: new URL(worker, document.baseURI).href };
+  assets.ffmpeg = ffmpeg;
+  globalThis.__DIAXUS_FFMPEG_ASSETS__ = ffmpeg;
 }
 
 function displayExecution(mode, reason = "") {
@@ -179,6 +187,7 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
   const parameters = new URL(location.href).searchParams;
   const verify = parameters.get("verify") === "full";
   const outputMode = parameters.get("output") === "memory" ? "memory" : "auto";
+  const backend = parameters.get("backend") === "ffmpeg-wasm" ? "ffmpeg-wasm" : "webcodecs";
   const requestedFailure = parameters.get("failure");
   const failureMode = requestedFailure === "codec-once" || requestedFailure === "device-loss-once"
     ? requestedFailure
@@ -197,11 +206,12 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
     let result;
     if (useWorker) {
       displayExecution("worker");
-      result = await request(operation, { file, profile, acceleration, resize, outputMode, verify, failureMode }, report);
+      result = await request(operation, { file, profile, acceleration, resize, outputMode, verify, failureMode, backend }, report);
     } else {
       displayExecution("main", fallbackReason);
       await Promise.all([import(assets.m1), import(assets.pipeline)]);
       if (cancelled()) throw Error("CANCELLED: stopped before codec startup");
+      globalThis.__DIAXUS_BACKEND__ = backend;
       result = await local(file, operation, profile, acceleration, resize, `${outputMode}:${verify ? 1 : 0}:${failureMode}`, report);
     }
     if (cancelled()) throw Error("CANCELLED: completed work discarded after cancellation");

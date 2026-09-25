@@ -168,6 +168,8 @@ mod browser {
     extern "C" {
         #[wasm_bindgen(js_name = setupRuntime)]
         fn setup_runtime_js(m1: &str, pipeline: &str, wasm: &str);
+        #[wasm_bindgen(js_name = setFfmpegAssets)]
+        fn set_ffmpeg_assets_js(core: &str, wasm: &str, worker: &str);
         #[wasm_bindgen(js_name = dispatchJob, catch)]
         fn dispatch_job(
             file: Option<File>,
@@ -184,6 +186,10 @@ mod browser {
 
     pub fn setup_runtime(m1: &str, pipeline: &str) {
         setup_runtime_js(m1, pipeline, &runtime_module_url());
+    }
+
+    pub fn setup_ffmpeg_assets(core: &str, wasm: &str, worker: &str) {
+        set_ffmpeg_assets_js(core, wasm, worker);
     }
 
     async fn dispatch(
@@ -1497,7 +1503,7 @@ mod browser {
 #[cfg(target_arch = "wasm32")]
 pub use browser::{
     ConversionResult, OutputProfileCapabilities, SourceMetadata, cancel, convert_m3,
-    probe_output_profiles, run_m1, selected_gpu, setup_runtime,
+    probe_output_profiles, run_m1, selected_gpu, setup_ffmpeg_assets, setup_runtime,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}

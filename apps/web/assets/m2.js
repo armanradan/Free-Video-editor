@@ -18,10 +18,14 @@ import {
   canEncodeAudio,
   canEncodeVideo,
 } from "mediabunny";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
 
 const MEMORY_FALLBACK_MAX_INPUT_BYTES = 256 * 1024 * 1024;
 const OUTPUT_CHUNK_BYTES = 4 * 1024 * 1024;
 const INPUT_CACHE_BYTES = 8 * 1024 * 1024;
+const FFMPEG_MAX_INPUT_BYTES = 64 * 1024 * 1024;
+const FFMPEG_MAX_RAW_BYTES = 128 * 1024 * 1024;
+const ffmpegSelected = () => globalThis.__DIAXUS_BACKEND__ === "ffmpeg-wasm";
 const OUTPUT_INSTANCE_ID = globalThis.crypto?.randomUUID?.()
   ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const OPFS_OUTPUT_NAME = `diaxus-${OUTPUT_INSTANCE_ID}.partial`;
@@ -196,6 +200,7 @@ class MediabunnyInputAdapter {
   }
   return {
     input,
+    fileSize: file.size,
     track,
     codedWidth,
     codedHeight,
@@ -283,6 +288,13 @@ function resolveProfile(id) {
 }
 
 async function probeProfile(profile, opened, outputWidth, outputHeight, hardwareAcceleration = "no-preference") {
+  const ffmpeg = ffmpegSelected();
+  if (ffmpeg && profile.container !== "mp4") {
+    return { supported: false, reason: "The FFmpeg WASM spike supports MP4/H.264/AAC only; choose the WebCodecs backend for this profile." };
+  }
+  if (ffmpeg && profile.videoCodec !== "avc") {
+    return { supported: false, reason: "The FFmpeg WASM spike does not enable H.265 output." };
+  }
   if (profile.audioCodec && !opened.audio) {
     return { supported: false, reason: `${profile.label} requires an input audio track.` };
   }
@@ -306,6 +318,19 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
     }
   } catch (error) {
     return { supported: false, reason: `Input video decoder capability probe failed with hardwareAcceleration=${hardwareAcceleration}: ${errorMessage(error)}` };
+  }
+  if (ffmpeg) {
+    if (!globalThis.__DIAXUS_FFMPEG_ASSETS__) return { supported: false, reason: "FFmpeg WASM assets were not configured." };
+    if (opened.fileSize > FFMPEG_MAX_INPUT_BYTES) return { supported: false, reason: "FFmpeg WASM spike input exceeds its 64 MiB memory cap." };
+    if (opened.audioTrackCount !== 1) return { supported: false, reason: "FFmpeg WASM spike requires exactly one input audio track." };
+    if (!Number.isInteger(opened.averagePacketRate) || opened.averagePacketRate < 1 || opened.averagePacketRate > 120) {
+      return { supported: false, reason: "FFmpeg WASM raw-video bridge requires an integer constant frame rate between 1 and 120 fps." };
+    }
+    const rawBytes = opened.packetCount * outputWidth * outputHeight * 4;
+    if (!Number.isSafeInteger(rawBytes) || rawBytes > FFMPEG_MAX_RAW_BYTES) {
+      return { supported: false, reason: "FFmpeg WASM spike would exceed its 128 MiB raw-frame memory cap." };
+    }
+    return { supported: true, reason: "Experimental FFmpeg WASM MP4/H.264/AAC; final frame-rate and memory bounds are checked during conversion." };
   }
   try {
     const videoSupported = await canEncodeVideo(profile.videoCodec, {
@@ -640,12 +665,151 @@ class MediabunnyOutputAdapter {
   }
 }
 
+// Deliberately bounded compatibility spike. The shared wgpu processor still
+// supplies every video frame; only its encoder ingress changes to CPU RGBA.
+class FfmpegWasmOutputAdapter {
+  static async create(file, width, height, frameRate, cancelled, status) {
+    if (file.size > FFMPEG_MAX_INPUT_BYTES) fail("FFmpeg WASM spike accepts at most 64 MiB of input.");
+    if (!Number.isInteger(frameRate) || frameRate < 1 || frameRate > 120) {
+      fail(`FFmpeg WASM spike requires an integer constant frame rate (reported ${frameRate}).`);
+    }
+    const { FFmpeg } = await import("@ffmpeg/ffmpeg");
+    const ffmpeg = new FFmpeg();
+    const adapter = new FfmpegWasmOutputAdapter(ffmpeg, file, width, height, frameRate, cancelled);
+    ffmpeg.on("log", ({ message }) => {
+      const match = /^DIAXUS_WASM_HEAP_PEAK=(\d+)$/.exec(message);
+      if (match) adapter.peakWasmHeapBytes = Math.max(adapter.peakWasmHeapBytes, Number(match[1]));
+    });
+    const started = performance.now();
+    const watcher = setInterval(() => { if (cancelled()) adapter.terminate(); }, 25);
+    let timeout;
+    try {
+      status("Loading the optional FFmpeg WASM core (32.2 MB uncompressed)…");
+      await Promise.race([
+        ffmpeg.load(globalThis.__DIAXUS_FFMPEG_ASSETS__),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => {
+            adapter.terminate();
+            reject(Error("FFmpeg WASM core startup exceeded 45 seconds."));
+          }, 45_000);
+        }),
+      ]);
+      adapter.startupMs = performance.now() - started;
+      if (cancelled()) throw Error("CANCELLED: stopped during FFmpeg WASM startup");
+      return adapter;
+    } catch (error) {
+      ffmpeg.terminate();
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      clearInterval(watcher);
+    }
+  }
+
+  constructor(ffmpeg, file, width, height, frameRate, cancelled) {
+    this.ffmpeg = ffmpeg;
+    this.file = file;
+    this.width = width;
+    this.height = height;
+    this.frameRate = frameRate;
+    this.cancelled = cancelled;
+    this.storage = { handle: null, fallbackReason: "FFmpeg WASM bounded-memory spike" };
+    this.videoEncoderConfig = null;
+    this.audioEncoderConfig = null;
+    this.videoPackets = 0;
+    this.audioPackets = 0;
+    this.frames = [];
+    this.frameCount = 0;
+    this.firstTimestamp = null;
+    this.rawBytes = 0;
+    this.readbacks = 0;
+    this.audioSamples = 0;
+    this.terminated = false;
+    this.peakWasmHeapBytes = 0;
+    this.videoSource = { add: (frame, timestamp, duration) => this.addVideo(frame, timestamp, duration) };
+    this.audioSource = { add: async () => { this.audioSamples += 1; } };
+  }
+
+  start() { return Promise.resolve(); }
+
+  async addVideo(frame, timestamp, duration) {
+    if (this.cancelled()) throw Error("CANCELLED: stopped before FFmpeg WASM frame readback");
+    const index = this.frameCount;
+    if (this.firstTimestamp === null) this.firstTimestamp = timestamp;
+    const expectedTimestamp = this.firstTimestamp + Math.round(index * 1_000_000 / this.frameRate);
+    const expectedDuration = Math.round((index + 1) * 1_000_000 / this.frameRate)
+      - Math.round(index * 1_000_000 / this.frameRate);
+    if (Math.abs(timestamp - expectedTimestamp) > 1 || Math.abs(duration - expectedDuration) > 1) {
+      fail(`FFmpeg WASM raw-video bridge requires constant ${this.frameRate} fps from t=0; frame ${index} is ${timestamp}+${duration} µs, expected ${expectedTimestamp}+${expectedDuration} µs.`);
+    }
+    const bytes = this.width * this.height * 4;
+    if (!Number.isSafeInteger(bytes) || this.rawBytes + bytes > FFMPEG_MAX_RAW_BYTES) {
+      fail("FFmpeg WASM spike exceeds its 128 MiB raw-frame memory cap.");
+    }
+    const rgba = new Uint8Array(bytes);
+    await frame.copyTo(rgba, { format: "RGBA" });
+    this.frames.push(rgba);
+    this.rawBytes += bytes;
+    this.readbacks += 1;
+    this.frameCount += 1;
+  }
+
+  async finalize() {
+    if (this.cancelled()) throw Error("CANCELLED: stopped before FFmpeg WASM encode");
+    const raw = new Uint8Array(this.rawBytes);
+    let offset = 0;
+    for (const frame of this.frames) { raw.set(frame, offset); offset += frame.byteLength; }
+    this.frames = [];
+    await this.ffmpeg.writeFile("video.rgba", raw, { signal: undefined });
+    this.inputBytes = this.file.size;
+    await this.ffmpeg.writeFile("input.mp4", new Uint8Array(await this.file.arrayBuffer()));
+    if (this.cancelled()) throw Error("CANCELLED: stopped before FFmpeg WASM encode");
+    const args = ["-f", "rawvideo", "-pixel_format", "rgba", "-video_size", `${this.width}x${this.height}`,
+      "-framerate", String(this.frameRate), "-i", "video.rgba", "-i", "input.mp4",
+      "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
+      "-crf", "20", "-pix_fmt", "yuv420p", "-vf", `settb=1/1000000,setpts=PTS+${this.firstTimestamp}`,
+      "-enc_time_base:v", "1:1000000", "-fps_mode", "passthrough", "-c:a", "aac", "-b:a", "192k",
+      "-ar", "48000", "-video_track_timescale", "1000000", "-movie_timescale", "1000000",
+      "-movflags", "+faststart", "output.mp4"];
+    const watcher = setInterval(() => { if (this.cancelled()) this.terminate(); }, 25);
+    try {
+      const code = await this.ffmpeg.exec(args);
+      if (this.cancelled()) throw Error("CANCELLED: stopped during FFmpeg WASM encode");
+      if (code !== 0) fail(`FFmpeg WASM encoder exited with code ${code}.`);
+      this.output = await this.ffmpeg.readFile("output.mp4");
+      this.videoPackets = this.frameCount;
+      this.audioPackets = this.audioSamples > 0 ? 1 : 0;
+    } finally {
+      clearInterval(watcher);
+      this.terminate();
+    }
+  }
+
+  terminate() {
+    if (!this.terminated) { this.ffmpeg.terminate(); this.terminated = true; }
+    this.frames = [];
+  }
+  cancel() { this.terminate(); }
+  discardFile() { this.terminate(); return Promise.resolve(); }
+  finalizedBlob(profile) {
+    if (!this.output) fail("FFmpeg WASM produced no output file.");
+    const blob = new Blob([this.output], { type: profile.mimeType });
+    this.output = null;
+    return Promise.resolve(blob);
+  }
+  storageReport() {
+    const knownPeakBytes = this.rawBytes * 2;
+    return `FFmpeg WASM spike: startup=${this.startupMs.toFixed(1)} ms; raw RGBA=${this.rawBytes} bytes; input copy=${this.inputBytes ?? 0} bytes; explicit GPU→CPU VideoFrame.copyTo readbacks=${this.readbacks}; CPU pixel uploads to wgpu=0; one raw-buffer assembly and two worker/WASM file writes; estimated peak explicit JS frame buffers=${knownPeakBytes} bytes during raw assembly; sampled peak allocated WASM linear memory=${this.peakWasmHeapBytes} bytes (25 ms sampling), excluding other browser allocations and transfer overlap; total process resident peak not observable; bounded input=${FFMPEG_MAX_INPUT_BYTES} bytes, raw frames=${FFMPEG_MAX_RAW_BYTES} bytes; WASM worker terminated=${this.terminated}.`;
+  }
+}
+
 async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled) {
   if (!globalThis.isSecureContext || !globalThis.VideoDecoder || !globalThis.VideoEncoder || !navigator.gpu) {
     fail("The browser backend requires a secure context, WebCodecs, and WebGPU.");
   }
 
   const profile = resolveProfile(profileId);
+  const ffmpeg = ffmpegSelected();
   const requested = requestedAcceleration === "prefer-hardware" ? "prefer-hardware" : "no-preference";
   const opened = await MediabunnyInputAdapter.open(file);
   let muxer = null;
@@ -730,7 +894,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       : 0;
     status(`Demuxed MP4/${opened.codec === "hevc" ? "H.265/HEVC" : "H.264/AVC"}: coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, square-pixel ${opened.width}×${opened.height}, rotation ${opened.rotation}°, flip=${opened.flip}, display ${opened.displayWidth}×${opened.displayHeight}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}; ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
 
-    muxer = await MediabunnyOutputAdapter.create(profile, opened.audio, selectedAcceleration, telemetry, outputMode);
+    muxer = ffmpeg
+      ? await FfmpegWasmOutputAdapter.create(file, outputWidth, outputHeight, opened.averagePacketRate, cancelled, status)
+      : await MediabunnyOutputAdapter.create(profile, opened.audio, selectedAcceleration, telemetry, outputMode);
     if (!muxer.storage.handle && file.size > MEMORY_FALLBACK_MAX_INPUT_BYTES) {
       fail(`The selected file is ${(file.size / 1048576).toFixed(1)} MiB. Bounded output streaming is unavailable (${muxer.storage.fallbackReason}); the memory fallback accepts at most ${MEMORY_FALLBACK_MAX_INPUT_BYTES / 1048576} MiB inputs.`);
     }
@@ -837,8 +1003,8 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
             telemetry.leave("gpu");
           }
           retain("frames");
-          const outputSample = new VideoSample(processedFrame);
-          retain("samples");
+          const outputSample = ffmpeg ? null : new VideoSample(processedFrame);
+          if (outputSample) retain("samples");
           try {
             if (failureMode === "codec-once"
                 && !consumedFailureInjections.has(failureMode)
@@ -846,7 +1012,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
               consumedFailureInjections.add(failureMode);
               fail("INJECTED: codec failure after 5 GPU-processed frames");
             }
-            await muxer.videoSource.add(outputSample);
+            await muxer.videoSource.add(outputSample ?? processedFrame, item.timestamp, item.duration);
           } catch (error) {
             if (errorMessage(error).startsWith("INJECTED:")) throw error;
             const config = muxer.videoEncoderConfig;
@@ -982,7 +1148,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const conversionElapsed = performance.now() - startedAt;
     let verified;
     let verificationElapsed = 0;
-    if (verifyOutputFully) {
+    if (verifyOutputFully || ffmpeg) {
       status(`Inspecting finalized ${profile.container.toUpperCase()} and decoding video/audio at beginning, midpoint, and end…`);
       const verificationStarted = performance.now();
       try {
@@ -1018,21 +1184,21 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
 
     const base = file.name.replace(/\.[^.]+$/, "") || "converted";
     const totalElapsed = performance.now() - startedAt;
-    const verificationSummary = verifyOutputFully
+    const verificationSummary = (verifyOutputFully || ffmpeg)
       ? `Diagnostic verification: full re-decode PASS in ${verificationElapsed.toFixed(1)} ms; ${verified.timelinePackets}-frame timestamp/duration timeline PASS (maximum container quantization ${verified.maxTimelineErrorUs} µs)${profile.audioCodec ? `; decoded output audio peak=${verified.audioPeak.toFixed(4)}` : ""}; total job ${totalElapsed.toFixed(1)} ms.`
       : `Diagnostic verification: skipped for normal conversion; use ?verify=full for the test-only re-decode path; total job ${totalElapsed.toFixed(1)} ms.`;
-    const durationSummary = verifyOutputFully
+    const durationSummary = (verifyOutputFully || ffmpeg)
       ? `${verified.duration.toFixed(3)} s`
       : `expected timeline ${verified.duration.toFixed(3)} s (output not re-decoded)`;
     const inputCodecLabel = opened.codec === "hevc" ? "H.265/HEVC" : "H.264";
     return {
       summary: (profile.audioCodec
-        ? `PASS: ${processed} ${inputCodecLabel} input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; audio queue peak=1; conversion pixel readbacks=0.`
-        : `PASS: ${processed} ${inputCodecLabel} input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0.`)
+        ? `PASS: ${processed} ${inputCodecLabel} input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; audio queue peak=1; conversion pixel readbacks=${ffmpeg ? muxer.readbacks : 0}; backend=${ffmpeg ? "FFmpeg WASM" : "WebCodecs"}.`
+        : `PASS: ${processed} ${inputCodecLabel} input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0; backend=WebCodecs.`)
         + `\n${verificationSummary}`
-        + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; exact decoder+encoder probes passed${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
+        + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; ${ffmpeg ? "browser decoder probed, FFmpeg software encoder selected explicitly" : "exact decoder+encoder probes passed"}${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
         + `\nGeometry/color: input coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}, rotation ${opened.rotation}°, flip=${opened.flip}; baked square-pixel output ${outputWidth}×${outputHeight}; SDR ${opened.color.primaries ?? "unspecified"}/${opened.color.transfer ?? "unspecified"}/${opened.color.matrix ?? "unspecified"}, browser-normalized to sRGB processing; HDR rejected.`
-        + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.`
+        + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; ${ffmpeg ? "raw RGBA and source copy caps apply; FFmpeg memory use is not otherwise bounded" : "WebCodecs encoder queue ≤4; mux writes are serialized"}.`
         + `\n${muxer.storageReport()}`
         + `\n${bitmapPreparationReport()}\n${telemetry.report()}\n${lifecycle()}`,
       // Only a Blob/File handle crosses the execution-context boundary. OPFS-backed

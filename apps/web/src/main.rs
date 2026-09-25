@@ -6,6 +6,17 @@ use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const M1_SCRIPT: Asset = asset!("/assets/m1.js");
 const MEDIA_PIPELINE_SCRIPT: Asset = asset!("/assets/m2.js");
+const FFMPEG_CORE_SCRIPT: Asset = asset!("/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js");
+const FFMPEG_CORE_WASM: Asset = asset!("/node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm");
+const FFMPEG_WORKER_SCRIPT: Asset = asset!("/assets/ffmpeg-worker.js");
+
+#[wasm_bindgen::prelude::wasm_bindgen(
+    inline_js = "export function ffmpegSpikeSelected() { return new URL(location.href).searchParams.get('backend') === 'ffmpeg-wasm'; }"
+)]
+extern "C" {
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = ffmpegSpikeSelected)]
+    fn ffmpeg_spike_selected() -> bool;
+}
 
 fn main() {
     // The dedicated media worker initializes this same bundle, but never mounts UI.
@@ -19,8 +30,14 @@ fn main() {
 
 #[component]
 fn App() -> Element {
+    let ffmpeg_spike = ffmpeg_spike_selected();
     use_effect(|| {
-        media_web::setup_runtime(&M1_SCRIPT.to_string(), &MEDIA_PIPELINE_SCRIPT.to_string())
+        media_web::setup_runtime(&M1_SCRIPT.to_string(), &MEDIA_PIPELINE_SCRIPT.to_string());
+        media_web::setup_ffmpeg_assets(
+            &FFMPEG_CORE_SCRIPT.to_string(),
+            &FFMPEG_CORE_WASM.to_string(),
+            &FFMPEG_WORKER_SCRIPT.to_string(),
+        );
     });
     let mut status = use_signal(|| "Ready. Select an MP4 with H.264 or H.265 video.".to_string());
     let mut running = use_signal(|| false);
@@ -28,7 +45,13 @@ fn App() -> Element {
         use_signal(|| "Selected GPU: determined when processing starts.".to_string());
     let mut download_url = use_signal(String::new);
     let mut download_name = use_signal(String::new);
-    let mut profile = use_signal(|| OutputProfileId::PREFERRED);
+    let mut profile = use_signal(|| {
+        if ffmpeg_spike {
+            OutputProfileId::Mp4H264Aac
+        } else {
+            OutputProfileId::PREFERRED
+        }
+    });
     let mut acceleration = use_signal(CodecAcceleration::default);
     let mut resize_mode = use_signal(|| "original".to_string());
     let mut exact_width = use_signal(|| "320".to_string());
@@ -44,6 +67,7 @@ fn App() -> Element {
     let hevc_reason = use_signal(String::new);
     let mut probe_generation = use_signal(|| 0_u64);
     let probe_signals = ProbeSignals {
+        ffmpeg_spike,
         generation: probe_generation,
         running,
         profile_ready,
@@ -222,10 +246,11 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M3.6 — CONFIGURABLE OUTPUT" }
+            p { class: "eyebrow", "MILESTONE M3.7 — OPTIONAL FFMPEG WASM SPIKE" }
             h1 { "Browser video converter" }
-            p { class: "lede", "MP4/H.264 or H.265 input → WebCodecs decode → configurable wgpu resize → capability-checked WebM/VP8/Opus, MP4/H.264/AAC, or MP4/H.265/AAC output. A video-only WebM profile remains available." }
+            p { class: "lede", "MP4/H.264 or H.265 input → WebCodecs decode → configurable wgpu resize → capability-checked WebCodecs output. Use ?backend=ffmpeg-wasm for the explicit, bounded MP4/H.264/AAC software-encoder spike." }
             ConverterControls {
+                ffmpeg_spike,
                 running: running(),
                 download_url: download_url(),
                 download_name: download_name(),
@@ -237,6 +262,7 @@ fn App() -> Element {
                 preserve_aspect_ratio: preserve_aspect_ratio(),
                 resolved_size: resolved_size(),
                 source_metadata: source_metadata(),
+                has_source: has_source(),
                 profile_ready: profile_ready(),
                 mp4_supported: mp4_supported(),
                 mp4_reason: mp4_reason(),
@@ -271,6 +297,7 @@ fn App() -> Element {
 
 #[derive(Clone, Copy)]
 struct ProbeSignals {
+    ffmpeg_spike: bool,
     generation: Signal<u64>,
     running: Signal<bool>,
     profile_ready: Signal<bool>,
@@ -380,6 +407,15 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
             signals
                 .source_metadata
                 .set(format_source_metadata(&capabilities.source));
+            if signals.ffmpeg_spike && !capabilities.mp4_supported {
+                signals.status.set(format!(
+                    "FFmpeg WASM spike unavailable for this input at {}×{}: {} Reload without ?backend=ffmpeg-wasm to use the default WebCodecs backend.",
+                    capabilities.output_size.width,
+                    capabilities.output_size.height,
+                    capabilities.mp4_reason
+                ));
+                return;
+            }
             if !capabilities.mp4_supported && (signals.profile)() == OutputProfileId::Mp4H264Aac {
                 signals.profile.set(OutputProfileId::PREFERRED);
             }
@@ -387,7 +423,11 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
                 signals.profile.set(OutputProfileId::PREFERRED);
             }
             signals.profile_ready.set(true);
-            let mut available = vec!["WebM/VP8/Opus"];
+            let mut available = if signals.ffmpeg_spike {
+                vec![]
+            } else {
+                vec!["WebM/VP8/Opus"]
+            };
             if capabilities.mp4_supported {
                 available.push("MP4/H.264/AAC");
             }
