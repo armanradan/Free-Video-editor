@@ -4,8 +4,15 @@ body { margin: 0; min-height: 100vh; padding: 20px; }
 .shell { width: min(1040px, 100%); margin: 0 auto; padding: 24px; border: 1px solid #293653; border-radius: 16px; background: #111a2e; box-shadow: 0 20px 60px #0007; }
 h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.2; }
 h2 { margin: 0; font-size: 1rem; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.page-header > div { min-width: 0; }
 .eyebrow { margin: 0 0 .3rem; color: #7dd3fc; font-size: .7rem; font-weight: 800; letter-spacing: .12em; }
 .lede { margin: .45rem 0 1.1rem; color: #aebbd3; line-height: 1.4; }
+.backend-switch { display: flex; flex: none; gap: 3px; padding: 3px; border: 1px solid #334155; border-radius: 9px; background: #0b1324; }
+.backend-option { padding: .45rem .65rem; border-radius: 6px; color: #b7c9e2; text-decoration: none; white-space: nowrap; font-size: .82rem; font-weight: 700; }
+.backend-option:hover { color: #fff; background: #1d2d46; }
+.backend-option.is-active { color: #08101e; background: #7dd3fc; }
+.backend-option.is-disabled { opacity: .55; }
 .note { color: #aebbd3; line-height: 1.4; font-size: .85rem; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, 1fr); gap: 20px; align-items: start; }
 .controls-panel, .monitor-panel { min-width: 0; }
@@ -41,5 +48,5 @@ pre { min-height: 4rem; max-height: 12rem; margin: 0; padding: .7rem; overflow: 
 .technical-notes { margin-top: .8rem; }
 .technical-notes p { margin: .5rem 0; }
 .regression button { margin-top: .35rem; }
-@media (max-width: 760px) { body { padding: 10px; } .shell { padding: 16px; } .workspace { grid-template-columns: 1fr; gap: 16px; } .monitor-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; } .preview-panel { grid-row: span 3; } #selected-gpu { margin: 0; } }
+@media (max-width: 760px) { body { padding: 10px; } .shell { padding: 16px; } .page-header { flex-wrap: wrap; gap: 0; } .backend-switch { margin-bottom: 1rem; } .workspace { grid-template-columns: 1fr; gap: 16px; } .monitor-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; } .preview-panel { grid-row: span 3; } #selected-gpu { margin: 0; } }
 @media (max-width: 520px) { .monitor-panel { display: block; } .control-grid, .advanced-field { grid-template-columns: 1fr; gap: .35rem; } .control-grid > label { margin-top: .25rem; } .actions { margin-top: 12px; } }

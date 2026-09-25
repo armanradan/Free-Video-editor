@@ -132,7 +132,7 @@ pub fn ConverterControls(
                 }
             }
             if ffmpeg_spike {
-                p { class: "profile-note note", "FFmpeg WASM software encoder: raw frames use temporary disk space and explicit GPU readbacks. Reload without ?backend=ffmpeg-wasm for WebCodecs." }
+                p { class: "profile-note note", "FFmpeg WASM software encoder: raw frames use temporary disk space and explicit GPU readbacks." }
             }
             if !has_source {
                 p { class: "profile-note note", "Select an input to check compatible formats." }

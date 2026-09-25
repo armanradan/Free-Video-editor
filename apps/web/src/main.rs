@@ -11,11 +11,13 @@ const FFMPEG_CORE_WASM: Asset = asset!("/node_modules/@ffmpeg/core/dist/esm/ffmp
 const FFMPEG_WORKER_SCRIPT: Asset = asset!("/assets/ffmpeg-worker.js");
 
 #[wasm_bindgen::prelude::wasm_bindgen(
-    inline_js = "export function ffmpegSpikeSelected() { return new URL(location.href).searchParams.get('backend') === 'ffmpeg-wasm'; }"
+    inline_js = "export function ffmpegSpikeSelected() { return new URL(location.href).searchParams.get('backend') === 'ffmpeg-wasm'; } export function backendHref(backend) { const url = new URL(location.href); if (backend === 'webcodecs') url.searchParams.delete('backend'); else url.searchParams.set('backend', 'ffmpeg-wasm'); return url.href; }"
 )]
 extern "C" {
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = ffmpegSpikeSelected)]
     fn ffmpeg_spike_selected() -> bool;
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = backendHref)]
+    fn backend_href(backend: &str) -> String;
 }
 
 fn main() {
@@ -31,6 +33,8 @@ fn main() {
 #[component]
 fn App() -> Element {
     let ffmpeg_spike = ffmpeg_spike_selected();
+    let webcodecs_href = backend_href("webcodecs");
+    let ffmpeg_href = backend_href("ffmpeg-wasm");
     use_effect(|| {
         media_web::setup_runtime(&M1_SCRIPT.to_string(), &MEDIA_PIPELINE_SCRIPT.to_string());
         media_web::setup_ffmpeg_assets(
@@ -246,9 +250,30 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", if ffmpeg_spike { "FFMPEG WASM BACKEND" } else { "WEBCODECS BACKEND" } }
-            h1 { "Browser video converter" }
-            p { class: "lede", "Choose a video, output size, and format. The resize runs on your GPU." }
+            header { class: "page-header",
+                div {
+                    p { class: "eyebrow", "BROWSER VIDEO CONVERTER" }
+                    h1 { "Browser video converter" }
+                    p { class: "lede", "Choose a video, output size, and format. The resize runs on your GPU." }
+                }
+                nav { class: "backend-switch", aria_label: "Encoder backend",
+                    if ffmpeg_spike {
+                        if running() {
+                            span { class: "backend-option is-disabled", "WebCodecs" }
+                        } else {
+                            a { id: "backend-webcodecs", class: "backend-option", href: webcodecs_href, "WebCodecs" }
+                        }
+                        span { class: "backend-option is-active", "FFmpeg WASM" }
+                    } else {
+                        span { class: "backend-option is-active", "WebCodecs" }
+                        if running() {
+                            span { class: "backend-option is-disabled", "FFmpeg WASM" }
+                        } else {
+                            a { id: "backend-ffmpeg", class: "backend-option", href: ffmpeg_href, "FFmpeg WASM" }
+                        }
+                    }
+                }
+            }
             div { class: "workspace",
                 section { class: "controls-panel", aria_label: "Conversion settings",
                     ConverterControls {
@@ -418,7 +443,7 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
                 .set(format_source_metadata(&capabilities.source));
             if signals.ffmpeg_spike && !capabilities.mp4_supported {
                 signals.status.set(format!(
-                    "FFmpeg WASM spike unavailable for this input at {}×{}: {} Reload without ?backend=ffmpeg-wasm to use the default WebCodecs backend.",
+                    "FFmpeg WASM spike unavailable for this input at {}×{}: {} Switch to WebCodecs to try its available profiles.",
                     capabilities.output_size.width,
                     capabilities.output_size.height,
                     capabilities.mp4_reason
