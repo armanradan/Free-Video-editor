@@ -63,6 +63,7 @@ try {
   await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full` });
   await waitFor('!!document.querySelector("#convert")');
   await new Promise(resolve => setTimeout(resolve, 250));
+  evidence.opfsBaseline = await evaluate(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);return names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")).sort();})()`);
   const document = await send("DOM.getDocument");
   const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" });
   await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
@@ -94,6 +95,7 @@ try {
   const cases = [
     { name: "original", mode: "original", expectedWidth: 640, expectedHeight: 360 },
     { name: "percent-75", mode: "percent-75", expectedWidth: 480, expectedHeight: 270 },
+    { name: "percent-50", mode: "percent-50", expectedWidth: 320, expectedHeight: 180 },
     { name: "percent-25", mode: "percent-25", expectedWidth: 160, expectedHeight: 90 },
     { name: "exact-locked", mode: "exact", width: 500, height: 500, lock: true, expectedWidth: 500, expectedHeight: 280 },
     { name: "exact-stretch-odd", mode: "exact", width: 501, height: 301, lock: false, expectedWidth: 500, expectedHeight: 300 },
@@ -114,6 +116,7 @@ try {
       assert.match(summary, new RegExp(`→ ${testCase.expectedWidth}×${testCase.expectedHeight}`));
       assert.match(summary, /Diagnostic verification: full re-decode PASS/);
       assert.match(summary, /Output storage: bounded OPFS stream/);
+      assert.match(summary, /removed on replacement\/page exit/);
       assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
       const media = await playback();
       assert.deepEqual([media.width, media.height], [testCase.expectedWidth, testCase.expectedHeight]);
@@ -121,6 +124,11 @@ try {
       save();
     }
   }
+  evidence.opfsBeforePageExit = await evaluate(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);return names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial"));})()`);
+  assert.equal(evidence.opfsBeforePageExit.length, evidence.opfsBaseline.length + 1);
+  await evaluate('dispatchEvent(new PageTransitionEvent("pagehide",{persisted:false}))');
+  evidence.opfsAfterPageExit = await waitFor(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);const current=names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")).sort();return JSON.stringify(current)===${JSON.stringify(JSON.stringify(evidence.opfsBaseline))}&&current;})()`);
+  assert.deepEqual(evidence.opfsAfterPageExit.sort(), evidence.opfsBaseline);
   const hevcOutputReason = await evaluate('document.querySelector("#output-profile").querySelector("option[value=\\"mp4-h265-aac\\"]").disabled ? Array.from(document.querySelectorAll(".note")).map(n=>n.textContent).find(t=>t.startsWith("H.265/HEVC MP4 unavailable:")) : "supported"');
 
   await setResize(cases[1]);
@@ -171,6 +179,13 @@ try {
   evidence.largeInput = { bytes: fs.statSync(largeInput).size, summary: largeSummary };
   assert.ok(evidence.largeInput.bytes > 256 * 1024 * 1024);
 
+  evidence.opfsBeforeNavigation = await evaluate(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);return names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial"));})()`);
+  assert.equal(evidence.opfsBeforeNavigation.length, evidence.opfsBaseline.length + 1);
+  await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?cleanup-inspection=1` });
+  await waitFor('document.readyState==="complete"');
+  evidence.opfsAfterNavigation = await waitFor(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);const current=names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")).sort();return JSON.stringify(current)===${JSON.stringify(JSON.stringify(evidence.opfsBaseline))}&&current;})()`);
+  assert.deepEqual(evidence.opfsAfterNavigation, evidence.opfsBaseline);
+
   await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full&output=memory` });
   await waitFor('!!document.querySelector("#convert")');
   await new Promise(resolve => setTimeout(resolve, 250));
@@ -195,6 +210,36 @@ try {
   assert.match(fallbackRejection, /^FAILED:/);
   assert.match(fallbackRejection, /memory fallback accepts at most 256 MiB inputs/);
   evidence.memoryFallback = { summary: fallbackSummary, largeInputRejection: fallbackRejection };
+
+  // Exercise the real automatic fallback branch: the primary API is absent in
+  // this execution context and no output-mode test switch is supplied.
+  await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full&execution=main` });
+  await waitFor('!!document.querySelector("#convert")');
+  await evaluate('Object.defineProperty(navigator.storage,"getDirectory",{configurable:true,value:undefined})');
+  const automaticFallbackDocument = await send("DOM.getDocument");
+  const automaticFallbackInput = await send("DOM.querySelector", { nodeId: automaticFallbackDocument.root.nodeId, selector: "#source-file" });
+  await send("DOM.setFileInputFiles", { nodeId: automaticFallbackInput.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
+  await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
+  await waitFor(`${statusExpression}.includes("Output resolves to 320×180")`);
+  await selectProfile("webm-vp8-video-only");
+  await click("#convert");
+  evidence.automaticFallback = await terminal();
+  assert.match(evidence.automaticFallback, /^PASS:/);
+  assert.match(evidence.automaticFallback, /Output storage: memory fallback/);
+  assert.match(evidence.automaticFallback, /origin-private file storage is unavailable/);
+
+  evidence.boundaries = await evaluate(`(async()=>{
+    const adapter=await navigator.gpu.requestAdapter();
+    const dimensions=[8192,16384,32768,65536];
+    const encoder=[];
+    for(const dimension of dimensions){
+      try{const result=await VideoEncoder.isConfigSupported({codec:"vp8",width:dimension,height:dimension,framerate:30,bitrate:2_000_000});encoder.push({dimension,supported:result.supported});}
+      catch(error){encoder.push({dimension,supported:false,error:String(error)});}
+    }
+    return {gpuMaxTextureDimension2D:adapter.limits.maxTextureDimension2D,encoder};
+  })()`);
+  assert.ok(Number.isInteger(evidence.boundaries.gpuMaxTextureDimension2D));
+  assert.ok(evidence.boundaries.encoder.some(item => !item.supported), "Expected an exact VP8 encoder dimension boundary");
 
   evidence.profiles = expectedProfiles;
   evidence.gpu = await evaluate('document.querySelector("#selected-gpu").textContent');

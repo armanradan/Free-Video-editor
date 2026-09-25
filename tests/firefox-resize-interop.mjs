@@ -52,6 +52,7 @@ try {
   await send("browsingContext.navigate", { context, url: `http://127.0.0.1:${appPort}/?verify=full`, wait: "complete" });
   await waitFor('!!document.querySelector("#convert")');
   await delay(250);
+  evidence.opfsBaseline = JSON.parse(await evaluate(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);return JSON.stringify(names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")).sort());})()`));
   const element = await send("script.evaluate", { expression: 'document.querySelector("#source-file")', target: { context }, awaitPromise: true });
   await send("input.setFiles", { context, element: { sharedId: element.result.sharedId }, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
   await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
@@ -82,6 +83,7 @@ try {
   const cases = [
     { name: "original", mode: "original", expectedWidth: 640, expectedHeight: 360 },
     { name: "percent-75", mode: "percent-75", expectedWidth: 480, expectedHeight: 270 },
+    { name: "percent-50", mode: "percent-50", expectedWidth: 320, expectedHeight: 180 },
     { name: "percent-25", mode: "percent-25", expectedWidth: 160, expectedHeight: 90 },
     { name: "exact-locked", mode: "exact", width: 500, height: 500, lock: true, expectedWidth: 500, expectedHeight: 280 },
     { name: "exact-stretch-odd", mode: "exact", width: 501, height: 301, lock: false, expectedWidth: 500, expectedHeight: 300 },
@@ -102,6 +104,7 @@ try {
       assert.match(summary, new RegExp(`→ ${testCase.expectedWidth}×${testCase.expectedHeight}`));
       assert.match(summary, /Diagnostic verification: full re-decode PASS/);
       assert.match(summary, /Output storage: bounded OPFS stream/);
+      assert.match(summary, /removed on replacement\/page exit/);
       assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
       const media = await playback();
       assert.deepEqual([media.width, media.height], [testCase.expectedWidth, testCase.expectedHeight]);
@@ -109,6 +112,11 @@ try {
       save();
     }
   }
+  evidence.opfsBeforePageExit = JSON.parse(await evaluate(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);return JSON.stringify(names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")));})()`));
+  assert.equal(evidence.opfsBeforePageExit.length, evidence.opfsBaseline.length + 1);
+  await evaluate('dispatchEvent(new PageTransitionEvent("pagehide",{persisted:false}))');
+  evidence.opfsAfterPageExit = JSON.parse(await waitFor(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);const current=names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")).sort();return JSON.stringify(current)===${JSON.stringify(JSON.stringify(evidence.opfsBaseline))}&&JSON.stringify(current);})()`));
+  assert.deepEqual(evidence.opfsAfterPageExit.sort(), evidence.opfsBaseline);
   const hevcOutputReason = await evaluate('document.querySelector("#output-profile").querySelector("option[value=\\"mp4-h265-aac\\"]").disabled ? Array.from(document.querySelectorAll(".note")).map(n=>n.textContent).find(t=>t.startsWith("H.265/HEVC MP4 unavailable:")) : "supported"');
 
   await setResize(cases[1]);
@@ -160,10 +168,16 @@ try {
   assert.doesNotMatch(largeSummary, /memory fallback/);
   evidence.largeInput = { bytes: fs.statSync(largeInput).size, summary: largeSummary };
   assert.ok(evidence.largeInput.bytes > 256 * 1024 * 1024);
-
-  evidence.profiles = expectedProfiles;
   evidence.gpu = await evaluate('document.querySelector("#selected-gpu").textContent');
   evidence.execution = await evaluate('document.querySelector("#execution-context").textContent');
+
+  evidence.opfsBeforeNavigation = JSON.parse(await evaluate(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);return JSON.stringify(names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")));})()`));
+  assert.equal(evidence.opfsBeforeNavigation.length, evidence.opfsBaseline.length + 1);
+  await send("browsingContext.navigate", { context, url: `http://127.0.0.1:${appPort}/?cleanup-inspection=1`, wait: "complete" });
+  evidence.opfsAfterNavigation = JSON.parse(await waitFor(`(async()=>{const root=await navigator.storage.getDirectory();const names=[];for await(const name of root.keys())names.push(name);const current=names.filter(name=>name.startsWith("diaxus-")&&name.endsWith(".partial")).sort();return JSON.stringify(current)===${JSON.stringify(JSON.stringify(evidence.opfsBaseline))}&&JSON.stringify(current);})()`));
+  assert.deepEqual(evidence.opfsAfterNavigation, evidence.opfsBaseline);
+
+  evidence.profiles = expectedProfiles;
   evidence.completed = true;
   save();
   console.log(`PASS M3.6 resize/streaming Firefox: ${cases.length} size modes × ${expectedProfiles.length} profiles, >256 MiB sparse MP4, cancellation, invalid-upscale rejection; ${evidence.gpu}`);

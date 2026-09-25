@@ -12,6 +12,15 @@ if (inWorker) {
       if (active === id) runtime?.cancel_local();
       return;
     }
+    if (operation === "cleanup-output") {
+      try {
+        await self.__DIAXUS_MEDIA_WEB__?.cleanupOutput?.();
+        self.postMessage({ id, type: "result", result: {} });
+      } catch (error) {
+        self.postMessage({ id, type: "error", error: messageOf(error) });
+      }
+      return;
+    }
     if (active !== null) {
       self.postMessage({ id, type: "error", error: "Media worker is already running a command" });
       return;
@@ -33,7 +42,7 @@ if (inWorker) {
         self.postMessage({ id, type: "result", result: {} });
       } else {
         if (!runtime) throw Error("media worker was not initialized");
-        const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration, data.resize, `${data.outputMode}:${data.verify ? 1 : 0}`,
+        const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration, data.resize, `${data.outputMode}:${data.verify ? 1 : 0}:${data.failureMode}`,
           status => self.postMessage({ id, type: "progress", status }));
         self.postMessage({ id, type: "result", result });
       }
@@ -56,6 +65,21 @@ let runningId = null;
 let downloadUrl;
 let tail = Promise.resolve();
 const pending = new Map();
+
+async function cleanupOutputForPageExit() {
+  if (downloadUrl) {
+    URL.revokeObjectURL(downloadUrl);
+    downloadUrl = null;
+  }
+  try {
+    if (worker) await request("cleanup-output");
+    else await globalThis.__DIAXUS_MEDIA_WEB__?.cleanupOutput?.();
+  } catch (_) { /* page exit and browser eviction are allowed to race */ }
+}
+
+if (!inWorker) {
+  globalThis.addEventListener?.("pagehide", () => { void cleanupOutputForPageExit(); });
+}
 
 export function setupRuntime(m1, pipeline, wasm) {
   assets = { m1: new URL(m1, document.baseURI).href, pipeline: new URL(pipeline, document.baseURI).href, wasm };
@@ -155,6 +179,10 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
   const parameters = new URL(location.href).searchParams;
   const verify = parameters.get("verify") === "full";
   const outputMode = parameters.get("output") === "memory" ? "memory" : "auto";
+  const requestedFailure = parameters.get("failure");
+  const failureMode = requestedFailure === "codec-once" || requestedFailure === "device-loss-once"
+    ? requestedFailure
+    : "none";
   // Serialize profile probes and jobs: no configure/cancel race on a shared device.
   const task = tail.then(async () => {
     const reusedExecutionContext = Boolean(initialization);
@@ -169,12 +197,12 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
     let result;
     if (useWorker) {
       displayExecution("worker");
-      result = await request(operation, { file, profile, acceleration, resize, outputMode, verify }, report);
+      result = await request(operation, { file, profile, acceleration, resize, outputMode, verify, failureMode }, report);
     } else {
       displayExecution("main", fallbackReason);
       await Promise.all([import(assets.m1), import(assets.pipeline)]);
       if (cancelled()) throw Error("CANCELLED: stopped before codec startup");
-      result = await local(file, operation, profile, acceleration, resize, `${outputMode}:${verify ? 1 : 0}`, report);
+      result = await local(file, operation, profile, acceleration, resize, `${outputMode}:${verify ? 1 : 0}:${failureMode}`, report);
     }
     if (cancelled()) throw Error("CANCELLED: completed work discarded after cancellation");
     if (result.blob) {

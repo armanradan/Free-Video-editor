@@ -262,7 +262,7 @@ Verified with the Rust 1.98.1 GNU Windows host toolchain:
 
 ## Known findings and explicitly untested behavior
 
-- FFmpeg 8.0.1 emits one `Error parsing Opus packet header` diagnostic when opening each Mediabunny-produced Opus WebM, but then decodes the complete audio track and reports the expected duration and non-silent signal. Edge and Mediabunny decode/seek checks pass. This cross-implementation warning remains an open compatibility finding for M3.2/M3.6 investigation; it is not being presented as clean FFmpeg interoperability.
+- FFmpeg 8.0.1 emits one `Error parsing Opus packet header` diagnostic when opening each Mediabunny-produced Opus WebM, but then decodes the complete audio track and reports the expected duration and non-silent signal. Edge and Mediabunny decode/seek checks pass. This remains a known cross-implementation compatibility limitation; it is not being presented as warning-free FFmpeg interoperability.
 - Automated checks establish the presence of a decodable, non-silent signal and HTML media-element loading/seeking. Human acoustic listening and speaker output were not exercised in the headless browser.
 - The application bounds its own audio submissions at one. Mediabunny's internal callback/prefetch high-water marks are not observable, so full audio queue telemetry remains M3.4.
 - Only primary audio is preserved. Multiple audio tracks, language/disposition metadata, audio edits, channel layouts beyond the tested mono/stereo inputs, and passthrough were not tested.
@@ -569,7 +569,7 @@ Conclusion: both requested changes are validated, but bounded bitmap preparation
 # M3.5 geometry, timing, and color interoperability report
 
 Date: 2026-09-21
-Status: **acceptance passed for every profile enabled in the tested Firefox/Chromium environments; M3.6 has not started**
+Status: **acceptance passed for every profile enabled in the tested Firefox/Chromium environments; M3.6 subsequently completed as recorded below**
 
 ## Implemented policy
 
@@ -613,8 +613,8 @@ Still untested: Safari, other operating systems/GPUs, decoder-exposed non-zero v
 
 # M3.6 configurable-output and bounded-streaming interoperability report
 
-Date: 2026-09-24
-Status: **configurable-output, bounded-streaming, named-size, source-metadata, and capability-gated HEVC slices passed where supported in the tested Firefox/Chromium environments; expanded compatibility and recovery remain open**
+Date: 2026-09-24 through 2026-09-25
+Status: **M3.6 acceptance passed in the available Firefox/Chromium environments; unavailable-platform and spontaneous-failure limitations remain explicit**
 
 ## Implemented policy
 
@@ -632,22 +632,24 @@ The app was served by Dioxus CLI 0.7.10 with `?verify=full` and ran in its dedic
 
 | Browser/GPU | Enabled profiles | Verified resize cases |
 |---|---|---|
-| Edge 153.0.4234.48; `intel / gen-12lp (BrowserWebGpu)` | WebM/VP8/Opus, WebM/VP8/video-only, MP4/H.264/AAC | original 640×360; 75% 480×270; 25% 160×90; exact 500×500 locked → 500×280; exact 501×301 unlocked → 500×300 (15 complete conversions) |
-| Firefox 156.0; adapter identity redacted (`BrowserWebGpu`) | WebM/VP8/Opus, WebM/VP8/video-only | the same five resolved sizes (10 complete conversions) |
+| Edge 153.0.4234.48; `intel / gen-12lp (BrowserWebGpu)` | WebM/VP8/Opus, WebM/VP8/video-only, MP4/H.264/AAC | original 640×360; 75% 480×270; 50% 320×180; 25% 160×90; exact 500×500 locked → 500×280; exact 501×301 unlocked → 500×300 (18 complete conversions) |
+| Firefox 156.0.1; adapter identity redacted (`BrowserWebGpu`) | WebM/VP8/Opus, WebM/VP8/video-only | the same six resolved sizes (12 complete conversions) |
 
 Every conversion matched the displayed output geometry, completed full encoded-output re-decode verification, loaded for playback at the expected dimensions, and returned application-held frames/samples and GPU leases to zero. The Firefox matrix continued to expose only the two WebM profiles; unavailable MP4 was not counted as a failure.
 
-All 25 matrix conversions used bounded origin-private output. Their summaries reported the configured 4 MiB chunk boundary and measured writes; the small deterministic outputs required one write each, with maximum writes far below the boundary. Chromium and Firefox additionally converted a valid logical 269,763,667-byte MP4 consisting of the M2 fixture plus a reproducible sparse 257 MiB `free` box. Both processed 60/60 frames at 160×90 through WebM/VP8/video-only, fully re-decoded the disk-backed output, and reported one bounded output write (17,340 bytes Chromium; 19,084 bytes Firefox). This crosses the former input policy boundary and verifies bounded application I/O, but it is not evidence for long-duration decoding or large compressed-output throughput.
+All 30 matrix conversions used bounded origin-private output. Their summaries reported the configured 4 MiB chunk boundary and measured writes; the small deterministic outputs required one write each, with maximum writes far below the boundary. Chromium and Firefox additionally converted a valid logical 269,763,667-byte MP4 consisting of the M2 fixture plus a reproducible sparse 257 MiB `free` box. Both processed 60/60 frames at 160×90 through WebM/VP8/video-only, fully re-decoded the disk-backed output, and reported one bounded output write (17,340 bytes Chromium; 19,084 bytes Firefox). This crosses the former input policy boundary and verifies bounded application I/O.
 
-Chromium's explicitly forced memory mode converted the normal fixture and passed full verification while visibly reporting `memory fallback (maximum input 256 MiB)`. After bounded input inspection and capability probing, the same mode rejected the 257.3 MiB logical input before starting the conversion decode/process/encode pumps, with the exact fallback reason. Automatic fallback caused by a genuinely unavailable/denied origin-private filesystem remains unobserved because both tested browsers supported the primary path; the forced mode executes the identical `BufferTarget` implementation.
+Chromium's explicitly forced memory mode converted the normal fixture and passed full verification while visibly reporting `memory fallback (maximum input 256 MiB)`. After bounded input inspection and capability probing, the same mode rejected the 257.3 MiB logical input before starting the conversion decode/process/encode pumps, with the exact fallback reason. A separate deterministic compatibility case removed `StorageManager.getDirectory` from the main-thread execution context without setting `?output=memory`; the normal automatic branch selected the same memory fallback, named `origin-private file storage is unavailable`, converted 60/60 frames, and fully re-decoded the output. This validates API-unavailable selection, not a naturally shipped browser without the API or a mid-write storage failure.
+
+The bounded output entry remains present only while its returned `File`/object URL is usable. Replacement removes the previous entry. Both harnesses recorded the origin's pre-test `diaxus-*.partial` baseline, observed exactly one additional current-page entry after finalization, dispatched pagehide, and returned to the baseline. They repeated the check with a real same-origin navigation and again returned to the baseline. Existing entries from unrelated/forcibly terminated tabs are deliberately not deleted because ownership cannot be proved.
 
 Both browsers cancelled an active conversion after changing the size and reported zero application-held frame/sample resources. Both rejected an aspect-locked 800×500 request before conversion because it would resolve to 800×450 and upscale the 640×360 source. The error reported the requested and oriented source dimensions; no output was offered.
 
-## Checks and remaining M3.6 work
+## Checks and M3.6 completion
 
-Verified for these slices: focused `media-core` resize/input-policy tests, host Rust tests/checks/lints, complete wasm workspace checks/lints, JavaScript syntax and worker-transport tests (including output-mode transport), Dioxus web build, the M3.5 real-browser regression harnesses, and the two M3.6 browser harnesses above. Mediabunny was updated from 1.58.0 to the current 1.58.1 patch release and the npm lockfile was regenerated.
+Verified for M3.6: focused `media-core` resize/input-policy tests, host Rust tests/checks/lints, complete wasm workspace checks/lints, JavaScript syntax and worker-transport tests, Dioxus web build, the M3.5 real-browser regression harnesses, 30 resize/profile browser conversions, bounded large-input checks, forced and automatic storage fallback, synthetic and real-navigation OPFS cleanup, codec/device-loss recovery in both execution contexts, actual GPU/encoder boundary probes, and the long-run/large-output Chromium stress case. Mediabunny was updated from 1.58.0 to 1.58.1 and the npm lockfile was regenerated.
 
-This is not completion of M3.6. A broader measured browser/input/output compatibility matrix, injected codec-failure recovery, device-loss handling, restart after those failures, Safari, non-Windows systems, other GPUs/drivers, explicit GPU/encoder limit boundary fixtures, large compressed-output/long-duration streaming stress, page-close cleanup of the latest origin-private output, automatic fallback from a genuinely unavailable filesystem, and 50% browser-harness coverage remain untested or unimplemented. The 50% mode uses the same tested percentage policy and is the UI default, but the browser matrix deliberately used 75% and 25% to exercise two non-default scales in addition to the other modes.
+M3.6 is complete for the available test environments. The matrix now includes 50%; controlled recovery and restart pass; page-exit cleanup returns current-page storage to its baseline; API-unavailable fallback passes; actual GPU/encoder boundaries are recorded below; and the long-duration/large-output run passes. Safari, non-Windows systems, other GPUs/drivers, spontaneous driver/browser-process loss, indefinitely hung codec callbacks, naturally absent/denied storage APIs, and HEVC output on a browser that supports it remain untested. These are explicit compatibility limitations, not claims of universal support and not locally actionable blockers to M4.
 
 ## Named resolution presets and source metadata, 2026-09-24
 
@@ -668,3 +670,32 @@ Verified on Windows x64:
 - Firefox 156 rejected the exact HEVC input decoder configuration. Its HEVC output profile also remained unavailable. The existing five-size × two-WebM-profile Firefox regression matrix continued to pass.
 
 The checked-in focused Chromium harness records input and output capabilities independently. Actual H.265 output muxing/re-decode still requires validation on a browser/OS/GPU combination whose `VideoEncoder` probe accepts HEVC. HEVC Main10/HDR, alpha, other containers, non-Windows platforms, and licensing suitability for distribution remain untested or out of scope for this slice.
+
+## Injected codec and WebGPU device-loss recovery, 2026-09-25
+
+The recovery boundary now has two deterministic, test-only failure modes. `?failure=codec-once` throws after the fifth frame has passed through wgpu and before it enters the video encoder. `?failure=device-loss-once` calls `Device::destroy()` in the fifth processing callback, after four completed frames, and fails that frame explicitly. Both modes are one-shot within an execution context so that the same page can retry without reloading.
+
+The failure path stops further input, settles submitted GPU work, closes or discards decoded frames and prepared bitmaps, drains codec callbacks, releases audio samples, aborts the muxer, and removes the partial origin-private output. Device loss additionally invalidates the cached GPU session. The retained canvas/OffscreenCanvas handle is then used to create a fresh wgpu session and generation for the next explicit job; resources are never reused across generations.
+
+The checked-in harnesses were run as `node tests/chromium-recovery-interop.mjs 9233 8086` and `node tests/firefox-recovery-interop.mjs 8086`. They used the deterministic H.264/AAC fixture and the WebM/VP8/Opus output profile with full output verification. Evidence is retained locally under ignored `tmp/m36-recovery-chromium` and `tmp/m36-recovery-firefox`.
+
+| Browser | Contexts | Injected codec failure | Application-triggered device loss |
+|---|---|---|---|
+| Edge 153.0.4234.48 on Windows x64 | dedicated worker and explicit main-thread fallback | failed after five GPU-processed frames; no partial download; cleanup 0 frames/0 samples; same-page retry decoded 60/60 frames at 320×180 with non-silent Opus audio; device generation remained 1 | failed after four completed frames; no partial download; cleanup 0/0; retry decoded 60/60 frames and recreated device generation 2 |
+| Firefox 156.0.1 on Windows x64 | dedicated worker and explicit main-thread fallback | same cleanup and 60/60-frame retry result; Firefox's bounded ImageBitmap compatibility resources also returned to zero; generation remained 1 | same cleanup and retry result; the worker OffscreenCanvas and main-thread canvas paths both recreated generation 2 |
+
+All eight failure/retry scenarios loaded the retry output for playback at 320×180 and about 2.04 seconds. Full diagnostic re-decode verified the complete frame timeline and non-silent audio. The harnesses also required that no download link be exposed after the failed attempt. Application-visible frame/sample counts and GPU leases returned to zero; these counters do not measure browser/driver-internal allocations.
+
+This is evidence for deterministic cleanup and a clean restart after an application-observed codec exception or application-triggered wgpu device destruction. It is not evidence for recovery from an unprompted GPU driver reset, browser/GPU-process crash, device-lost notification arriving at arbitrary pipeline points, an indefinitely missing codec callback, or automatic checkpoint/resume. Those cases remain explicit limitations outside the verified compatibility matrix.
+
+## Final limits, cleanup, fallback, and stress acceptance, 2026-09-25
+
+The final resize runs added the default 50% mode to every enabled profile. Chromium completed 18 size/profile combinations and Firefox completed 12; every one passed full output re-decode, playback geometry, timing, audio where applicable, and zero application-owned cleanup. M3.5 geometry/VFR/HDR/resolution-change regressions and the eight controlled recovery/restart scenarios were rerun after the storage and verification changes and remained green.
+
+The selected Chromium WebGPU adapter reported `maxTextureDimension2D = 16384`. `GpuSession::configure` now rejects input or output dimensions exceeding the actual requested device's 2D texture limit before canvas/texture allocation. Exact `VideoEncoder.isConfigSupported` VP8 probes in the same browser accepted 8192×8192 and rejected 16384×16384, 32768×32768, and 65536×65536. Normal profile probing still gates every resolved output size; no oversized allocation was attempted. The low-resolution deterministic conversion fixture cannot validly request those outputs because the independent no-upscale rule rejects them first.
+
+The existing local 70,439,352-byte input provided the long-run/large-compressed-output stress case. It contains 3,530 H.264 frames, 6,343 decoded audio samples, 1920×1080 display geometry, and 147.3 seconds of media. Chromium converted it to 960×540 WebM/VP8/Opus in 21,465.3 ms. The 32,138,436-byte result was emitted through 17 serialized OPFS writes with a maximum write of exactly 4,194,304 bytes, not accumulated in an application ArrayBuffer, and then fully re-decoded: all 3,530 video frames, complete timestamp/duration timeline (maximum quantization error 708 µs), 7,365 non-silent Opus packets, and midpoint seek passed. Stage counters ended at zero, GPU leases were bounded at four, and the page heartbeat recorded 436 ticks with a maximum 62.3 ms gap during the worker job. This input is user-provided and ignored by Git, so the result is reproducible only where `tmp/user-test/Input.mp4` is present; the checked-in deterministic sparse fixture separately preserves the >256 MiB bounded-input test.
+
+That stress run also exposed valid WebM packets with omitted duration fields before the final packet. Verification now derives an omitted non-final duration from the next packet timestamp, as WebM timing permits, while applying the same 1 ms endpoint tolerance; final coverage remains independently checked against track duration. The M3.5 VFR/non-zero-origin fixtures passed after this correction, preventing the compatibility rule from weakening timestamp validation.
+
+With these results, the M3.6 acceptance gate is passed for the available Firefox/Chromium environments and core M3 browser robustness is complete. M3.7 remains an optional FFmpeg WASM compatibility spike rather than required follow-up work.

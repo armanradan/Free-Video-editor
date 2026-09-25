@@ -26,6 +26,8 @@ mod browser {
         static GENERATION: Cell<u32> = const { Cell::new(0) };
         static NEXT_DEVICE_GENERATION: Cell<u32> = const { Cell::new(0) };
         static GPU_SESSION: RefCell<Option<Rc<GpuSession>>> = const { RefCell::new(None) };
+        static GPU_CANVAS: RefCell<Option<ExportCanvas>> = const { RefCell::new(None) };
+        static DEVICE_LOSS_INJECTION_CONSUMED: Cell<bool> = const { Cell::new(false) };
         static BITMAP_COPIES: Cell<u32> = const { Cell::new(0) };
         static BITMAP_INGRESS_REQUIRED: Cell<bool> = const { Cell::new(false) };
         static PROCESSING_METRICS: Cell<ProcessingMetrics> = const { Cell::new(ProcessingMetrics::ZERO) };
@@ -103,8 +105,8 @@ mod browser {
         export function probeBrowserProfiles(file, width, height) {
             return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height);
         }
-        export function invokeBrowserJob(file, width, height, profile, acceleration, outputMode, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled) {
-            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, outputMode, verifyOutput, processFrame, bitmapIngressRequired, status, cancelled);
+        export function invokeBrowserJob(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled);
         }
         export async function describeSelectedAdapter() {
             const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
@@ -152,6 +154,7 @@ mod browser {
             acceleration: &str,
             output_mode: &str,
             verify_output: bool,
+            failure_mode: &str,
             process_frame: &Function,
             bitmap_ingress_required: &Function,
             status: &Function,
@@ -236,8 +239,10 @@ mod browser {
     // Worker exports use the same concrete implementation as the compatibility path.
     #[wasm_bindgen]
     pub async fn initialize_worker(canvas: OffscreenCanvas) -> Result<(), JsValue> {
+        let canvas = ExportCanvas::Offscreen(canvas);
+        GPU_CANVAS.with(|slot| *slot.borrow_mut() = Some(canvas.clone()));
         let gpu = Rc::new(
-            GpuSession::new(ExportCanvas::Offscreen(canvas))
+            GpuSession::new(canvas)
                 .await
                 .map_err(|e| JsValue::from_str(&e.to_string()))?,
         );
@@ -262,7 +267,7 @@ mod browser {
     ) -> Result<JsValue, JsValue> {
         let resize =
             resize_from_command(&resize).map_err(|error| JsValue::from_str(&error.to_string()))?;
-        let (output_mode, verify_output) = execution_options_from_command(&execution_options)
+        let execution_options = execution_options_from_command(&execution_options)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let result = match operation.as_str() {
             "m1" => run_m1_local(status).await,
@@ -289,8 +294,7 @@ mod browser {
                             profile,
                             acceleration,
                             resize,
-                            output_mode,
-                            verify_output,
+                            execution_options,
                             status,
                         )
                         .await
@@ -325,6 +329,12 @@ mod browser {
 
     struct WebCodecsMediabunnyBackend;
 
+    struct ExecutionOptions {
+        output_mode: String,
+        verify_output: bool,
+        failure_mode: String,
+    }
+
     #[derive(Clone, Copy)]
     struct ConversionRequest<'a> {
         output: Size,
@@ -332,6 +342,7 @@ mod browser {
         acceleration: CodecAcceleration,
         output_mode: &'a str,
         verify_output: bool,
+        failure_mode: &'a str,
     }
 
     impl BrowserConversionBackend for WebCodecsMediabunnyBackend {
@@ -356,6 +367,7 @@ mod browser {
                 request.acceleration.as_str(),
                 request.output_mode,
                 request.verify_output,
+                request.failure_mode,
                 process_frame,
                 bitmap_ingress_required,
                 status,
@@ -397,7 +409,7 @@ mod browser {
     async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
         let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false).await?;
-        let process = process_callback(Rc::clone(&gpu));
+        let process = process_callback(Rc::clone(&gpu), false);
         let cancelled = cancellation_callback(generation);
         let fixture =
             js_sys::Uint8Array::from(include_bytes!("../../../fixtures/m1-vp8.ivf").as_slice());
@@ -460,8 +472,7 @@ mod browser {
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
         resize: ResizeSpec,
-        output_mode: String,
-        verify_output: bool,
+        execution_options: ExecutionOptions,
         status: Function,
     ) -> Result<JsValue, MediaError> {
         let generation = begin_generation();
@@ -479,7 +490,16 @@ mod browser {
             geometry.flip_horizontal,
         )
         .await?;
-        let process = process_callback(Rc::clone(&gpu));
+        let inject_device_loss = execution_options.failure_mode == "device-loss-once"
+            && DEVICE_LOSS_INJECTION_CONSUMED.with(|consumed| {
+                if consumed.get() {
+                    false
+                } else {
+                    consumed.set(true);
+                    true
+                }
+            });
+        let process = process_callback(Rc::clone(&gpu), inject_device_loss);
         let bitmap_ingress_required = bitmap_ingress_callback();
         let cancelled = cancellation_callback(generation);
         let job_result = JsFuture::from(
@@ -490,8 +510,9 @@ mod browser {
                         output,
                         profile,
                         acceleration,
-                        output_mode: &output_mode,
-                        verify_output,
+                        output_mode: &execution_options.output_mode,
+                        verify_output: execution_options.verify_output,
+                        failure_mode: &execution_options.failure_mode,
                     },
                     process.as_ref().unchecked_ref(),
                     bitmap_ingress_required.as_ref().unchecked_ref(),
@@ -501,7 +522,11 @@ mod browser {
                 .map_err(js_error)?,
         )
         .await;
-        let result = settle_gpu_job(&gpu, job_result).await?;
+        let settled = settle_gpu_job(&gpu, job_result).await;
+        if inject_device_loss {
+            GPU_SESSION.with(|slot| *slot.borrow_mut() = None);
+        }
+        let result = settled?;
         let bitmap_copies = BITMAP_COPIES.with(Cell::get);
         let summary = format!(
             "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\n{}",
@@ -614,12 +639,29 @@ mod browser {
         }
     }
 
-    fn execution_options_from_command(command: &str) -> Result<(String, bool), MediaError> {
-        match command.split_once(':') {
-            Some((output_mode @ ("auto" | "memory"), "0")) => Ok((output_mode.to_string(), false)),
-            Some((output_mode @ ("auto" | "memory"), "1")) => Ok((output_mode.to_string(), true)),
-            _ => Err(platform("invalid execution options")),
+    fn execution_options_from_command(command: &str) -> Result<ExecutionOptions, MediaError> {
+        let mut parts = command.split(':');
+        let output_mode = match parts.next() {
+            Some(value @ ("auto" | "memory")) => value,
+            _ => return Err(platform("invalid output mode")),
+        };
+        let verify_output = match parts.next() {
+            Some("0") => false,
+            Some("1") => true,
+            _ => return Err(platform("invalid verification mode")),
+        };
+        let failure_mode = match parts.next() {
+            Some(value @ ("none" | "codec-once" | "device-loss-once")) => value,
+            _ => return Err(platform("invalid failure injection mode")),
+        };
+        if parts.next().is_some() {
+            return Err(platform("invalid execution options"));
         }
+        Ok(ExecutionOptions {
+            output_mode: output_mode.to_string(),
+            verify_output,
+            failure_mode: failure_mode.to_string(),
+        })
     }
 
     fn begin_generation() -> u32 {
@@ -643,10 +685,13 @@ mod browser {
 
     fn process_callback(
         gpu: Rc<GpuSession>,
+        inject_device_loss: bool,
     ) -> Closure<dyn FnMut(JsValue, JsValue, f64, f64) -> Promise> {
+        let processed = Rc::new(Cell::new(0_u32));
         Closure::new(
             move |value: JsValue, prepared_bitmap: JsValue, timestamp: f64, duration: f64| {
                 let gpu = Rc::clone(&gpu);
+                let processed = Rc::clone(&processed);
                 future_to_promise(async move {
                     let prepared_bitmap = OwnedBitmap(prepared_bitmap);
                     const MAX_SAFE: f64 = 9_007_199_254_740_991.0;
@@ -661,6 +706,15 @@ mod browser {
                     let frame = value
                         .dyn_into::<VideoFrame>()
                         .map_err(|_| JsValue::from_str("decoder output was not a VideoFrame"))?;
+                    let count = processed.get() + 1;
+                    processed.set(count);
+                    if inject_device_loss && count == 5 {
+                        gpu.device.destroy();
+                        frame.close();
+                        return Err(JsValue::from_str(
+                            "INJECTED: WebGPU device loss after 4 completed frames",
+                        ));
+                    }
                     gpu.process(frame, prepared_bitmap, timestamp as i64, duration as i64)
                         .await
                 })
@@ -678,15 +732,22 @@ mod browser {
         let gpu = if let Some(existing) = existing {
             existing
         } else {
-            let document = web_sys::window()
-                .and_then(|w| w.document())
-                .ok_or_else(|| platform("document is unavailable"))?;
-            let canvas = document
-                .get_element_by_id("export-canvas")
-                .ok_or_else(|| platform("export canvas was not mounted"))?
-                .dyn_into::<HtmlCanvasElement>()
-                .map_err(|_| platform("export element is not a canvas"))?;
-            let created = Rc::new(GpuSession::new(ExportCanvas::Html(canvas)).await?);
+            let canvas = if let Some(canvas) = GPU_CANVAS.with(|slot| slot.borrow().clone()) {
+                canvas
+            } else {
+                let document = web_sys::window()
+                    .and_then(|w| w.document())
+                    .ok_or_else(|| platform("document is unavailable"))?;
+                let canvas = document
+                    .get_element_by_id("export-canvas")
+                    .ok_or_else(|| platform("export canvas was not mounted"))?
+                    .dyn_into::<HtmlCanvasElement>()
+                    .map_err(|_| platform("export element is not a canvas"))?;
+                let canvas = ExportCanvas::Html(canvas);
+                GPU_CANVAS.with(|slot| *slot.borrow_mut() = Some(canvas.clone()));
+                canvas
+            };
+            let created = Rc::new(GpuSession::new(canvas).await?);
             GPU_SESSION.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&created)));
             created
         };
@@ -740,6 +801,7 @@ mod browser {
         device: wgpu::Device,
         queue: wgpu::Queue,
         surface_format: wgpu::TextureFormat,
+        max_texture_dimension_2d: u32,
         pipeline: ResizePipeline,
         configured: RefCell<Option<ConfiguredResources>>,
     }
@@ -795,6 +857,7 @@ mod browser {
             });
         }
     }
+    #[derive(Clone)]
     enum ExportCanvas {
         Html(HtmlCanvasElement),
         Offscreen(OffscreenCanvas),
@@ -892,6 +955,7 @@ mod browser {
                 })
                 .await
                 .map_err(|error| platform(format!("WebGPU device request failed: {error}")))?;
+            let max_texture_dimension_2d = device.limits().max_texture_dimension_2d;
             let capabilities = surface.get_capabilities(&adapter);
             let surface_format = capabilities
                 .formats
@@ -910,6 +974,7 @@ mod browser {
                 device,
                 queue,
                 surface_format,
+                max_texture_dimension_2d,
                 pipeline,
                 configured: RefCell::new(None),
             })
@@ -922,6 +987,19 @@ mod browser {
             rotation: Rotation,
             flip_horizontal: bool,
         ) -> Result<(), MediaError> {
+            for (label, size) in [("input", input_size), ("output", output_size)] {
+                if size.width > self.max_texture_dimension_2d
+                    || size.height > self.max_texture_dimension_2d
+                {
+                    return Err(platform(format!(
+                        "{label} dimensions {}×{} exceed the WebGPU device limit {}×{}",
+                        size.width,
+                        size.height,
+                        self.max_texture_dimension_2d,
+                        self.max_texture_dimension_2d,
+                    )));
+                }
+            }
             if self.configured.borrow().as_ref().is_some_and(|c| {
                 c.input_size == input_size
                     && c.output_size == output_size

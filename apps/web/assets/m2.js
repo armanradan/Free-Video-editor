@@ -26,6 +26,15 @@ const OUTPUT_INSTANCE_ID = globalThis.crypto?.randomUUID?.()
   ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const OPFS_OUTPUT_NAME = `diaxus-${OUTPUT_INSTANCE_ID}.partial`;
 let retainedOutputStorage = null;
+const consumedFailureInjections = new Set();
+
+async function cleanupRetainedOutput() {
+  const storage = retainedOutputStorage;
+  retainedOutputStorage = null;
+  if (!storage?.root || !storage.name) return;
+  try { await storage.root.removeEntry(storage.name); }
+  catch (_) { /* already removed or evicted */ }
+}
 
 function fail(message) {
   throw new Error(message);
@@ -422,14 +431,18 @@ async function verifyOutput(blob, expected) {
       const actual = outputTimeline[index];
       const wanted = expected.videoTimeline[index];
       const timestampError = Math.abs(actual.timestamp - wanted.timestamp);
-      // Some muxers omit the final packet's duration; the separately checked
-      // track coverage then provides that final endpoint.
-      const durationError = index === outputTimeline.length - 1 && actual.duration === 0
+      // WebM may omit a packet duration when the next timestamp defines the
+      // display interval. Only the final packet lacks that adjacent endpoint;
+      // the separately checked track coverage provides its duration.
+      const effectiveDuration = actual.duration === 0 && index + 1 < outputTimeline.length
+        ? outputTimeline[index + 1].timestamp - actual.timestamp
+        : actual.duration;
+      const durationError = index === outputTimeline.length - 1 && effectiveDuration === 0
         ? 0
-        : Math.abs(actual.duration - wanted.duration);
+        : Math.abs(effectiveDuration - wanted.duration);
       maxTimelineErrorUs = Math.max(maxTimelineErrorUs, timestampError, durationError);
       if (timestampError > timelineToleranceUs || durationError > timelineToleranceUs) {
-        fail(`Finalized output timeline differs beyond the ${timelineToleranceUs} µs ${expected.container.toUpperCase()} tick tolerance at frame ${index}: ${actual.timestamp}+${actual.duration} µs, expected ${wanted.timestamp}+${wanted.duration} µs.`);
+        fail(`Finalized output timeline differs beyond the ${timelineToleranceUs} µs ${expected.container.toUpperCase()} tick tolerance at frame ${index}: ${actual.timestamp}+${effectiveDuration} µs, expected ${wanted.timestamp}+${wanted.duration} µs.`);
       }
     }
     const tolerance = Math.max(0.050, expected.lastVideoDurationSeconds + 0.010);
@@ -512,11 +525,7 @@ class MediabunnyOutputAdapter {
         fail("origin-private file storage is unavailable");
       }
       const root = await navigator.storage.getDirectory();
-      if (retainedOutputStorage) {
-        try { await retainedOutputStorage.root.removeEntry(retainedOutputStorage.name); }
-        catch (_) { /* the browser may already have evicted the previous output */ }
-        retainedOutputStorage = null;
-      }
+      await cleanupRetainedOutput();
       const handle = await root.getFileHandle(OPFS_OUTPUT_NAME, { create: true });
       const fileStream = await handle.createWritable();
       const metrics = { writes: 0, maxWriteBytes: 0 };
@@ -626,12 +635,12 @@ class MediabunnyOutputAdapter {
 
   storageReport() {
     return this.storage.handle
-      ? `Output storage: bounded OPFS stream; Mediabunny target chunk=${OUTPUT_CHUNK_BYTES / 1048576} MiB with WritableStream backpressure; writes=${this.storage.metrics.writes}, maximum write=${this.storage.metrics.maxWriteBytes} bytes; compressed output was not accumulated in an application ArrayBuffer.`
+      ? `Output storage: bounded OPFS stream; Mediabunny target chunk=${OUTPUT_CHUNK_BYTES / 1048576} MiB with WritableStream backpressure; writes=${this.storage.metrics.writes}, maximum write=${this.storage.metrics.maxWriteBytes} bytes; temporary entry retained only for the active download and removed on replacement/page exit; compressed output was not accumulated in an application ArrayBuffer.`
       : `Output storage: memory fallback (maximum input ${MEMORY_FALLBACK_MAX_INPUT_BYTES / 1048576} MiB); bounded origin-private file streaming was unavailable: ${this.storage.fallbackReason}.`;
   }
 }
 
-async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, outputMode, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
+async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled) {
   if (!globalThis.isSecureContext || !globalThis.VideoDecoder || !globalThis.VideoEncoder || !navigator.gpu) {
     fail("The browser backend requires a secure context, WebCodecs, and WebGPU.");
   }
@@ -831,8 +840,15 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           const outputSample = new VideoSample(processedFrame);
           retain("samples");
           try {
+            if (failureMode === "codec-once"
+                && !consumedFailureInjections.has(failureMode)
+                && processed === 4) {
+              consumedFailureInjections.add(failureMode);
+              fail("INJECTED: codec failure after 5 GPU-processed frames");
+            }
             await muxer.videoSource.add(outputSample);
           } catch (error) {
+            if (errorMessage(error).startsWith("INJECTED:")) throw error;
             const config = muxer.videoEncoderConfig;
             const configured = config
               ? `${config.codec}, ${config.width}×${config.height}, ${config.bitrate ?? "auto"} bit/s, hardware=${config.hardwareAcceleration ?? "no-preference"}`
@@ -1047,6 +1063,10 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
 }
 
 class WebCodecsMediabunnyBackend {
+  cleanupOutput() {
+    return cleanupRetainedOutput();
+  }
+
   inspect(file) {
     return inspect(file);
   }
@@ -1055,8 +1075,8 @@ class WebCodecsMediabunnyBackend {
     return probeProfiles(file, outputWidth, outputHeight);
   }
 
-  run(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled) {
-    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, processFrame, bitmapIngressRequired, status, cancelled);
+  run(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled) {
+    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled);
   }
 }
 

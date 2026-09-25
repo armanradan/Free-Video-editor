@@ -105,7 +105,7 @@ test("startup failure gives exact visible fallback and preserves profile", async
     assert.equal(profile, "mp4-h264-aac");
     assert.equal(acceleration, "prefer-hardware");
     assert.equal(resize, "exact:320:180:1");
-    assert.equal(executionOptions, "memory:1");
+    assert.equal(executionOptions, "memory:1:none");
     return { summary: "PASS" };
   });
   assert.equal(calls, 1);
