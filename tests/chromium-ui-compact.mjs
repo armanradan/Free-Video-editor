@@ -57,6 +57,16 @@ try {
   assert.ok(desktop.monitor.x > desktop.controls.x + desktop.controls.width);
   assert.ok(desktop.documentWidth <= desktop.viewport);
   assert.ok(desktop.advancedClosed && desktop.technicalClosed);
+  const ffmpegLink = new URL(await evaluate('document.querySelector("#backend-ffmpeg")?.href'));
+  assert.equal(ffmpegLink.searchParams.get("backend"), "ffmpeg-wasm");
+  assert.equal(ffmpegLink.searchParams.get("verify"), "full");
+  await send("Page.navigate", { url: ffmpegLink.href });
+  await waitFor('!!document.querySelector("#backend-webcodecs")');
+  const webcodecsLink = new URL(await evaluate('document.querySelector("#backend-webcodecs")?.href'));
+  assert.equal(webcodecsLink.searchParams.has("backend"), false);
+  assert.equal(webcodecsLink.searchParams.get("verify"), "full");
+  await send("Page.navigate", { url: webcodecsLink.href });
+  await waitFor('!!document.querySelector("#backend-ffmpeg")');
   const document = await send("DOM.getDocument");
   const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" });
   await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
