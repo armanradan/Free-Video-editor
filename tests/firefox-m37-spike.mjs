@@ -43,6 +43,9 @@ try {
   for (const backend of ["webcodecs", "ffmpeg-wasm"]) {
     await send("browsingContext.navigate", { context, url: `http://127.0.0.1:${appPort}/?backend=${backend}&verify=full`, wait: "complete" });
     await waitFor('!!document.querySelector("#source-file")');
+    const baselineEntries = backend === "ffmpeg-wasm"
+      ? JSON.parse(await evaluate('(async()=>{const names=[];for await(const [name] of (await navigator.storage.getDirectory()).entries())if(name.startsWith("diaxus-"))names.push(name);return JSON.stringify(names)})()'))
+      : [];
     const element = await send("script.evaluate", { expression: 'document.querySelector("#source-file")', target: { context }, awaitPromise: true });
     await send("input.setFiles", { context, element: { sharedId: element.result.sharedId }, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
     await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
@@ -77,11 +80,13 @@ try {
     const largeInput = await send("script.evaluate", { expression: 'document.querySelector("#source-file")', target: { context }, awaitPromise: true });
     await send("input.setFiles", { context, element: { sharedId: largeInput.result.sharedId }, files: [ensureLargeInputFixture()] });
     await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
-    evidence.limit = await waitFor('document.querySelector("#status")?.textContent.includes("64 MiB memory cap") && document.querySelector("#status").textContent');
-    evidence.limitUi = JSON.parse(await evaluate('JSON.stringify({selectorDisabled:document.querySelector("#output-profile").disabled,reason:Array.from(document.querySelectorAll(".note")).map(n=>n.textContent).find(t=>t.includes("64 MiB memory cap")),metadata:document.querySelector("#source-metadata")?.textContent})'));
-    assert.equal(evidence.limitUi.selectorDisabled, true);
-    assert.match(evidence.limitUi.reason, /64 MiB memory cap/);
-    assert.match(evidence.limitUi.metadata, /m2-h264-aac-plus-free-box/);
+    evidence.largeInput = await waitFor('document.querySelector("#source-metadata")?.textContent.includes("m2-h264-aac-plus-free-box") && !document.querySelector("#output-profile").disabled');
+    await evaluate('document.querySelector("#convert").click()');
+    evidence.largeInputSummary = await waitFor('!document.querySelector("#convert").disabled && /^(PASS|FAILED):/.test(document.querySelector("#status")?.textContent) && document.querySelector("#status").textContent');
+    assert.match(evidence.largeInputSummary, /^PASS:/, evidence.largeInputSummary);
+    assert.match(evidence.largeInputSummary, /source File mounted via WORKERFS/);
+    evidence.opfsEntries = JSON.parse(await evaluate('(async()=>{const names=[];for await(const [name] of (await navigator.storage.getDirectory()).entries())if(name.startsWith("diaxus-"))names.push(name);return JSON.stringify(names)})()'));
+    assert.equal(evidence.opfsEntries.filter(name => name.endsWith(".rgba.partial") && !baselineEntries.includes(name)).length, 0);
   }
 } finally {
   fs.mkdirSync("tmp/m37-firefox", { recursive: true });

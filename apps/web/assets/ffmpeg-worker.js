@@ -31,6 +31,7 @@ var ERROR_IMPORT_FAILURE = new Error("failed to import ffmpeg-core.js");
 var ffmpeg;
 
 var diaxusPeakHeapBytes = 0;
+var diaxusDeviceId = 0;
 setInterval(() => {
   const size = ffmpeg?.HEAP8?.byteLength ?? 0;
   if (size > diaxusPeakHeapBytes) {
@@ -75,6 +76,13 @@ var exec = ({ args, timeout = -1 }) => {
   ffmpeg.exec(...args);
   const ret = ffmpeg.ret;
   ffmpeg.reset();
+  for (const access of self.__diaxusAccessHandles ?? []) {
+    try { access.flush(); } finally { access.close(); }
+  }
+  self.__diaxusAccessHandles = [];
+  if (self.__diaxusOutputMetrics) {
+    self.postMessage({ type: "LOG", data: { type: "stdout", message: "DIAXUS_OPFS_OUTPUT=" + JSON.stringify(self.__diaxusOutputMetrics()) } });
+  }
   return ret;
 };
 var ffprobe = ({ args, timeout = -1 }) => {
@@ -115,7 +123,44 @@ var deleteDir = ({ path }) => {
   ffmpeg.FS.rmdir(path);
   return true;
 };
-var mount = ({ fsType, options, mountPoint }) => {
+var mount = async ({ fsType, options, mountPoint }) => {
+  if (fsType === "DIAXUS_OPFS") {
+    const FS = ffmpeg.FS;
+    const { fileHandle, mode } = options;
+    if (!fileHandle?.createSyncAccessHandle || !["read", "write"].includes(mode)) {
+      throw Error("OPFS synchronous file handles are unavailable for FFmpeg streaming.");
+    }
+    const access = await fileHandle.createSyncAccessHandle();
+    if (mode === "write") access.truncate(0);
+    const device = FS.makedev(90, ++diaxusDeviceId);
+    let writes = 0, maxWriteBytes = 0, writtenBytes = 0;
+    FS.registerDevice(device, {
+      open(stream) { stream.seekable = true; },
+      close() { if (mode === "write") access.flush(); },
+      read(stream, buffer, offset, length, position) {
+        return access.read(buffer.subarray(offset, offset + length), { at: position ?? stream.position });
+      },
+      write(stream, buffer, offset, length, position) {
+        if (mode !== "write") throw Error("OPFS input device is not writable.");
+        const count = access.write(buffer.subarray(offset, offset + length), { at: position ?? stream.position });
+        writes++; writtenBytes += count; maxWriteBytes = Math.max(maxWriteBytes, count);
+        return count;
+      },
+      llseek(stream, offset, whence) {
+        const base = whence === 0 ? 0 : whence === 1 ? stream.position : access.getSize();
+        const next = base + offset;
+        if (!Number.isSafeInteger(next) || next < 0) throw Error("Invalid OPFS seek offset.");
+        return next;
+      },
+    });
+    FS.mkdev(mountPoint, 0o666, device);
+    if (mode === "write") {
+      self.__diaxusOutputMetrics = () => ({ writes, maxWriteBytes, writtenBytes });
+    }
+    (self.__diaxusAccessHandles ??= []).push(access);
+    return true;
+  }
+
   const str = fsType;
   const fs = ffmpeg.FS.filesystems[str];
   if (!fs)
@@ -165,7 +210,7 @@ self.onmessage = async ({ data: { id, type, data: _data } }) => {
         data = deleteDir(_data);
         break;
       case FFMessageType.MOUNT:
-        data = mount(_data);
+        data = await mount(_data);
         break;
       case FFMessageType.UNMOUNT:
         data = unmount(_data);

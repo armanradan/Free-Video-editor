@@ -246,47 +246,56 @@ fn App() -> Element {
         document::Script { src: M1_SCRIPT }
         document::Script { src: MEDIA_PIPELINE_SCRIPT }
         main { class: "shell",
-            p { class: "eyebrow", "MILESTONE M3.7 — OPTIONAL FFMPEG WASM SPIKE" }
+            p { class: "eyebrow", if ffmpeg_spike { "FFMPEG WASM BACKEND" } else { "WEBCODECS BACKEND" } }
             h1 { "Browser video converter" }
-            p { class: "lede", "MP4/H.264 or H.265 input → WebCodecs decode → configurable wgpu resize → capability-checked WebCodecs output. Use ?backend=ffmpeg-wasm for the explicit, bounded MP4/H.264/AAC software-encoder spike." }
-            ConverterControls {
-                ffmpeg_spike,
-                running: running(),
-                download_url: download_url(),
-                download_name: download_name(),
-                profile: profile(),
-                acceleration: acceleration(),
-                resize_mode: resize_mode(),
-                exact_width: exact_width(),
-                exact_height: exact_height(),
-                preserve_aspect_ratio: preserve_aspect_ratio(),
-                resolved_size: resolved_size(),
-                source_metadata: source_metadata(),
-                has_source: has_source(),
-                profile_ready: profile_ready(),
-                mp4_supported: mp4_supported(),
-                mp4_reason: mp4_reason(),
-                hevc_supported: hevc_supported(),
-                hevc_reason: hevc_reason(),
-                on_file_change: file_changed,
-                on_profile_change: profile_changed,
-                on_acceleration_change: acceleration_changed,
-                on_resize_mode_change: resize_mode_changed,
-                on_exact_width_change: exact_width_changed,
-                on_exact_height_change: exact_height_changed,
-                on_aspect_ratio_change: aspect_ratio_changed,
-                on_convert: convert,
-                on_cancel: cancel,
+            p { class: "lede", "Choose a video, output size, and format. The resize runs on your GPU." }
+            div { class: "workspace",
+                section { class: "controls-panel", aria_label: "Conversion settings",
+                    ConverterControls {
+                        ffmpeg_spike,
+                        running: running(),
+                        download_url: download_url(),
+                        download_name: download_name(),
+                        profile: profile(),
+                        acceleration: acceleration(),
+                        resize_mode: resize_mode(),
+                        exact_width: exact_width(),
+                        exact_height: exact_height(),
+                        preserve_aspect_ratio: preserve_aspect_ratio(),
+                        resolved_size: resolved_size(),
+                        source_metadata: source_metadata(),
+                        has_source: has_source(),
+                        profile_ready: profile_ready(),
+                        mp4_supported: mp4_supported(),
+                        mp4_reason: mp4_reason(),
+                        hevc_supported: hevc_supported(),
+                        hevc_reason: hevc_reason(),
+                        on_file_change: file_changed,
+                        on_profile_change: profile_changed,
+                        on_acceleration_change: acceleration_changed,
+                        on_resize_mode_change: resize_mode_changed,
+                        on_exact_width_change: exact_width_changed,
+                        on_exact_height_change: exact_height_changed,
+                        on_aspect_ratio_change: aspect_ratio_changed,
+                        on_convert: convert,
+                        on_cancel: cancel,
+                    }
+                }
+                section { class: "monitor-panel", aria_label: "Preview and progress",
+                    div { class: "preview-panel",
+                        h2 { "GPU preview" }
+                        div { id: "worker-preview" }
+                        canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
+                    }
+                    JobStatus { status: status(), selected_gpu: selected_gpu() }
+                    p { id: "execution-context", class: "note", "Execution: checking worker support." }
+                }
             }
-            section { class: "preview-panel",
-                div { h2 { "GPU output" } p { "The canvas shows the frame submitted to the encoder." } }
-                p { id: "execution-context", class: "note", "Execution: worker capabilities will be checked before processing." }
-                div { id: "worker-preview" }
-                canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
+            details { class: "technical-notes",
+                summary { "Processing and compatibility notes" }
+                p { class: "note", "BT.709/sRGB SDR input is normalized through the browser color pipeline. Crop, pixel aspect ratio, rotation, and flip are baked into square-pixel output; HDR and mid-stream geometry changes are rejected. Input uses a bounded cache and output streams to origin-private file storage when available; the status reports any capped memory fallback." }
             }
-            JobStatus { status: status(), selected_gpu: selected_gpu() }
-            p { class: "note", "BT.709/sRGB SDR input is normalized through the browser color pipeline. Crop, pixel aspect ratio, rotation, and flip are baked into square-pixel output; HDR and mid-stream geometry changes are rejected. Input is read through a bounded cache and output streams to origin-private file storage when available; the status reports any capped memory fallback." }
-            details { class: "regression",
+            details { class: "regression technical-notes",
                 summary { "M1 deterministic regression probe" }
                 p { "Runs the original embedded 30-frame VP8 correctness fixture." }
                 button { disabled: running(), onclick: run_m1, "Run M1 probe" }

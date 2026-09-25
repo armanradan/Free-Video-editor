@@ -48,6 +48,9 @@ try {
   for (const backend of ["webcodecs", "ffmpeg-wasm"]) {
     await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full&backend=${backend}` });
     await waitFor('!!document.querySelector("#source-file")');
+    const baselineEntries = backend === "ffmpeg-wasm"
+      ? await evaluate('(async()=>{const names=[];for await(const [name] of (await navigator.storage.getDirectory()).entries())if(name.startsWith("diaxus-"))names.push(name);return names})()')
+      : [];
     const document = await send("DOM.getDocument");
     const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" });
     await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
@@ -58,6 +61,7 @@ try {
     await evaluate('{const s=document.querySelector("#output-profile");s.value="mp4-h264-aac";s.dispatchEvent(new Event("change",{bubbles:true}));}');
     await evaluate('document.querySelector("#convert").click()');
     const summary = await waitFor('!document.querySelector("#convert").disabled && /^(PASS|FAILED|CANCELLED):/.test(document.querySelector("#status")?.textContent) && document.querySelector("#status").textContent');
+    assert.match(summary, /^PASS:/, summary);
     const bytes = await evaluate('fetch(document.querySelector("#download")?.href).then(r=>r.arrayBuffer()).then(b=>b.byteLength).catch(()=>0)');
     const dataUrl = await evaluate('new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;fetch(document.querySelector("#download").href).then(r=>r.blob()).then(blob=>reader.readAsDataURL(blob),reject);})');
     fs.mkdirSync("tmp/m37-chromium", { recursive: true });
@@ -84,11 +88,13 @@ try {
       const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" });
       await send("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [ensureLargeInputFixture()] });
       await evaluate('{const i=document.querySelector("#source-file");i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}');
-      evidence.limit = await waitFor('document.querySelector("#status")?.textContent.includes("64 MiB memory cap") && document.querySelector("#status").textContent');
-      evidence.limitUi = await evaluate('({selectorDisabled:document.querySelector("#output-profile").disabled,reason:Array.from(document.querySelectorAll(".note")).map(n=>n.textContent).find(t=>t.includes("64 MiB memory cap")),metadata:document.querySelector("#source-metadata")?.textContent})');
-      assert.equal(evidence.limitUi.selectorDisabled, true);
-      assert.match(evidence.limitUi.reason, /64 MiB memory cap/);
-      assert.match(evidence.limitUi.metadata, /m2-h264-aac-plus-free-box/);
+      evidence.largeInput = await waitFor('document.querySelector("#source-metadata")?.textContent.includes("m2-h264-aac-plus-free-box") && !document.querySelector("#output-profile").disabled');
+      await evaluate('document.querySelector("#convert").click()');
+      evidence.largeInputSummary = await waitFor('!document.querySelector("#convert").disabled && /^(PASS|FAILED):/.test(document.querySelector("#status")?.textContent) && document.querySelector("#status").textContent');
+      assert.match(evidence.largeInputSummary, /^PASS:/, evidence.largeInputSummary);
+      assert.match(evidence.largeInputSummary, /source File mounted via WORKERFS/);
+      evidence.opfsEntries = await evaluate('(async()=>{const names=[];for await(const [name] of (await navigator.storage.getDirectory()).entries())if(name.startsWith("diaxus-"))names.push(name);return names})()');
+      assert.equal(evidence.opfsEntries.filter(name => name.endsWith(".rgba.partial") && !baselineEntries.includes(name)).length, 0);
     }
   }
 } finally {

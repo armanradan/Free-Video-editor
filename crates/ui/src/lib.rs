@@ -99,8 +99,7 @@ pub fn ConverterControls(
                 }
             }
             if !resolved_size.is_empty() {
-                div {}
-                p { id: "resolved-size", class: "note", "Resolved output: {resolved_size}" }
+                p { id: "resolved-size", class: "resolved-size note", "Output: {resolved_size}" }
             }
             label { r#for: "output-profile", "Output profile" }
             select {
@@ -133,34 +132,39 @@ pub fn ConverterControls(
                 }
             }
             if ffmpeg_spike {
-                p { class: "note", "Backend: FFmpeg WASM software encoder (experimental). Reload without ?backend=ffmpeg-wasm for WebCodecs. Input/raw-frame memory caps and explicit GPU readbacks apply." }
+                p { class: "profile-note note", "FFmpeg WASM software encoder: raw frames use temporary disk space and explicit GPU readbacks. Reload without ?backend=ffmpeg-wasm for WebCodecs." }
             }
             if !has_source {
-                p { class: "note", "Select an input to check output profiles for its codec, audio, and resolved size." }
+                p { class: "profile-note note", "Select an input to check compatible formats." }
             }
             if has_source && !profile_ready && mp4_reason.starts_with("Checking") {
-                p { class: "note", "Checking output compatibility for the selected input…" }
+                p { class: "profile-note note", "Checking output compatibility…" }
             }
             if has_source && !mp4_supported && !mp4_reason.is_empty() && !mp4_reason.starts_with("Checking") {
-                p { class: "note", "H.264 MP4 unavailable: {mp4_reason}" }
+                p { class: "profile-note note", "H.264 MP4 unavailable: {mp4_reason}" }
             }
             if profile_ready && !hevc_supported && !hevc_reason.is_empty() {
-                p { class: "note", "H.265/HEVC MP4 unavailable: {hevc_reason}" }
+                p { class: "profile-note note", "H.265/HEVC MP4 unavailable: {hevc_reason}" }
             }
-            label { r#for: "codec-acceleration", "Codec acceleration" }
-            select {
-                id: "codec-acceleration",
-                disabled: running,
-                onchange: move |event| on_acceleration_change.call(event),
-                option {
-                    value: CodecAcceleration::NoPreference.as_str(),
-                    selected: acceleration == CodecAcceleration::NoPreference,
-                    "Compatibility baseline (no preference)"
-                }
-                option {
-                    value: CodecAcceleration::PreferHardware.as_str(),
-                    selected: acceleration == CodecAcceleration::PreferHardware,
-                    "Prefer hardware (capability-probed)"
+            details { class: "advanced-settings",
+                summary { "Advanced codec settings" }
+                div { class: "advanced-field",
+                    label { r#for: "codec-acceleration", "Acceleration" }
+                    select {
+                        id: "codec-acceleration",
+                        disabled: running,
+                        onchange: move |event| on_acceleration_change.call(event),
+                        option {
+                            value: CodecAcceleration::NoPreference.as_str(),
+                            selected: acceleration == CodecAcceleration::NoPreference,
+                            "Compatibility baseline (no preference)"
+                        }
+                        option {
+                            value: CodecAcceleration::PreferHardware.as_str(),
+                            selected: acceleration == CodecAcceleration::PreferHardware,
+                            "Prefer hardware (capability-probed)"
+                        }
+                    }
                 }
             }
         }
