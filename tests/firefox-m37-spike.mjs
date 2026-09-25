@@ -66,6 +66,8 @@ try {
     console.log(summary.slice(0, 420));
     assert.match(summary, /^PASS:/);
     assert.match(summary, /full re-decode PASS/);
+    assert.match(summary, /raw RGBA live ring=13824000 bytes/);
+    assert.match(summary, /consumed=13824000; no raw OPFS spool/);
     assert.match(summary, /Cleanup: 0 application-held frame references, 0 samples/);
     const dataUrl = await evaluate('new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;fetch(document.querySelector("#download").href).then(r=>r.blob()).then(blob=>reader.readAsDataURL(blob),reject);})');
     fs.mkdirSync("tmp/m37-firefox", { recursive: true });
@@ -85,6 +87,7 @@ try {
     evidence.largeInputSummary = await waitFor('!document.querySelector("#convert").disabled && /^(PASS|FAILED):/.test(document.querySelector("#status")?.textContent) && document.querySelector("#status").textContent');
     assert.match(evidence.largeInputSummary, /^PASS:/, evidence.largeInputSummary);
     assert.match(evidence.largeInputSummary, /source File mounted via WORKERFS/);
+    assert.match(evidence.largeInputSummary, /no raw OPFS spool/);
     evidence.opfsEntries = JSON.parse(await evaluate('(async()=>{const names=[];for await(const [name] of (await navigator.storage.getDirectory()).entries())if(name.startsWith("diaxus-"))names.push(name);return JSON.stringify(names)})()'));
     assert.equal(evidence.opfsEntries.filter(name => name.endsWith(".rgba.partial") && !baselineEntries.includes(name)).length, 0);
   }

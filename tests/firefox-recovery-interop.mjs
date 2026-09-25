@@ -5,7 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 const appPort = Number(process.argv[2] ?? 8084);
-const outputDirectory = path.resolve("tmp/m36-recovery-firefox");
+const ffmpegBackend = process.argv[3] === "ffmpeg-wasm";
+const outputDirectory = path.resolve(ffmpegBackend ? "tmp/m38-recovery-firefox" : "tmp/m36-recovery-firefox");
 fs.mkdirSync(outputDirectory, { recursive: true });
 const socket = new WebSocket("ws://127.0.0.1:9226/session");
 await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
@@ -46,7 +47,7 @@ async function runScenario(mode, failureMode) {
   const terminal = () => waitFor(`!document.querySelector("#convert").disabled && /^(PASS|FAILED|CANCELLED):/.test(${status}) && ${status}`);
   try {
     const main = mode === "main" ? "&execution=main" : "";
-    await send("browsingContext.navigate", { context, url: `http://127.0.0.1:${appPort}/?verify=full&failure=${failureMode}${main}`, wait: "complete" });
+    await send("browsingContext.navigate", { context, url: `http://127.0.0.1:${appPort}/?verify=full&failure=${failureMode}${main}${ffmpegBackend ? "&backend=ffmpeg-wasm" : ""}`, wait: "complete" });
     await waitFor('!!document.querySelector("#source-file")');
     const element = await send("script.evaluate", { expression: 'document.querySelector("#source-file")', target: { context }, awaitPromise: true });
     await send("input.setFiles", { context, element: { sharedId: element.result.sharedId }, files: [path.resolve("fixtures/m2-h264-aac.mp4")] });
@@ -70,6 +71,7 @@ async function runScenario(mode, failureMode) {
     const restart = await terminal();
     assert.match(restart, /^PASS: 60 H\.264 input frames/);
     assert.match(restart, /Diagnostic verification: full re-decode PASS/);
+    if (ffmpegBackend) assert.match(restart, /no raw OPFS spool/);
     assert.match(restart, /Cleanup: 0 application-held frame references, 0 samples/);
     assert.match(restart, new RegExp(`Execution: ${mode === "worker" ? "dedicated worker" : "main-thread fallback"}`));
     assert.match(restart, /reused for this command=true/);
@@ -91,7 +93,7 @@ try {
   }
   evidence.completed = true;
   save();
-  console.log("PASS M3.6 Firefox recovery: codec + WebGPU device loss, worker + main-thread cleanup and restart");
+  console.log(`PASS ${ffmpegBackend ? "M3.8 FFmpeg" : "M3.6"} Firefox recovery: codec + WebGPU device loss, worker + main-thread cleanup and restart`);
 } catch (error) {
   evidence.error = error.stack;
   save();

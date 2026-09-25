@@ -6,7 +6,8 @@ import path from "node:path";
 
 const debugPort = Number(process.argv[2] ?? 9227);
 const appPort = Number(process.argv[3] ?? 8084);
-const outputDirectory = path.resolve("tmp/m36-recovery-chromium");
+const ffmpegBackend = process.argv[4] === "ffmpeg-wasm";
+const outputDirectory = path.resolve(ffmpegBackend ? "tmp/m38-recovery-chromium" : "tmp/m36-recovery-chromium");
 fs.mkdirSync(outputDirectory, { recursive: true });
 const version = await fetch(`http://127.0.0.1:${debugPort}/json/version`, { signal: AbortSignal.timeout(5000) }).then(response => response.json());
 const socket = new WebSocket(version.webSocketDebuggerUrl);
@@ -53,7 +54,7 @@ async function runScenario(mode, failureMode) {
     await send("Page.enable", {}, sessionId);
     await send("Runtime.enable", {}, sessionId);
     const main = mode === "main" ? "&execution=main" : "";
-    await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full&failure=${failureMode}${main}` }, sessionId);
+    await send("Page.navigate", { url: `http://127.0.0.1:${appPort}/?verify=full&failure=${failureMode}${main}${ffmpegBackend ? "&backend=ffmpeg-wasm" : ""}` }, sessionId);
     await waitFor('!!document.querySelector("#source-file")');
     const document = await send("DOM.getDocument", {}, sessionId);
     const input = await send("DOM.querySelector", { nodeId: document.root.nodeId, selector: "#source-file" }, sessionId);
@@ -78,6 +79,7 @@ async function runScenario(mode, failureMode) {
     const restart = await terminal();
     assert.match(restart, /^PASS: 60 H\.264 input frames/);
     assert.match(restart, /Diagnostic verification: full re-decode PASS/);
+    if (ffmpegBackend) assert.match(restart, /no raw OPFS spool/);
     assert.match(restart, /Cleanup: 0 application-held frame references, 0 samples/);
     assert.match(restart, new RegExp(`Execution: ${mode === "worker" ? "dedicated worker" : "main-thread fallback"}`));
     assert.match(restart, /reused for this command=true/);
@@ -97,7 +99,7 @@ try {
   }
   evidence.completed = true;
   save();
-  console.log("PASS M3.6 Chromium recovery: codec + WebGPU device loss, worker + main-thread cleanup and restart");
+  console.log(`PASS ${ffmpegBackend ? "M3.8 FFmpeg" : "M3.6"} Chromium recovery: codec + WebGPU device loss, worker + main-thread cleanup and restart`);
 } catch (error) {
   evidence.error = error.stack;
   save();

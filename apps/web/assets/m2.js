@@ -22,14 +22,13 @@ import {
 const MEMORY_FALLBACK_MAX_INPUT_BYTES = 256 * 1024 * 1024;
 const OUTPUT_CHUNK_BYTES = 4 * 1024 * 1024;
 const INPUT_CACHE_BYTES = 8 * 1024 * 1024;
-// The WASM build still has a finite address space; this is a disk-spool bound,
-// not an application-memory cap. Quota is checked separately at job startup.
-const FFMPEG_MAX_RAW_SPOOL_BYTES = 2 * 1024 * 1024 * 1024;
+const FFMPEG_RING_SLOTS = 4;
+const FFMPEG_RING_CHUNK_BYTES = 1024 * 1024;
+const FFMPEG_RING_CONTROL_INTS = 16;
 const ffmpegSelected = () => globalThis.__DIAXUS_BACKEND__ === "ffmpeg-wasm";
 const OUTPUT_INSTANCE_ID = globalThis.crypto?.randomUUID?.()
   ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const OPFS_OUTPUT_NAME = `diaxus-${OUTPUT_INSTANCE_ID}.partial`;
-const OPFS_RAW_NAME = `diaxus-${OUTPUT_INSTANCE_ID}.rgba.partial`;
 let retainedOutputStorage = null;
 const consumedFailureInjections = new Set();
 
@@ -54,8 +53,8 @@ async function removeOpfsEntry(root, name) {
   fail(`Could not release temporary OPFS entry ${name}: ${errorMessage(lastError)}`);
 }
 
-// Shared browser storage policy for both codec backends. Only WebCodecs has a
-// bounded memory fallback; FFmpeg requires disk-backed ingress and egress.
+// Shared compressed-output storage policy. FFmpeg's raw-frame ingress is a
+// separate bounded memory ring; only its compressed output requires OPFS.
 const OutputStorageKind = Object.freeze({ OPFS: "opfs", MEMORY: "memory" });
 
 async function createOutputStorage(outputMode, requireOpfs = false) {
@@ -78,6 +77,76 @@ function ffmpegFrameRate(rate) {
     if (Math.abs(rate - num / 1001) < 0.005) return { num, den: 1001 };
   }
   return null;
+}
+
+function ffmpegRingCapability() {
+  if (!globalThis.crossOriginIsolated || typeof SharedArrayBuffer !== "function") {
+    return "FFmpeg live frame streaming requires a cross-origin-isolated page (COOP/COEP headers) with SharedArrayBuffer.";
+  }
+  if (typeof Atomics.waitAsync !== "function") {
+    return "FFmpeg live frame streaming requires non-blocking Atomics.waitAsync support.";
+  }
+  return null;
+}
+
+// Int32 control: mode [0] (running/eof/abort), slot states [1..4]
+// (free/ready), slot lengths [5..8]. The worker is the only consumer.
+class FfmpegRgbaRing {
+  constructor(cancelled) {
+    this.cancelled = cancelled;
+    this.buffer = new SharedArrayBuffer(FFMPEG_RING_CONTROL_INTS * 4
+      + FFMPEG_RING_SLOTS * FFMPEG_RING_CHUNK_BYTES);
+    this.control = new Int32Array(this.buffer, 0, FFMPEG_RING_CONTROL_INTS);
+    this.data = new Uint8Array(this.buffer, FFMPEG_RING_CONTROL_INTS * 4);
+    this.nextSlot = 0;
+    this.publishedBytes = 0;
+    this.peakReadySlots = 0;
+    this.producerWaits = 0;
+    this.closed = false;
+    this.failure = null;
+  }
+
+  abort(reason = null) {
+    if (reason) this.failure = reason;
+    if (Atomics.exchange(this.control, 0, 2) === 2) return;
+    for (let slot = 0; slot < FFMPEG_RING_SLOTS; slot += 1) Atomics.notify(this.control, 1 + slot);
+  }
+
+  finish() {
+    if (Atomics.compareExchange(this.control, 0, 0, 1) !== 0) {
+      fail("FFmpeg frame stream aborted before end-of-video.");
+    }
+    this.closed = true;
+    for (let slot = 0; slot < FFMPEG_RING_SLOTS; slot += 1) Atomics.notify(this.control, 1 + slot);
+  }
+
+  async publish(bytes) {
+    if (this.closed) fail("FFmpeg frame stream is already closed.");
+    for (let offset = 0; offset < bytes.byteLength;) {
+      const slot = this.nextSlot;
+      const stateIndex = 1 + slot;
+      while (Atomics.load(this.control, stateIndex) !== 0) {
+        if (this.cancelled()) fail("CANCELLED: FFmpeg frame stream stopped while waiting for capacity.");
+        if (Atomics.load(this.control, 0) !== 0) fail(this.failure ?? "FFmpeg frame stream stopped before producer completion.");
+        this.producerWaits += 1;
+        const wait = Atomics.waitAsync(this.control, stateIndex, 1, 250);
+        if (wait.async) await wait.value;
+      }
+      if (this.cancelled()) fail("CANCELLED: FFmpeg frame stream stopped before publishing a frame.");
+      if (Atomics.load(this.control, 0) !== 0) fail(this.failure ?? "FFmpeg frame stream stopped before producer completion.");
+      const length = Math.min(FFMPEG_RING_CHUNK_BYTES, bytes.byteLength - offset);
+      this.data.set(bytes.subarray(offset, offset + length), slot * FFMPEG_RING_CHUNK_BYTES);
+      Atomics.store(this.control, 5 + slot, length);
+      Atomics.store(this.control, stateIndex, 1);
+      Atomics.notify(this.control, stateIndex);
+      this.publishedBytes += length;
+      this.nextSlot = (slot + 1) % FFMPEG_RING_SLOTS;
+      offset += length;
+      let ready = 0;
+      for (let index = 0; index < FFMPEG_RING_SLOTS; index += 1) ready += Atomics.load(this.control, 1 + index);
+      this.peakReadySlots = Math.max(this.peakReadySlots, ready);
+    }
+  }
 }
 
 function fail(message) {
@@ -362,15 +431,17 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
   if (ffmpeg) {
     if (!globalThis.__DIAXUS_FFMPEG_ASSETS__) return { supported: false, reason: "FFmpeg WASM assets were not configured." };
     if (!navigator.storage?.getDirectory) return { supported: false, reason: "FFmpeg WASM requires origin-private file streaming, which this browser does not expose." };
+    const ringUnavailable = ffmpegRingCapability();
+    if (ringUnavailable) return { supported: false, reason: ringUnavailable };
     if (opened.audioTrackCount !== 1) return { supported: false, reason: "FFmpeg WASM spike requires exactly one input audio track." };
     if (!ffmpegFrameRate(opened.averagePacketRate)) {
       return { supported: false, reason: "FFmpeg WASM raw-video bridge requires a constant integer frame rate from 1–120 fps or 24000/1001, 30000/1001, 60000/1001." };
     }
-    const rawBytes = opened.packetCount * outputWidth * outputHeight * 4;
-    if (!Number.isSafeInteger(rawBytes) || rawBytes > FFMPEG_MAX_RAW_SPOOL_BYTES) {
-      return { supported: false, reason: "FFmpeg WASM raw-frame spool would exceed its 2 GiB disk limit; choose a smaller output resolution or WebCodecs." };
+    const frameBytes = outputWidth * outputHeight * 4;
+    if (!Number.isSafeInteger(frameBytes) || frameBytes <= 0) {
+      return { supported: false, reason: "FFmpeg WASM frame byte size exceeds safe integer bounds." };
     }
-    return { supported: true, reason: "Experimental FFmpeg WASM MP4/H.264/AAC with disk-backed raw-frame and output streaming; storage quota and exact frame timing are checked during conversion." };
+    return { supported: true, reason: "Experimental FFmpeg WASM MP4/H.264/AAC with a bounded live raw-frame ring and disk-backed compressed output; exact frame timing is checked during conversion." };
   }
   try {
     const videoSupported = await canEncodeVideo(profile.videoCodec, {
@@ -687,38 +758,26 @@ class MediabunnyOutputAdapter {
   }
 }
 
-// The shared wgpu processor still supplies every video frame. FFmpeg's raw
-// RGBA ingress is a deliberate CPU readback, spooled to OPFS one frame at a
-// time rather than retained in JS or copied into the Emscripten filesystem.
+// The shared wgpu processor still supplies every frame. FFmpeg's explicit
+// RGBA readback feeds a bounded live ring, never a raw-video disk spool.
 class FfmpegWasmOutputAdapter {
-  static async create(file, width, height, frameRate, packetCount, cancelled, status, outputMode) {
+  static async create(file, width, height, frameRate, cancelled, status, outputMode) {
     const rate = ffmpegFrameRate(frameRate);
     if (!rate) fail(`FFmpeg WASM requires a supported constant frame rate (reported ${frameRate}).`);
-    const storage = await createOutputStorage(outputMode, true);
-    let rawWriter;
-    try {
-      storage.rawName = OPFS_RAW_NAME;
-      storage.rawHandle = await storage.root.getFileHandle(storage.rawName, { create: true });
-      const estimate = await navigator.storage.estimate?.();
-      const rawEstimate = width * height * 4 * packetCount;
-      if (estimate && Number.isFinite(estimate.quota) && Number.isFinite(estimate.usage)
-          && estimate.quota - estimate.usage < rawEstimate + file.size) {
-        fail("Insufficient origin-private storage quota for FFmpeg raw-frame streaming.");
-      }
-      rawWriter = await storage.rawHandle.createWritable();
-    } catch (error) {
-      try { await storage.root.removeEntry(storage.rawName); } catch (_) { /* no spool */ }
-      try { await storage.root.removeEntry(storage.name); } catch (_) { /* no output */ }
-      throw error;
-    }
+    const unavailable = ffmpegRingCapability();
+    if (unavailable) fail(unavailable);
     const { FFmpeg } = await import("@ffmpeg/ffmpeg");
+    const storage = await createOutputStorage(outputMode, true);
     const ffmpeg = new FFmpeg();
-    const adapter = new FfmpegWasmOutputAdapter(ffmpeg, file, width, height, rate, cancelled, storage, rawWriter);
+    const adapter = new FfmpegWasmOutputAdapter(ffmpeg, file, width, height, rate, cancelled,
+      storage, new FfmpegRgbaRing(cancelled));
     ffmpeg.on("log", ({ message }) => {
       const match = /^DIAXUS_WASM_HEAP_PEAK=(\d+)$/.exec(message);
       if (match) adapter.peakWasmHeapBytes = Math.max(adapter.peakWasmHeapBytes, Number(match[1]));
       const output = /^DIAXUS_OPFS_OUTPUT=(.+)$/.exec(message);
       if (output) adapter.outputMetrics = JSON.parse(output[1]);
+      const ring = /^DIAXUS_RGBA_RING=(.+)$/.exec(message);
+      if (ring) adapter.ringMetrics = JSON.parse(ring[1]);
     });
     const started = performance.now();
     const watcher = setInterval(() => { if (cancelled()) adapter.terminate(); }, 25);
@@ -747,7 +806,7 @@ class FfmpegWasmOutputAdapter {
     }
   }
 
-  constructor(ffmpeg, file, width, height, frameRate, cancelled, storage, rawWriter) {
+  constructor(ffmpeg, file, width, height, frameRate, cancelled, storage, ring) {
     this.ffmpeg = ffmpeg;
     this.file = file;
     this.width = width;
@@ -755,7 +814,10 @@ class FfmpegWasmOutputAdapter {
     this.frameRate = frameRate;
     this.cancelled = cancelled;
     this.storage = storage;
-    this.rawWriter = rawWriter;
+    this.ring = ring;
+    this.rgba = null;
+    this.execResult = null;
+    this.ringMetrics = null;
     this.videoEncoderConfig = null;
     this.audioEncoderConfig = null;
     this.videoPackets = 0;
@@ -772,7 +834,36 @@ class FfmpegWasmOutputAdapter {
     this.audioSource = { add: async () => { this.audioSamples += 1; } };
   }
 
-  start() { return Promise.resolve(); }
+  async start() {
+    await this.ffmpeg.createDir("/input");
+    if (!(await this.ffmpeg.mount("WORKERFS", { blobs: [{ name: "source.mp4", data: this.file }] }, "/input"))) {
+      fail("FFmpeg WASM could not mount the source File for streaming reads.");
+    }
+    if (!(await this.ffmpeg.mount("DIAXUS_RGBA_RING", { buffer: this.ring.buffer }, "/dev/diaxus-raw"))) {
+      fail("FFmpeg WASM could not mount the live raw-frame ring.");
+    }
+    if (!(await this.ffmpeg.mount("DIAXUS_OPFS", { fileHandle: this.storage.handle, mode: "write" }, "/dev/diaxus-output"))) {
+      fail("FFmpeg WASM could not mount the OPFS output.");
+    }
+  }
+
+  startExec() {
+    const args = ["-f", "rawvideo", "-pixel_format", "rgba", "-video_size", `${this.width}x${this.height}`,
+      "-framerate", `${this.frameRate.num}/${this.frameRate.den}`, "-i", "/dev/diaxus-raw", "-i", "/input/source.mp4",
+      "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
+      "-crf", "20", "-pix_fmt", "yuv420p", "-vf", `settb=1/1000000,setpts=PTS+${this.firstTimestamp}`,
+      "-enc_time_base:v", "1:1000000", "-fps_mode", "passthrough", "-c:a", "aac", "-b:a", "192k",
+      "-ar", "48000", "-video_track_timescale", "1000000", "-movie_timescale", "1000000",
+      "-f", "mp4", "-movflags", "+faststart", "/dev/diaxus-output"];
+    this.execResult = this.ffmpeg.exec(args).then(
+      code => {
+        if (code !== 0) this.ring.abort(`FFmpeg encoder exited early with code ${code}.`);
+        else if (Atomics.load(this.ring.control, 0) === 0) this.ring.abort("FFmpeg encoder exited before the video producer finished.");
+        return { code };
+      },
+      error => { this.ring.abort(`FFmpeg encoder failed: ${errorMessage(error)}`); return { error }; },
+    );
+  }
 
   async addVideo(frame, timestamp, duration) {
     if (this.cancelled()) throw Error("CANCELLED: stopped before FFmpeg WASM frame readback");
@@ -785,12 +876,13 @@ class FfmpegWasmOutputAdapter {
       fail(`FFmpeg WASM raw-video bridge requires constant ${this.frameRate.num}/${this.frameRate.den} fps; frame ${index} is ${timestamp}+${duration} µs, expected ${expectedTimestamp}+${expectedDuration} µs.`);
     }
     const bytes = this.width * this.height * 4;
-    if (!Number.isSafeInteger(bytes) || this.rawBytes + bytes > FFMPEG_MAX_RAW_SPOOL_BYTES) {
-      fail("FFmpeg WASM exceeds its 2 GiB raw-frame disk spool limit.");
+    if (!Number.isSafeInteger(bytes) || !Number.isSafeInteger(this.rawBytes + bytes)) {
+      fail("FFmpeg raw-frame byte count exceeds safe integer bounds.");
     }
-    const rgba = new Uint8Array(bytes);
-    await frame.copyTo(rgba, { format: "RGBA" });
-    await this.rawWriter.write(rgba);
+    if (!this.execResult) this.startExec();
+    this.rgba ??= new Uint8Array(bytes);
+    await frame.copyTo(this.rgba, { format: "RGBA" });
+    await this.ring.publish(this.rgba);
     this.rawBytes += bytes;
     this.readbacks += 1;
     this.frameCount += 1;
@@ -798,31 +890,18 @@ class FfmpegWasmOutputAdapter {
 
   async finalize() {
     if (this.cancelled()) throw Error("CANCELLED: stopped before FFmpeg WASM encode");
-    await this.rawWriter.close();
-    this.rawWriter = null;
-    await this.ffmpeg.createDir("/input");
-    if (!(await this.ffmpeg.mount("WORKERFS", { blobs: [{ name: "source.mp4", data: this.file }] }, "/input"))) {
-      fail("FFmpeg WASM could not mount the source File for streaming reads.");
-    }
-    if (!(await this.ffmpeg.mount("DIAXUS_OPFS", { fileHandle: this.storage.rawHandle, mode: "read" }, "/dev/diaxus-raw"))) {
-      fail("FFmpeg WASM could not mount the raw-frame OPFS input.");
-    }
-    if (!(await this.ffmpeg.mount("DIAXUS_OPFS", { fileHandle: this.storage.handle, mode: "write" }, "/dev/diaxus-output"))) {
-      fail("FFmpeg WASM could not mount the OPFS output.");
-    }
-    if (this.cancelled()) throw Error("CANCELLED: stopped before FFmpeg WASM encode");
-    const args = ["-f", "rawvideo", "-pixel_format", "rgba", "-video_size", `${this.width}x${this.height}`,
-      "-framerate", `${this.frameRate.num}/${this.frameRate.den}`, "-i", "/dev/diaxus-raw", "-i", "/input/source.mp4",
-      "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
-      "-crf", "20", "-pix_fmt", "yuv420p", "-vf", `settb=1/1000000,setpts=PTS+${this.firstTimestamp}`,
-      "-enc_time_base:v", "1:1000000", "-fps_mode", "passthrough", "-c:a", "aac", "-b:a", "192k",
-      "-ar", "48000", "-video_track_timescale", "1000000", "-movie_timescale", "1000000",
-      "-f", "mp4", "-movflags", "+faststart", "/dev/diaxus-output"];
+    if (!this.execResult) fail("FFmpeg received no video frames.");
+    this.ring.finish();
     const watcher = setInterval(() => { if (this.cancelled()) this.terminate(); }, 25);
     try {
-      const code = await this.ffmpeg.exec(args);
+      const { code, error } = await this.execResult;
       if (this.cancelled()) throw Error("CANCELLED: stopped during FFmpeg WASM encode");
+      if (error) throw error;
       if (code !== 0) fail(`FFmpeg WASM encoder exited with code ${code}.`);
+      if (this.ringMetrics?.consumedBytes !== this.ring.publishedBytes
+          || this.ring.publishedBytes !== this.rawBytes) {
+        fail(`FFmpeg raw-frame ring byte mismatch: published=${this.ring.publishedBytes}, consumed=${this.ringMetrics?.consumedBytes ?? "unknown"}, expected=${this.rawBytes}.`);
+      }
       this.videoPackets = this.frameCount;
       this.audioPackets = this.audioSamples > 0 ? 1 : 0;
     } finally {
@@ -832,29 +911,24 @@ class FfmpegWasmOutputAdapter {
   }
 
   terminate() {
+    this.ring.abort();
     if (!this.terminated) { this.ffmpeg.terminate(); this.terminated = true; }
+    this.rgba = null;
   }
   cancel() { this.terminate(); }
   async discardFile() {
     this.terminate();
-    if (this.rawWriter) {
-      try { await this.rawWriter.abort(); } catch (_) { /* already closed */ }
-      this.rawWriter = null;
-    }
-    for (const name of [this.storage.rawName, this.storage.name]) {
-      try { await removeOpfsEntry(this.storage.root, name); } catch (_) { /* retain primary error */ }
-    }
+    try { await removeOpfsEntry(this.storage.root, this.storage.name); } catch (_) { /* retain primary error */ }
     if (retainedOutputStorage === this.storage) retainedOutputStorage = null;
   }
   async finalizedBlob() {
     const file = await this.storage.handle.getFile();
     if (!file.size) fail("FFmpeg WASM produced no output file.");
     retainedOutputStorage = this.storage;
-    await removeOpfsEntry(this.storage.root, this.storage.rawName);
     return file;
   }
   storageReport() {
-    return `FFmpeg WASM: startup=${this.startupMs.toFixed(1)} ms; raw RGBA spooled to OPFS=${this.rawBytes} bytes in ${this.readbacks} frame writes; source File mounted via WORKERFS (no whole-file application copy); output OPFS device=${JSON.stringify(this.outputMetrics)}; explicit GPU→CPU VideoFrame.copyTo readbacks=${this.readbacks}; sampled peak allocated WASM linear memory=${this.peakWasmHeapBytes} bytes (25 ms sampling); total process resident peak not observable; raw disk limit=${FFMPEG_MAX_RAW_SPOOL_BYTES} bytes; WASM worker terminated=${this.terminated}.`;
+    return `FFmpeg WASM: startup=${this.startupMs.toFixed(1)} ms; raw RGBA live ring=${this.rawBytes} bytes in ${this.readbacks} frame readbacks; ring capacity=${FFMPEG_RING_SLOTS * FFMPEG_RING_CHUNK_BYTES} bytes, peak ready slots=${this.ring.peakReadySlots}, producer waits=${this.ring.producerWaits}, consumer waits=${this.ringMetrics?.consumerWaits ?? "unknown"}, consumed=${this.ringMetrics?.consumedBytes ?? "unknown"}; no raw OPFS spool; source File mounted via WORKERFS (no whole-file application copy); output OPFS device=${JSON.stringify(this.outputMetrics)}; explicit GPU→CPU VideoFrame.copyTo readbacks=${this.readbacks}; sampled peak allocated WASM linear memory=${this.peakWasmHeapBytes} bytes (25 ms sampling); total process resident peak not observable; WASM worker terminated=${this.terminated}.`;
   }
 }
 
@@ -950,7 +1024,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     status(`Demuxed MP4/${opened.codec === "hevc" ? "H.265/HEVC" : "H.264/AVC"}: coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, square-pixel ${opened.width}×${opened.height}, rotation ${opened.rotation}°, flip=${opened.flip}, display ${opened.displayWidth}×${opened.displayHeight}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}; ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
 
     muxer = ffmpeg
-      ? await FfmpegWasmOutputAdapter.create(file, outputWidth, outputHeight, opened.averagePacketRate, opened.packetCount, cancelled, status, outputMode)
+      ? await FfmpegWasmOutputAdapter.create(file, outputWidth, outputHeight, opened.averagePacketRate, cancelled, status, outputMode)
       : await MediabunnyOutputAdapter.create(profile, opened.audio, selectedAcceleration, telemetry, outputMode);
     if (!muxer.storage.handle && file.size > MEMORY_FALLBACK_MAX_INPUT_BYTES) {
       fail(`The selected file is ${(file.size / 1048576).toFixed(1)} MiB. Bounded output streaming is unavailable (${muxer.storage.fallbackReason}); the memory fallback accepts at most ${MEMORY_FALLBACK_MAX_INPUT_BYTES / 1048576} MiB inputs.`);
@@ -1253,7 +1327,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         + `\n${verificationSummary}`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; ${ffmpeg ? "browser decoder probed, FFmpeg software encoder selected explicitly" : "exact decoder+encoder probes passed"}${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
         + `\nGeometry/color: input coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}, rotation ${opened.rotation}°, flip=${opened.flip}; baked square-pixel output ${outputWidth}×${outputHeight}; SDR ${opened.color.primaries ?? "unspecified"}/${opened.color.transfer ?? "unspecified"}/${opened.color.matrix ?? "unspecified"}, browser-normalized to sRGB processing; HDR rejected.`
-        + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; ${ffmpeg ? "raw RGBA OPFS spool ≤2 GiB; FFmpeg WASM internal memory is not otherwise bounded" : "WebCodecs encoder queue ≤4; mux writes are serialized"}.`
+        + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; ${ffmpeg ? "raw RGBA bridge ≤one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded" : "WebCodecs encoder queue ≤4; mux writes are serialized"}.`
         + `\n${muxer.storageReport()}`
         + `\n${bitmapPreparationReport()}\n${telemetry.report()}\n${lifecycle()}`,
       // Only a Blob/File handle crosses the execution-context boundary. OPFS-backed

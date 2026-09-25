@@ -17,7 +17,7 @@ const mountMarker = "var mount = ({ fsType, options, mountPoint }) => {";
 const mountCall = "data = mount(_data);";
 const execEnd = "  ffmpeg.reset();\n  return ret;\n};";
 if (!source.includes(mountMarker) || !source.includes(mountCall) || !source.includes(execEnd)) {
-  throw Error("FFmpeg mount handler layout changed; inspect OPFS device injection before rebuilding.");
+  throw Error("FFmpeg mount handler layout changed; inspect device injection before rebuilding.");
 }
 const instrumented = source.replace(marker, `${marker}
 var diaxusPeakHeapBytes = 0;
@@ -30,6 +30,56 @@ setInterval(() => {
   }
 }, 25);
 `).replace(mountMarker, `var mount = async ({ fsType, options, mountPoint }) => {
+  if (fsType === "DIAXUS_RGBA_RING") {
+    const FS = ffmpeg.FS;
+    const sharedBuffer = options?.buffer;
+    if (!(sharedBuffer instanceof SharedArrayBuffer) || !self.crossOriginIsolated) {
+      throw Error("FFmpeg raw-frame ring requires cross-origin-isolated shared memory.");
+    }
+    const control = new Int32Array(sharedBuffer, 0, 16);
+    const data = new Uint8Array(sharedBuffer, 64);
+    if (data.byteLength !== 4 * 1048576) throw Error("FFmpeg raw-frame ring layout mismatch.");
+    const device = FS.makedev(91, ++diaxusDeviceId);
+    let nextSlot = 0, slotOffset = 0, consumedBytes = 0, consumerWaits = 0;
+    FS.registerDevice(device, {
+      open(stream) { stream.seekable = false; },
+      close() {},
+      read(stream, target, offset, length) {
+        let filled = 0;
+        while (filled < length) {
+          if (Atomics.load(control, 0) === 2) throw Error("FFmpeg raw-frame ring aborted.");
+          const stateIndex = 1 + nextSlot;
+          if (Atomics.load(control, stateIndex) !== 1) {
+            if (Atomics.load(control, 0) === 1) break;
+            consumerWaits++;
+            Atomics.wait(control, stateIndex, 0, 1000);
+            continue;
+          }
+          const slotLength = Atomics.load(control, 5 + nextSlot);
+          if (slotLength <= 0 || slotLength > 1048576 || slotOffset >= slotLength) {
+            throw Error("FFmpeg raw-frame ring slot length is invalid.");
+          }
+          const amount = Math.min(length - filled, slotLength - slotOffset);
+          const start = nextSlot * 1048576 + slotOffset;
+          target.set(data.subarray(start, start + amount), offset + filled);
+          filled += amount;
+          consumedBytes += amount;
+          slotOffset += amount;
+          if (slotOffset === slotLength) {
+            slotOffset = 0;
+            Atomics.store(control, stateIndex, 0);
+            Atomics.notify(control, stateIndex);
+            nextSlot = (nextSlot + 1) % 4;
+          }
+        }
+        return filled;
+      },
+      llseek() { throw new FS.ErrnoError(29); },
+    });
+    FS.mkdev(mountPoint, 0o444, device);
+    self.__diaxusRingMetrics = () => ({ consumedBytes, consumerWaits });
+    return true;
+  }
   if (fsType === "DIAXUS_OPFS") {
     const FS = ffmpeg.FS;
     const { fileHandle, mode } = options;
@@ -73,6 +123,9 @@ setInterval(() => {
   self.__diaxusAccessHandles = [];
   if (self.__diaxusOutputMetrics) {
     self.postMessage({ type: "LOG", data: { type: "stdout", message: "DIAXUS_OPFS_OUTPUT=" + JSON.stringify(self.__diaxusOutputMetrics()) } });
+  }
+  if (self.__diaxusRingMetrics) {
+    self.postMessage({ type: "LOG", data: { type: "stdout", message: "DIAXUS_RGBA_RING=" + JSON.stringify(self.__diaxusRingMetrics()) } });
   }
   return ret;
 };`);

@@ -75,6 +75,8 @@ try {
     assert.match(summary, /full re-decode PASS/);
     assert.ok(bytes > 0);
     if (backend === "ffmpeg-wasm") {
+      assert.match(summary, /raw RGBA live ring=13824000 bytes/);
+      assert.match(summary, /consumed=13824000; no raw OPFS spool/);
       await evaluate('{const observer=new MutationObserver(()=>{if(/^Converting/.test(document.querySelector("#status")?.textContent)){observer.disconnect();document.querySelector("#cancel").click();}});observer.observe(document.querySelector("#status"),{subtree:true,childList:true,characterData:true});}');
       await evaluate('document.querySelector("#convert").click()');
       const cancelled = await waitFor('!document.querySelector("#convert").disabled && document.querySelector("#status")?.textContent.startsWith("CANCELLED:") && document.querySelector("#status").textContent');
@@ -93,6 +95,7 @@ try {
       evidence.largeInputSummary = await waitFor('!document.querySelector("#convert").disabled && /^(PASS|FAILED):/.test(document.querySelector("#status")?.textContent) && document.querySelector("#status").textContent');
       assert.match(evidence.largeInputSummary, /^PASS:/, evidence.largeInputSummary);
       assert.match(evidence.largeInputSummary, /source File mounted via WORKERFS/);
+      assert.match(evidence.largeInputSummary, /no raw OPFS spool/);
       evidence.opfsEntries = await evaluate('(async()=>{const names=[];for await(const [name] of (await navigator.storage.getDirectory()).entries())if(name.startsWith("diaxus-"))names.push(name);return names})()');
       assert.equal(evidence.opfsEntries.filter(name => name.endsWith(".rgba.partial") && !baselineEntries.includes(name)).length, 0);
     }
