@@ -17,6 +17,9 @@ use std::time::{Duration, Instant};
 pub type NativeResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 mod frame_stream;
 mod inspection;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod playback;
+pub mod preview;
 use inspection::InspectionCache;
 
 #[derive(Clone, Default)]

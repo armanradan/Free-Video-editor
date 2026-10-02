@@ -9,7 +9,13 @@ rust-version.workspace = true
 dioxus = { workspace = true, features = ["native", "minimal"] }
 futures-channel.workspace = true
 futures-util.workspace = true
+futures-timer = "=3.0.4"
 media-core.workspace = true
 media-native = { path = "../../crates/media-native" }
 rfd.workspace = true
 ui.workspace = true
+# Exact renderer ABI used by the pinned Blitz, not the processing device/API.
+wgpu-blitz = { package = "wgpu", version = "=26.0.1", default-features = false }
+# Match the pinned native renderer's event-loop ABI; no second windowing stack.
+blitz-shell = { version = "=0.2.3", default-features = false }
+winit = { version = "=0.30.13", default-features = false }
