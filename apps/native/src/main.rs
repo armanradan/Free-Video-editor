@@ -84,8 +84,8 @@ fn main() {
     use dioxus::native::{Config, LogicalSize, WindowAttributes};
     let window = WindowAttributes::default()
         .with_title("Diaxus · Video Converter")
-        .with_inner_size(LogicalSize::new(960.0, 820.0))
-        .with_min_inner_size(LogicalSize::new(680.0, 600.0));
+        .with_inner_size(LogicalSize::new(960.0, 760.0))
+        .with_min_inner_size(LogicalSize::new(900.0, 740.0));
     dioxus::native::launch_cfg(
         app,
         vec![],
@@ -125,6 +125,7 @@ fn app() -> Element {
     let nvidia_gpus = use_hook(|| enumerate_nvidia_gpus().unwrap_or_default());
     let nvidia_available = !nvidia_gpus.is_empty();
     let mut dark_mode = use_signal(|| true);
+    let mut choosing_gpu = use_signal(|| false);
     let mut input = use_signal(String::new);
     let mut output = use_signal(String::new);
     let mut resize = use_signal(|| "original".to_string());
@@ -339,15 +340,18 @@ fn app() -> Element {
     };
 
     let busy = running() || switching();
+    let gpu_label = adapters
+        .iter()
+        .find(|adapter| adapter.key == selected_adapter())
+        .map(|adapter| format!("{} · {}", adapter.name, adapter.backend))
+        .unwrap_or_else(|| "Automatic".to_string());
     rsx! {
         style { {include_str!("../assets/native.css")} }
         div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" },
         main { class: "app-shell",
             header { class: "app-header",
                 div {
-                    p { class: "eyebrow", "DIAXUS" }
-                    h1 { "Video converter" }
-                    p { class: "subtitle", "Choose a video, set your output, and convert." }
+                    h1 { "Diaxus Video Converter" }
                 }
                 div { class: "header-actions",
                     span { class: "badge", "Native" }
@@ -357,7 +361,7 @@ fn app() -> Element {
                 }
             }
             section { class: "panel files",
-                h2 { "Files" }
+                div { class: "file-field",
                 label { r#for: "native-input", "Source video" }
                 div { class: "path-row",
                     input { id: "native-input", r#type: "text", value: input,
@@ -366,15 +370,18 @@ fn app() -> Element {
                     button { disabled: busy.then_some("true"), onclick: pick_source, "Browse…" }
                     button { disabled: (busy || input().trim().is_empty()).then_some("true"), onclick: inspect, "Inspect" }
                 }
+                }
                 if !source_metadata().is_empty() {
                     p { class: "metadata", "{source_metadata}" }
                 }
-                label { r#for: "native-output", "Save output to" }
+                div { class: "file-field",
+                label { r#for: "native-output", "Output" }
                 div { class: "path-row",
                     input { id: "native-output", r#type: "text", value: output,
                         placeholder: "Choose a new .mp4 file", disabled: busy.then_some("true"),
                         oninput: move |event| output.set(event.value()) }
                     button { disabled: busy.then_some("true"), onclick: pick_output, "Browse…" }
+                }
                 }
                 p { class: "note", "Existing files are never overwritten." }
             }
@@ -385,7 +392,7 @@ fn app() -> Element {
                         running: busy, resize_mode: resize(),
                         on_change: move |value| resize.set(value),
                     }
-                    p { class: "note", "Keeps aspect ratio. Presets fit within the selected size without upscaling." }
+                    p { class: "note", "Keeps aspect ratio · No upscaling" }
                 }
                 section { class: "panel",
                     h2 { "Format" }
@@ -421,10 +428,20 @@ fn app() -> Element {
                 if let Some(reason) = gpu_limitation() {
                     p { class: "note", "{reason}" }
                 } else if source_metadata().is_empty() {
-                    p { class: "note", "Inspect once to avoid rescanning before conversion. NVIDIA routes use hardware codecs; Shared GPU still stages pixels through CPU memory." }
+                    p { class: "note", "Inspect once to reuse input checks. Shared GPU stages pixels through CPU memory." }
                 }
                 if route() != ProcessingRoute::DirectFfmpeg {
-                    h3 { "GPU" }
+                    div { class: "gpu-summary",
+                        span { "GPU: {gpu_label}" }
+                        button { disabled: busy.then_some("true"), onclick: move |_| choosing_gpu.set(true), "Change GPU…" }
+                    }
+                    if choosing_gpu() {
+                    div { class: "picker-backdrop",
+                    section { class: "panel gpu-picker", role: "dialog", aria_modal: "true", aria_label: "Choose processing GPU",
+                        div { class: "picker-heading",
+                            h2 { "Processing GPU" }
+                            button { onclick: move |_| choosing_gpu.set(false), "Done" }
+                        }
                     div { class: "gpu-options", role: "group", aria_label: "Processing GPU",
                         Choice { label: "Automatic".to_string(), hint: if route().uses_nvidia() { "Use the uniquely identified NVIDIA GPU".to_string() } else { "Let wgpu choose an adapter".to_string() },
                             selected: selected_adapter().is_empty(), disabled: busy,
@@ -433,7 +450,7 @@ fn app() -> Element {
                                 move |_| {
                                     switching.set(true);
                                     match adapter_session.switch_adapter(None) {
-                                        Ok(_) => { selected_adapter.set(String::new()); status.set(persist_gpu(None, "GPU preference set to Automatic.")); }
+                                        Ok(_) => { selected_adapter.set(String::new()); choosing_gpu.set(false); status.set(persist_gpu(None, "GPU preference set to Automatic.")); }
                                         Err(error) => status.set(format!("GPU selection failed: {error}")),
                                     }
                                     switching.set(false);
@@ -449,7 +466,7 @@ fn app() -> Element {
                                     move |_| {
                                         switching.set(true);
                                         match adapter_session.switch_adapter(Some(&key)) {
-                                            Ok(_) => { selected_adapter.set(key.clone()); status.set(persist_gpu(Some(&key), "GPU preference updated.")); }
+                                            Ok(_) => { selected_adapter.set(key.clone()); choosing_gpu.set(false); status.set(persist_gpu(Some(&key), "GPU preference updated.")); }
                                             Err(error) => status.set(format!("GPU selection failed: {error}")),
                                         }
                                         switching.set(false);
@@ -457,6 +474,9 @@ fn app() -> Element {
                                 }
                             }
                         }
+                    }
+                    }
+                    }
                     }
                 } else {
                     p { class: "note", "Direct FFmpeg does not use the processing GPU preference." }
@@ -479,7 +499,7 @@ fn app() -> Element {
                 p { id: "native-status", class: "job-status", role: "status", aria_live: "polite", "{status}" }
                 p { class: "note", "Last conversion: {active_gpu}" }
             }
-            footer { "NVIDIA hardware route requires compatible FFmpeg codecs and drivers. Failures never silently fall back to CPU. Video preview is not available yet." }
+            footer { "Hardware failures never silently fall back to CPU · Video preview not available yet" }
         }
         }
     }
