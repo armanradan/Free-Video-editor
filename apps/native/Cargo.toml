@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 dioxus = { workspace = true, features = ["native", "minimal"] }
 futures-channel.workspace = true
+futures-util.workspace = true
 media-core.workspace = true
 media-native = { path = "../../crates/media-native" }
 rfd.workspace = true

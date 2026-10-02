@@ -8,8 +8,8 @@ use std::path::PathBuf;
 fn usage() -> &'static str {
     "native-convert list-gpus\n\
      native-convert save-gpu --adapter-key KEY --preference FILE\n\
-     native-convert convert --input FILE --output FILE [--route direct|wgpu] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
-     Direct FFmpeg is the default route; shared wgpu is an explicit comparison route. The output must not already exist. Both routes accept 8-bit opaque YUV 4:2:0 BT.709 limited-range SDR or unspecified color tags; the direct-only Main 10 profile also accepts 10-bit YUV 4:2:0 SDR. HDR, wide color, and full range are not yet supported. Direct FFmpeg accepts tested crop/SAR/orientation inputs, VFR and non-negative A/V origins; shared wgpu currently requires square-pixel, unrotated, zero-origin CFR. Both accept one video and at most one audio track."
+     native-convert convert --input FILE --output FILE [--route direct|nvidia|wgpu|wgpu-nvidia] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
+     CLI defaults to software direct FFmpeg. NVIDIA uses CUDA decode/resize and NVENC video. wgpu uses software codecs around GPU resize. wgpu-nvidia uses NVDEC/NVENC around the shared wgpu resize, with explicit CPU-staged pixel transfers. NVIDIA routes never silently fall back to CPU. Audio and full inspection/verification still use CPU. Session inspection can be reused for unchanged files; standalone CLI runs start with an empty cache. All routes preserve tested VFR/non-negative A/V origins and require one video and at most one audio track. NVIDIA and wgpu require square pixels and no display transform. Main 10 is available on direct/NVIDIA only. BT.709 limited SDR or unspecified tags only; HDR, wide color, negative origins and multiple audio tracks are unsupported. Output must not already exist."
 }
 
 fn argument(args: &[String], key: &str) -> Option<String> {
@@ -53,7 +53,9 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let output = PathBuf::from(required(&args, "--output")?);
             let route = match argument(&args, "--route").as_deref().unwrap_or("direct") {
                 "direct" => ProcessingRoute::DirectFfmpeg,
+                "nvidia" => ProcessingRoute::NvidiaFfmpeg,
                 "wgpu" => ProcessingRoute::SharedWgpu,
+                "wgpu-nvidia" => ProcessingRoute::SharedWgpuNvidia,
                 other => return Err(format!("unknown route {other}").into()),
             };
             let resize = resize(&argument(&args, "--resize").unwrap_or_else(|| "original".into()))?;

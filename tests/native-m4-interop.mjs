@@ -104,12 +104,21 @@ const vfrVolume = run("ffmpeg", ["-hide_banner", "-i", vfrOutput, "-map", "0:a:0
   "-af", "volumedetect", "-f", "null", "-"]).stderr;
 const vfrAudioMaxDb = Number(vfrVolume.match(/max_volume:\s*([-\d.]+) dB/)?.[1]);
 assert.ok(Number.isFinite(vfrAudioMaxDb) && vfrAudioMaxDb > -60);
-const gpuVfrOutput = path.join(directory, `wgpu-vfr-rejected-${process.pid}.mp4`);
-const rejectedGpuVfr = spawnSync(executable, ["convert", "--input", vfrInput,
-  "--output", gpuVfrOutput, "--route", "wgpu"], { encoding: "utf8" });
-assert.notEqual(rejectedGpuVfr.status, 0);
-assert.match(rejectedGpuVfr.stderr, /zero-origin|frame rates|CFR/);
-assert.equal(fs.existsSync(gpuVfrOutput), false);
+const gpuVfrOutput = path.join(directory, `wgpu-vfr-${process.pid}.mp4`);
+const gpuVfr = JSON.parse(run(executable, ["convert", "--input", vfrInput,
+  "--output", gpuVfrOutput, "--route", "wgpu", "--resize", "50"]).stdout);
+assert.equal(gpuVfr.frames_processed, 36);
+const gpuVfrTimes = frameTimes(gpuVfrOutput);
+assert.equal(gpuVfrTimes.length, before.length);
+const gpuVfrMaxErrorUs = Math.max(...before.map((seconds, index) =>
+  Math.abs((seconds - 1.228) - gpuVfrTimes[index]) * 1_000_000));
+assert.ok(gpuVfrMaxErrorUs <= 1000);
+const gpuVfrStreams = JSON.parse(run("ffprobe", ["-v", "error", "-show_streams", "-of", "json", gpuVfrOutput]).stdout).streams;
+assert.equal(gpuVfrStreams.find(stream => stream.codec_type === "audio").codec_name, "aac");
+const gpuVfrOffsetErrorUs = Math.abs((Number(gpuVfrStreams.find(stream => stream.codec_type === "video").start_time)
+  - Number(gpuVfrStreams.find(stream => stream.codec_type === "audio").start_time) - 0.022) * 1_000_000);
+assert.ok(gpuVfrOffsetErrorUs <= 1000);
+run("ffmpeg", ["-v", "error", "-i", gpuVfrOutput, "-f", "null", "-"]);
 const geometryInput = path.resolve("fixtures/m35-geometry-color.mp4");
 const geometryOutput = path.join(directory, `direct-geometry-${process.pid}.mp4`);
 const geometry = JSON.parse(run(executable, ["convert", "--input", geometryInput,
@@ -146,7 +155,7 @@ const gpuGeometryOutput = path.join(directory, `wgpu-geometry-rejected-${process
 const rejectedGpuGeometry = spawnSync(executable, ["convert", "--input", geometryInput,
   "--output", gpuGeometryOutput, "--route", "wgpu"], { encoding: "utf8" });
 assert.notEqual(rejectedGpuGeometry.status, 0);
-assert.match(rejectedGpuGeometry.stderr, /square-pixel/);
+assert.match(rejectedGpuGeometry.stderr, /square pixels/);
 assert.equal(fs.existsSync(gpuGeometryOutput), false);
 const taggedInput = path.resolve("fixtures/m36-h265-aac.mp4");
 const taggedOutputs = {};
@@ -243,7 +252,7 @@ assert.match(overwrite.stderr, /refusing to overwrite output/);
 const evidence = { fixture: "fixtures/m2-h264-aac.mp4 (CC0-1.0)", adapter: selected,
   direct, gpu, directInspection, gpuInspection, decodedVideoPsnrDb: psnrDb,
   staleAdapterFallback: fallback.adapter_fallback, directVfr: { report: vfr,
-    frameTimelineMaxErrorUs, avOffsetErrorUs, audioMaxDb: vfrAudioMaxDb }, gpuVfrRejected: true,
+    frameTimelineMaxErrorUs, avOffsetErrorUs, audioMaxDb: vfrAudioMaxDb }, gpuVfr: { report: gpuVfr, frameTimelineMaxErrorUs: gpuVfrMaxErrorUs, avOffsetErrorUs: gpuVfrOffsetErrorUs },
   directGeometry: { report: geometry, corners }, gpuGeometryRejected: true,
   taggedHevcInputs: taggedOutputs, taggedHevcRoutePsnrDb: taggedPsnrDb,
   hdrRejectedOnBothRoutes: true, main10: { report: tenBit, nonEightBitStepLuma,

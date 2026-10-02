@@ -3,6 +3,44 @@
 use dioxus::prelude::*;
 use media_core::{CodecAcceleration, OutputProfileId};
 
+const RESIZE_PRESETS: &[(&str, &str)] = &[
+    ("original", "Original size"),
+    ("percent-75", "75%"),
+    ("percent-50", "50%"),
+    ("percent-25", "25%"),
+    ("hd-720p", "HD / 720p"),
+    ("fhd-1080p", "Full HD / 1080p"),
+    ("dci-2k", "2K width"),
+    ("qhd-1440p", "QHD / 1440p"),
+    ("uhd-2160p", "4K UHD / 2160p"),
+];
+
+// Blitz 0.7.10 does not present HTML select elements as interactive dropdowns.
+// Keep the preset vocabulary shared, but use ordinary buttons on that renderer.
+#[component]
+pub fn ResizePresetButtons(
+    running: bool,
+    resize_mode: String,
+    on_change: EventHandler<String>,
+) -> Element {
+    rsx! {
+        div { class: "resize-options", role: "group", aria_label: "Resize preset",
+            for &(value, label) in RESIZE_PRESETS {
+                button {
+                    key: "{value}",
+                    class: "preset",
+                    r#type: "button",
+                    disabled: running.then_some("true"),
+                    aria_pressed: resize_mode == value,
+                    "data-selected": if resize_mode == value { "true" } else { "false" },
+                    onclick: move |_| on_change.call(value.to_string()),
+                    "{label}"
+                }
+            }
+        }
+    }
+}
+
 #[component]
 pub fn ResizePresetSelect(
     running: bool,
@@ -16,15 +54,9 @@ pub fn ResizePresetSelect(
             id: "resize-preset",
             disabled: running,
             onchange: move |event| on_change.call(event),
-            option { value: "original", selected: resize_mode == "original", "Original size" }
-            option { value: "percent-75", selected: resize_mode == "percent-75", "75%" }
-            option { value: "percent-50", selected: resize_mode == "percent-50", "50%" }
-            option { value: "percent-25", selected: resize_mode == "percent-25", "25%" }
-            option { value: "hd-720p", selected: resize_mode == "hd-720p", "HD / 720p" }
-            option { value: "fhd-1080p", selected: resize_mode == "fhd-1080p", "Full HD / 1080p" }
-            option { value: "dci-2k", selected: resize_mode == "dci-2k", "2K width" }
-            option { value: "qhd-1440p", selected: resize_mode == "qhd-1440p", "QHD / 1440p" }
-            option { value: "uhd-2160p", selected: resize_mode == "uhd-2160p", "4K UHD / 2160p" }
+            for &(value, label) in RESIZE_PRESETS {
+                option { key: "{value}", value, selected: resize_mode == value, "{label}" }
+            }
             if show_exact {
                 option { value: "exact", selected: resize_mode == "exact", "Exact bounding size" }
             }

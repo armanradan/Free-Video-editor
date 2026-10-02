@@ -1199,6 +1199,7 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "futures-channel",
+ "futures-util",
  "media-core",
  "media-native",
  "rfd",

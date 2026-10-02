@@ -1,21 +1,68 @@
 #![forbid(unsafe_code)]
 
 use dioxus::prelude::*;
-use futures_channel::oneshot;
+use futures_channel::{mpsc, oneshot};
+use futures_util::StreamExt;
 use media_core::{OutputProfileId, ResizeSpec};
-use media_native::{NativeSession, ProcessingRoute, enumerate_adapters, probe_source_direct};
+use media_native::{
+    CancellationToken, JobStage, NativeJob, NativeSession, ProcessingRoute,
+    SessionConversionReport, enumerate_adapters, enumerate_nvidia_gpus,
+};
 use std::{
     path::PathBuf,
     sync::{Arc, OnceLock},
 };
-use ui::ResizePresetSelect;
+use ui::ResizePresetButtons;
+mod preferences;
+use preferences::GpuPreferences;
 
-static SESSION: OnceLock<Arc<NativeSession>> = OnceLock::new();
+enum JobUpdate {
+    Stage(JobStage),
+    Finished(Box<Result<SessionConversionReport, String>>),
+}
 
-fn session() -> Arc<NativeSession> {
-    SESSION
-        .get_or_init(|| Arc::new(NativeSession::new(None).expect("default native session")))
-        .clone()
+fn stage_label(stage: JobStage) -> &'static str {
+    match stage {
+        JobStage::Inspecting => {
+            "Inspecting input… Checking timeline (reuses an unchanged inspected file)."
+        }
+        JobStage::Preparing => "Preparing codecs and GPU…",
+        JobStage::Converting => "Converting video and audio…",
+        JobStage::Verifying => {
+            "Verifying output… Decoding and checking every frame/timestamp on CPU."
+        }
+        JobStage::Publishing => "Publishing verified output…",
+    }
+}
+
+struct AppState {
+    session: Arc<NativeSession>,
+    preferences: GpuPreferences,
+    startup_status: String,
+}
+
+static STATE: OnceLock<AppState> = OnceLock::new();
+
+fn app_state() -> &'static AppState {
+    STATE.get_or_init(|| {
+        let preferences = GpuPreferences::new();
+        let (session, startup_status) = match preferences.load() {
+            Ok(Some(key)) => match NativeSession::new(Some(&key)) {
+                Ok(session) => (session, "Saved GPU preference restored. Choose source and output paths.".into()),
+                Err(_) => (NativeSession::new(None).unwrap(), format!("Saved GPU {key} is unavailable. Using Automatic; saved preference retained.")),
+            },
+            Ok(None) => (NativeSession::new(None).unwrap(), "Ready. Enter source and output MP4 paths.".into()),
+            Err(error) => (NativeSession::new(None).unwrap(), format!("GPU preference could not be read: {error}. Using Automatic.")),
+        };
+        AppState { session: Arc::new(session), preferences, startup_status }
+    })
+}
+
+fn persist_gpu(key: Option<&str>, message: &str) -> String {
+    match app_state().preferences.save(key) {
+        Ok(()) => format!("{message} Saved for the next launch."),
+        Err(error) => format!("{message} Not saved: {error}. This choice is session-only."),
+    }
 }
 
 fn resize_spec(value: &str) -> Option<ResizeSpec> {
@@ -34,23 +81,72 @@ fn resize_spec(value: &str) -> Option<ResizeSpec> {
 }
 
 fn main() {
-    dioxus::launch(app);
+    use dioxus::native::{Config, LogicalSize, WindowAttributes};
+    let window = WindowAttributes::default()
+        .with_title("Diaxus · Video Converter")
+        .with_inner_size(LogicalSize::new(960.0, 820.0))
+        .with_min_inner_size(LogicalSize::new(680.0, 600.0));
+    dioxus::native::launch_cfg(
+        app,
+        vec![],
+        vec![Box::new(Config::new().with_window_attributes(window))],
+    );
+    // Blitz exits its event loop on the last window's CloseRequested event.
+    // Keep this process alive until FFmpeg children and partial outputs are cleaned.
+    if let Some(state) = STATE.get() {
+        state.session.shutdown();
+    }
+}
+
+#[component]
+fn Choice(
+    label: String,
+    hint: String,
+    selected: bool,
+    disabled: bool,
+    on_select: EventHandler<MouseEvent>,
+) -> Element {
+    // Blitz treats a present disabled attribute as true, even disabled="false".
+    // Omit the attribute entirely for enabled controls throughout this UI.
+    rsx! {
+        button {
+            class: "choice", r#type: "button", disabled: disabled.then_some("true"),
+            aria_pressed: selected,
+            "data-selected": if selected { "true" } else { "false" },
+            onclick: move |event| on_select.call(event),
+            span { class: "choice-title", "{label}" }
+            span { class: "choice-hint", "{hint}" }
+        }
+    }
 }
 
 fn app() -> Element {
     let adapters = use_hook(enumerate_adapters);
+    let nvidia_gpus = use_hook(|| enumerate_nvidia_gpus().unwrap_or_default());
+    let nvidia_available = !nvidia_gpus.is_empty();
+    let mut dark_mode = use_signal(|| true);
     let mut input = use_signal(String::new);
     let mut output = use_signal(String::new);
     let mut resize = use_signal(|| "original".to_string());
     let mut profile = use_signal(|| OutputProfileId::Mp4H264Aac);
-    let mut route = use_signal(|| ProcessingRoute::DirectFfmpeg);
-    let mut selected_adapter = use_signal(String::new);
+    let mut route = use_signal(move || {
+        if nvidia_available {
+            ProcessingRoute::NvidiaFfmpeg
+        } else {
+            ProcessingRoute::DirectFfmpeg
+        }
+    });
+    let mut selected_adapter =
+        use_signal(|| app_state().session.status().adapter_key.unwrap_or_default());
+    let mut job_cancel = use_signal(CancellationToken::default);
+    let mut job_stage = use_signal(|| JobStage::Inspecting);
     let mut running = use_signal(|| false);
     let mut switching = use_signal(|| false);
-    let mut status = use_signal(|| "Ready. Enter source and output MP4 paths.".to_string());
+    let mut status = use_signal(|| app_state().startup_status.clone());
     let mut source_metadata = use_signal(String::new);
-    let mut active_gpu = use_signal(|| "No processing GPU selected".to_string());
-    let session = session();
+    let mut gpu_limitation = use_signal(|| None::<String>);
+    let mut active_gpu = use_signal(|| "No conversion yet".to_string());
+    let session = app_state().session.clone();
 
     let pick_source = move |_| {
         spawn(async move {
@@ -64,6 +160,7 @@ fn app() -> Element {
             if let Ok(Some(path)) = receive.await {
                 input.set(path.display().to_string());
                 source_metadata.set(String::new());
+                gpu_limitation.set(None);
                 status.set("Source selected. Inspect it before conversion.".into());
             }
         });
@@ -85,25 +182,37 @@ fn app() -> Element {
         });
     };
 
+    let inspect_session = session.clone();
     let inspect = move |_| {
         let source = PathBuf::from(input());
         if source.as_os_str().is_empty() {
             status.set("Enter a source path first.".into());
             return;
         }
-        status.set("Inspecting source…".into());
+        running.set(true);
+        job_stage.set(JobStage::Inspecting);
+        let cancel = CancellationToken::default();
+        job_cancel.set(cancel.clone());
+        status.set(stage_label(JobStage::Inspecting).into());
+        let session = inspect_session.clone();
         let inspected_path = source.clone();
         spawn(async move {
             let (send, receive) = oneshot::channel();
             std::thread::spawn(move || {
-                let _ = send.send(probe_source_direct(&source).map_err(|error| error.to_string()));
+                let _ = send.send(
+                    session
+                        .inspect(&source, &cancel)
+                        .map_err(|error| error.to_string()),
+                );
             });
             let result = receive.await;
+            running.set(false);
             if input() != inspected_path.display().to_string() {
                 return;
             }
             match result {
                 Ok(Ok(info)) => {
+                    gpu_limitation.set(info.shared_gpu_limitation());
                     source_metadata.set(format!(
                         "{} × {} (display {} × {}), {}, {}, {} frames, audio: {}",
                         info.width,
@@ -141,135 +250,237 @@ fn app() -> Element {
         };
         let selected_profile = profile();
         let selected_route = route();
-        if selected_route == ProcessingRoute::SharedWgpu
-            && selected_profile == OutputProfileId::Mp4H265Main10Aac
+        if selected_route.uses_wgpu()
+            && let Some(reason) = gpu_limitation()
         {
+            status.set(reason);
+            return;
+        }
+        if selected_route.uses_wgpu() && selected_profile == OutputProfileId::Mp4H265Main10Aac {
             status.set("Main 10 is supported only by direct FFmpeg.".into());
             return;
         }
         running.set(true);
-        status.set("Converting… Cancel remains available.".into());
+        let cancel = CancellationToken::default();
+        job_cancel.set(cancel.clone());
+        job_stage.set(JobStage::Inspecting);
+        status.set(stage_label(JobStage::Inspecting).into());
         let session = convert_session.clone();
         spawn(async move {
-            let (send, receive) = oneshot::channel();
+            // A fixed five stages plus one result, never per-frame UI events.
+            let (send, mut receive) = mpsc::unbounded();
             let output_label = target.display().to_string();
             std::thread::spawn(move || {
                 let result = session
-                    .convert(&source, &target, size, selected_profile, selected_route)
+                    .convert_job(
+                        NativeJob {
+                            input: &source,
+                            output: &target,
+                            resize: size,
+                            profile: selected_profile,
+                            route: selected_route,
+                        },
+                        &cancel,
+                        |stage| {
+                            let _ = send.unbounded_send(JobUpdate::Stage(stage));
+                        },
+                    )
                     .map_err(|error| error.to_string());
-                let _ = send.send(result);
+                let _ = send.unbounded_send(JobUpdate::Finished(Box::new(result)));
             });
-            match receive.await {
-                Ok(Ok(report)) => {
+            let mut finished = None;
+            while let Some(update) = receive.next().await {
+                match update {
+                    JobUpdate::Stage(stage) => {
+                        job_stage.set(stage);
+                        if !job_cancel().is_cancelled() {
+                            status.set(stage_label(stage).into());
+                        }
+                    }
+                    JobUpdate::Finished(result) => {
+                        finished = Some(*result);
+                        break;
+                    }
+                }
+            }
+            match finished {
+                Some(Ok(report)) => {
                     let result = report.conversion;
                     active_gpu.set(result.adapter.as_ref().map_or_else(
-                        || "Direct FFmpeg (no processing GPU)".to_string(),
-                        |adapter| format!("{} ({})", adapter.name, adapter.backend),
+                        || {
+                            result.hardware_gpu.as_ref().map_or_else(
+                                || "Direct FFmpeg · CPU".to_string(),
+                                |gpu| format!("{} · CUDA / {}", gpu.name, result.video_encoder),
+                            )
+                        },
+                        |adapter| {
+                            format!(
+                                "{} ({}) · {}",
+                                adapter.name, adapter.backend, result.video_encoder
+                            )
+                        },
                     ));
                     status.set(format!(
-                        "Complete: {} frames, {} × {}, {} bytes, {} ms. Saved to {}",
+                        "Complete: {} frames, {} × {}, {} bytes. Total {} ms: inspection/setup {} ms, conversion {} ms, verification {} ms. Inspection {}. Saved to {}",
                         result.frames_processed,
                         result.output_width,
                         result.output_height,
                         result.output_bytes,
-                        result.elapsed_ms,
+                        result.total_ms, result.preflight_ms, result.elapsed_ms, result.verification_ms,
+                        if result.inspection_reused { "reused" } else { "scanned" },
                         output_label,
                     ));
                 }
-                Ok(Err(error)) => status.set(format!("Conversion failed: {error}")),
-                Err(_) => status.set("Conversion worker stopped.".into()),
+                Some(Err(error)) => status.set(format!("Conversion failed: {error}")),
+                None => status.set("Conversion worker stopped.".into()),
             }
             running.set(false);
         });
     };
 
-    let adapter_session = session.clone();
-    let preferred_gpu = adapters
-        .iter()
-        .find(|adapter| adapter.key == selected_adapter())
-        .map_or_else(
-            || "Automatic (used only by the wgpu route)".to_string(),
-            |adapter| format!("{} ({})", adapter.name, adapter.backend),
-        );
+    let busy = running() || switching();
     rsx! {
-        div { style: "padding: 24px; max-width: 760px; font-family: sans-serif;",
-            h1 { "Diaxus Video Converter" }
-            p { "Native Dioxus/Blitz preview — FFmpeg conversion with an optional shared-wgpu route." }
-            div {
-                label { r#for: "native-input", "Source MP4 path" }
-                input { id: "native-input", value: input, disabled: running() || switching(),
-                    oninput: move |event| { input.set(event.value()); source_metadata.set(String::new()); } }
-                button { disabled: running() || switching(), onclick: pick_source, "Browse…" }
-                button { disabled: running() || switching(), onclick: inspect, "Inspect" }
-            }
-            if !source_metadata().is_empty() { p { "{source_metadata}" } }
-            div {
-                label { r#for: "native-output", "Output MP4 path (must not exist)" }
-                input { id: "native-output", value: output, disabled: running() || switching(),
-                    oninput: move |event| output.set(event.value()) }
-                button { disabled: running() || switching(), onclick: pick_output, "Browse…" }
-            }
-            ResizePresetSelect {
-                running: running() || switching(),
-                resize_mode: resize(),
-                show_exact: false,
-                on_change: move |event: FormEvent| resize.set(event.value()),
-            }
-            div {
-                label { r#for: "native-profile", "Output profile" }
-                select { id: "native-profile", disabled: running() || switching(),
-                    onchange: move |event| profile.set(match event.value().as_str() {
-                        "mp4-h265-main10-aac" => OutputProfileId::Mp4H265Main10Aac,
-                        _ => OutputProfileId::Mp4H264Aac,
-                    }),
-                    option { value: "mp4-h264-aac", selected: profile() == OutputProfileId::Mp4H264Aac,
-                        "MP4 — H.264 + AAC (8-bit)" }
-                    option { value: "mp4-h265-main10-aac", selected: profile() == OutputProfileId::Mp4H265Main10Aac,
-                        "MP4 — H.265 Main 10 + AAC (SDR)" }
+        style { {include_str!("../assets/native.css")} }
+        div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" },
+        main { class: "app-shell",
+            header { class: "app-header",
+                div {
+                    p { class: "eyebrow", "DIAXUS" }
+                    h1 { "Video converter" }
+                    p { class: "subtitle", "Choose a video, set your output, and convert." }
                 }
-            }
-            div {
-                label { r#for: "native-route", "Processing route" }
-                select { id: "native-route", disabled: running() || switching(),
-                    onchange: move |event| route.set(if event.value() == "wgpu" {
-                        ProcessingRoute::SharedWgpu
-                    } else { ProcessingRoute::DirectFfmpeg }),
-                    option { value: "direct", selected: route() == ProcessingRoute::DirectFfmpeg,
-                        "Direct FFmpeg (recommended)" }
-                    option { value: "wgpu", selected: route() == ProcessingRoute::SharedWgpu,
-                        "Shared wgpu (8-bit CFR comparison)" }
-                }
-            }
-            div {
-                label { r#for: "native-gpu", "Preferred processing GPU" }
-                select { id: "native-gpu", disabled: running() || switching(),
-                    onchange: move |event| {
-                        let key = event.value();
-                        switching.set(true);
-                        match adapter_session.switch_adapter(if key.is_empty() { None } else { Some(&key) }) {
-                            Ok(generation) => {
-                                selected_adapter.set(key.clone());
-                                status.set(format!("GPU preference set (generation {generation})."));
-                            }
-                            Err(error) => status.set(format!("GPU selection failed: {error}")),
-                        }
-                        switching.set(false);
-                    },
-                    option { value: "", selected: selected_adapter().is_empty(), "Automatic" }
-                    for adapter in adapters.iter() {
-                        option { value: "{adapter.key}", selected: selected_adapter() == adapter.key,
-                            "{adapter.name} ({adapter.backend})" }
+                div { class: "header-actions",
+                    span { class: "badge", "Native" }
+                    button { onclick: move |_| dark_mode.set(!dark_mode()), aria_pressed: dark_mode(),
+                        if dark_mode() { "Light mode" } else { "Dark mode" }
                     }
                 }
             }
-            p { "Preferred GPU: {preferred_gpu}" }
-            p { "Active processing GPU: {active_gpu}" }
-            button { disabled: running() || switching(), onclick: convert, "Convert" }
-            button { disabled: !running(), onclick: move |_| {
-                if session.cancel_active() { status.set("Cancelling…".into()); }
-            }, "Cancel" }
-            pre { role: "status", "{status}" }
-            p { "Preview rendering and hardware codec-surface interoperability are not enabled yet." }
+            section { class: "panel files",
+                h2 { "Files" }
+                label { r#for: "native-input", "Source video" }
+                div { class: "path-row",
+                    input { id: "native-input", r#type: "text", value: input,
+                        placeholder: "Select an MP4 or enter its path", disabled: busy.then_some("true"),
+                        oninput: move |event| { input.set(event.value()); source_metadata.set(String::new()); gpu_limitation.set(None); } }
+                    button { disabled: busy.then_some("true"), onclick: pick_source, "Browse…" }
+                    button { disabled: (busy || input().trim().is_empty()).then_some("true"), onclick: inspect, "Inspect" }
+                }
+                if !source_metadata().is_empty() {
+                    p { class: "metadata", "{source_metadata}" }
+                }
+                label { r#for: "native-output", "Save output to" }
+                div { class: "path-row",
+                    input { id: "native-output", r#type: "text", value: output,
+                        placeholder: "Choose a new .mp4 file", disabled: busy.then_some("true"),
+                        oninput: move |event| output.set(event.value()) }
+                    button { disabled: busy.then_some("true"), onclick: pick_output, "Browse…" }
+                }
+                p { class: "note", "Existing files are never overwritten." }
+            }
+            div { class: "settings-grid",
+                section { class: "panel",
+                    h2 { "Output size" }
+                    ResizePresetButtons {
+                        running: busy, resize_mode: resize(),
+                        on_change: move |value| resize.set(value),
+                    }
+                    p { class: "note", "Keeps aspect ratio. Presets fit within the selected size without upscaling." }
+                }
+                section { class: "panel",
+                    h2 { "Format" }
+                    div { class: "choice-list",
+                        Choice { label: "MP4 · H.264".to_string(), hint: "8-bit SDR · AAC audio".to_string(),
+                            selected: profile() == OutputProfileId::Mp4H264Aac, disabled: busy,
+                            on_select: move |_| profile.set(OutputProfileId::Mp4H264Aac) }
+                        Choice { label: "MP4 · H.265 Main 10".to_string(), hint: "10-bit SDR · AAC audio · Direct FFmpeg only".to_string(),
+                            selected: profile() == OutputProfileId::Mp4H265Main10Aac,
+                            disabled: busy || route().uses_wgpu(),
+                            on_select: move |_| profile.set(OutputProfileId::Mp4H265Main10Aac) }
+                    }
+                }
+            }
+            section { class: "panel",
+                h2 { "Processing" }
+                div { class: "route-options",
+                    Choice { label: "Direct FFmpeg · NVIDIA".to_string(), hint: "CUDA decode / resize · NVENC video · AAC on CPU".to_string(),
+                        selected: route() == ProcessingRoute::NvidiaFfmpeg, disabled: busy || !nvidia_available,
+                        on_select: move |_| route.set(ProcessingRoute::NvidiaFfmpeg) }
+                    Choice { label: "Direct FFmpeg · CPU".to_string(), hint: "Software codecs and resizing".to_string(),
+                        selected: route() == ProcessingRoute::DirectFfmpeg, disabled: busy,
+                        on_select: move |_| route.set(ProcessingRoute::DirectFfmpeg) }
+                    Choice { label: "Shared GPU · NVIDIA".to_string(), hint: "NVDEC / wgpu / NVENC · CPU-staged bridge · 8-bit".to_string(),
+                        selected: route() == ProcessingRoute::SharedWgpuNvidia,
+                        disabled: busy || !nvidia_available || profile() == OutputProfileId::Mp4H265Main10Aac || gpu_limitation().is_some(),
+                        on_select: move |_| route.set(ProcessingRoute::SharedWgpuNvidia) }
+                    Choice { label: "Shared GPU · software codecs".to_string(), hint: "wgpu resize · CPU decode / encode · 8-bit · Preserves VFR".to_string(),
+                        selected: route() == ProcessingRoute::SharedWgpu,
+                        disabled: busy || profile() == OutputProfileId::Mp4H265Main10Aac || gpu_limitation().is_some(),
+                        on_select: move |_| route.set(ProcessingRoute::SharedWgpu) }
+                }
+                if let Some(reason) = gpu_limitation() {
+                    p { class: "note", "{reason}" }
+                } else if source_metadata().is_empty() {
+                    p { class: "note", "Inspect once to avoid rescanning before conversion. NVIDIA routes use hardware codecs; Shared GPU still stages pixels through CPU memory." }
+                }
+                if route() != ProcessingRoute::DirectFfmpeg {
+                    h3 { "GPU" }
+                    div { class: "gpu-options", role: "group", aria_label: "Processing GPU",
+                        Choice { label: "Automatic".to_string(), hint: if route().uses_nvidia() { "Use the uniquely identified NVIDIA GPU".to_string() } else { "Let wgpu choose an adapter".to_string() },
+                            selected: selected_adapter().is_empty(), disabled: busy,
+                            on_select: {
+                                let adapter_session = session.clone();
+                                move |_| {
+                                    switching.set(true);
+                                    match adapter_session.switch_adapter(None) {
+                                        Ok(_) => { selected_adapter.set(String::new()); status.set(persist_gpu(None, "GPU preference set to Automatic.")); }
+                                        Err(error) => status.set(format!("GPU selection failed: {error}")),
+                                    }
+                                    switching.set(false);
+                                }
+                            }
+                        }
+                        for adapter in adapters.iter().filter(|adapter| !route().uses_nvidia() || adapter.vendor == 0x10de) {
+                            Choice { key: "{adapter.key}", label: adapter.name.clone(), hint: adapter.backend.clone(),
+                                selected: selected_adapter() == adapter.key, disabled: busy,
+                                on_select: {
+                                    let adapter_session = session.clone();
+                                    let key = adapter.key.clone();
+                                    move |_| {
+                                        switching.set(true);
+                                        match adapter_session.switch_adapter(Some(&key)) {
+                                            Ok(_) => { selected_adapter.set(key.clone()); status.set(persist_gpu(Some(&key), "GPU preference updated.")); }
+                                            Err(error) => status.set(format!("GPU selection failed: {error}")),
+                                        }
+                                        switching.set(false);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    p { class: "note", "Direct FFmpeg does not use the processing GPU preference." }
+                }
+            }
+            section { class: "panel job-panel",
+                div { class: "actions",
+                    button { class: "primary", disabled: (busy || input().trim().is_empty() || output().trim().is_empty()).then_some("true"),
+                        onclick: convert, if running() {
+                            match job_stage() {
+                                JobStage::Inspecting => "Inspecting…", JobStage::Preparing => "Preparing…", JobStage::Converting => "Converting…", JobStage::Verifying => "Verifying…", JobStage::Publishing => "Publishing…"
+                            }
+                        } else { "Convert video" } }
+                    button { disabled: (!running()).then_some("true"), onclick: move |_| {
+                        job_cancel().cancel();
+                        session.cancel_active();
+                        status.set("Cancelling…".into());
+                    }, "Cancel" }
+                }
+                p { id: "native-status", class: "job-status", role: "status", aria_live: "polite", "{status}" }
+                p { class: "note", "Last conversion: {active_gpu}" }
+            }
+            footer { "NVIDIA hardware route requires compatible FFmpeg codecs and drivers. Failures never silently fall back to CPU. Video preview is not available yet." }
+        }
         }
     }
 }

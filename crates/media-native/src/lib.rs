@@ -15,6 +15,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub type NativeResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+mod frame_stream;
+mod inspection;
+use inspection::InspectionCache;
 
 #[derive(Clone, Default)]
 pub struct CancellationToken(Arc<AtomicBool>);
@@ -40,14 +43,67 @@ impl CancellationToken {
 struct ChildGuard {
     child: Arc<Mutex<Child>>,
     reaped: bool,
+    diagnostics: Arc<Mutex<Vec<u8>>>,
+    diagnostics_thread: Option<thread::JoinHandle<()>>,
+}
+
+fn terminate_child(child: &mut Child) {
+    // PATH may resolve to a package-manager launcher rather than FFmpeg itself.
+    // Kill only the live owned process and its descendants, never by image name.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        if matches!(child.try_wait(), Ok(None)) {
+            let _ = Command::new("taskkill")
+                .args(["/PID", &child.id().to_string(), "/T", "/F"])
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+    let _ = child.kill();
 }
 
 impl ChildGuard {
     fn spawn(command: &mut Command) -> NativeResult<Self> {
+        command.stderr(Stdio::piped());
+        let mut child = command.spawn()?;
+        let diagnostics = Arc::new(Mutex::new(Vec::new()));
+        let target = diagnostics.clone();
+        let mut stderr = child.stderr.take().ok_or("child stderr was unavailable")?;
+        // Drain concurrently, retaining only an 8 KiB diagnostic tail. A pipe
+        // must never fill and stall a codec while the conversion waits for it.
+        let diagnostics_thread = thread::spawn(move || {
+            let mut buffer = [0_u8; 4096];
+            while let Ok(length) = stderr.read(&mut buffer) {
+                if length == 0 {
+                    break;
+                }
+                if let Ok(mut tail) = target.lock() {
+                    tail.extend_from_slice(&buffer[..length]);
+                    let excess = tail.len().saturating_sub(8192);
+                    tail.drain(..excess);
+                }
+            }
+        });
         Ok(Self {
-            child: Arc::new(Mutex::new(command.spawn()?)),
+            child: Arc::new(Mutex::new(child)),
             reaped: false,
+            diagnostics,
+            diagnostics_thread: Some(diagnostics_thread),
         })
+    }
+
+    fn failure(&self, label: &str, status: std::process::ExitStatus) -> String {
+        format!("{label} exited with {status}: {}", self.diagnostic().trim())
+    }
+
+    fn diagnostic(&self) -> String {
+        self.diagnostics
+            .lock()
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .unwrap_or_default()
     }
 
     fn take_stdout(&self) -> NativeResult<std::process::ChildStdout> {
@@ -81,6 +137,9 @@ impl ChildGuard {
                 .try_wait()?
             {
                 self.reaped = true;
+                if let Some(thread) = self.diagnostics_thread.take() {
+                    let _ = thread.join();
+                }
                 return Ok(status);
             }
             thread::sleep(Duration::from_millis(10));
@@ -93,7 +152,7 @@ impl Drop for ChildGuard {
         if !self.reaped
             && let Ok(mut child) = self.child.lock()
         {
-            let _ = child.kill();
+            terminate_child(&mut child);
             let _ = child.wait();
         }
     }
@@ -127,7 +186,7 @@ impl CancellationWatch {
                 {
                     for child in children {
                         if let Ok(mut child) = child.lock() {
-                            let _ = child.kill();
+                            terminate_child(&mut child);
                         }
                     }
                     return;
@@ -154,7 +213,35 @@ impl Drop for CancellationWatch {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProcessingRoute {
     DirectFfmpeg,
+    NvidiaFfmpeg,
     SharedWgpu,
+    SharedWgpuNvidia,
+}
+
+impl ProcessingRoute {
+    pub fn uses_wgpu(self) -> bool {
+        matches!(self, Self::SharedWgpu | Self::SharedWgpuNvidia)
+    }
+    pub fn uses_nvidia(self) -> bool {
+        matches!(self, Self::NvidiaFfmpeg | Self::SharedWgpuNvidia)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub enum JobStage {
+    Inspecting,
+    Preparing,
+    Converting,
+    Verifying,
+    Publishing,
+}
+
+pub struct NativeJob<'a> {
+    pub input: &'a Path,
+    pub output: &'a Path,
+    pub resize: ResizeSpec,
+    pub profile: OutputProfileId,
+    pub route: ProcessingRoute,
 }
 
 #[derive(Debug, Deserialize)]
@@ -219,6 +306,20 @@ pub struct SourceInfo {
     pub variable_frame_rate: bool,
 }
 
+impl SourceInfo {
+    /// Known shared-RGBA bridge restrictions after direct-source inspection.
+    /// An absent reason does not replace the GPU route's full preflight.
+    pub fn shared_gpu_limitation(&self) -> Option<String> {
+        if self.pixel_format != "yuv420p" {
+            Some("Shared GPU currently requires 8-bit yuv420p input. Use Direct FFmpeg for this source.".into())
+        } else if self.sample_aspect_ratio != "1:1" || self.has_display_matrix {
+            Some("Shared GPU currently requires square pixels and no display transform. Use Direct FFmpeg for this source.".into())
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdapterDescriptor {
     pub key: String,
@@ -265,6 +366,72 @@ pub struct ConversionReport {
     pub explicit_cpu_to_gpu_bytes: u64,
     pub explicit_gpu_to_cpu_bytes: u64,
     pub adapter_fallback: Option<String>,
+    pub hardware_gpu: Option<NvidiaGpu>,
+    pub video_encoder: String,
+    pub inspection_reused: bool,
+    pub preflight_ms: u128,
+    pub total_ms: u128,
+    pub codec_gpu_to_cpu_bytes: u64,
+    pub codec_cpu_to_gpu_bytes: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct NvidiaGpu {
+    pub name: String,
+    pub uuid: String,
+    pub vendor: u32,
+    pub device: u32,
+}
+
+/// Discovery alone is not a driver/codec capability proof; conversion must succeed.
+pub fn enumerate_nvidia_gpus() -> NativeResult<Vec<NvidiaGpu>> {
+    let output = run_capture(
+        "nvidia-smi",
+        &[
+            OsStr::new("--query-gpu=name,uuid,pci.device_id"),
+            OsStr::new("--format=csv,noheader,nounits"),
+        ],
+    )?;
+    parse_nvidia_gpus(std::str::from_utf8(&output)?)
+}
+
+fn parse_nvidia_gpus(text: &str) -> NativeResult<Vec<NvidiaGpu>> {
+    text.lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let fields: Vec<_> = line.split(',').map(str::trim).collect();
+            if fields.len() != 3 || !fields[1].starts_with("GPU-") {
+                return Err("invalid NVIDIA discovery response".into());
+            }
+            let pci = u32::from_str_radix(fields[2].trim_start_matches("0x"), 16)?;
+            Ok(NvidiaGpu {
+                name: fields[0].into(),
+                uuid: fields[1].into(),
+                vendor: pci & 0xffff,
+                device: pci >> 16,
+            })
+        })
+        .collect()
+}
+
+fn select_nvidia_gpu(key: Option<&str>) -> NativeResult<NvidiaGpu> {
+    let mut gpus = enumerate_nvidia_gpus()?;
+    if let Some(key) = key {
+        let descriptor = enumerate_adapters()
+            .into_iter()
+            .find(|adapter| adapter.key == key)
+            .ok_or("selected GPU is unavailable; select an available NVIDIA adapter")?;
+        gpus.retain(|gpu| {
+            gpu.vendor == descriptor.vendor
+                && gpu.device == descriptor.device
+                && gpu.name == descriptor.name
+        });
+    }
+    // wgpu currently has no PCI bus/UUID identity. Do not guess among identical boards.
+    if gpus.len() != 1 {
+        return Err("NVIDIA route requires one uniquely identifiable NVIDIA GPU; select its adapter or use software FFmpeg".into());
+    }
+    Ok(gpus.remove(0))
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -286,6 +453,7 @@ struct SessionState {
     adapter_key: Option<String>,
     active: Option<CancellationToken>,
     switching: bool,
+    closed: bool,
 }
 
 /// A headless native execution context. GPU resources are created per job;
@@ -293,6 +461,7 @@ struct SessionState {
 pub struct NativeSession {
     state: Mutex<SessionState>,
     idle: Condvar,
+    inspection: InspectionCache,
 }
 
 struct ActiveSessionJob<'a> {
@@ -318,8 +487,10 @@ impl NativeSession {
                 adapter_key: adapter_key.map(str::to_owned),
                 active: None,
                 switching: false,
+                closed: false,
             }),
             idle: Condvar::new(),
+            inspection: InspectionCache::default(),
         })
     }
 
@@ -354,11 +525,27 @@ impl NativeSession {
         }
     }
 
+    /// Permanently reject new jobs and wait for active codec/output cleanup.
+    /// Call after the native window event loop returns, not on its UI thread.
+    pub fn shutdown(&self) {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.closed = true;
+        if let Some(token) = &state.active {
+            token.cancel();
+        }
+        while state.active.is_some() || state.switching {
+            state = self.idle.wait(state).unwrap_or_else(|e| e.into_inner());
+        }
+    }
+
     pub fn switch_adapter(&self, adapter_key: Option<&str>) -> NativeResult<u64> {
         if let Some(key) = adapter_key {
             Self::validate_adapter(key)?;
         }
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if state.closed {
+            return Err("native session is closed".into());
+        }
         if state.switching {
             return Err("native GPU adapter switch is already in progress".into());
         }
@@ -376,6 +563,11 @@ impl NativeSession {
         while state.active.is_some() {
             state = self.idle.wait(state).unwrap_or_else(|e| e.into_inner());
         }
+        if state.closed {
+            state.switching = false;
+            self.idle.notify_all();
+            return Err("native session is closed".into());
+        }
         state.adapter_key = adapter_key.map(str::to_owned);
         state.device_generation = next_generation;
         state.switching = false;
@@ -391,23 +583,94 @@ impl NativeSession {
         profile: OutputProfileId,
         route: ProcessingRoute,
     ) -> NativeResult<SessionConversionReport> {
-        let (generation, adapter_key, token) = {
-            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-            if state.switching || state.active.is_some() {
-                return Err("native session is busy".into());
-            }
-            let token = CancellationToken::default();
-            state.active = Some(token.clone());
-            (state.device_generation, state.adapter_key.clone(), token)
-        };
-        let _active_job = ActiveSessionJob { session: self };
-        let conversion = convert_with_control(
+        self.convert_with_cancellation(
             input,
             output,
             resize,
             profile,
             route,
-            adapter_key.as_deref(),
+            &CancellationToken::default(),
+        )
+    }
+
+    /// Accept a UI-owned token so Cancel also covers a not-yet-started worker.
+    pub fn convert_with_cancellation(
+        &self,
+        input: &Path,
+        output: &Path,
+        resize: ResizeSpec,
+        profile: OutputProfileId,
+        route: ProcessingRoute,
+        cancel: &CancellationToken,
+    ) -> NativeResult<SessionConversionReport> {
+        self.convert_job(
+            NativeJob {
+                input,
+                output,
+                resize,
+                profile,
+                route,
+            },
+            cancel,
+            |_| {},
+        )
+    }
+
+    fn begin_job(
+        &self,
+        cancel: &CancellationToken,
+    ) -> NativeResult<(u64, Option<String>, CancellationToken)> {
+        let (generation, adapter_key, token) = {
+            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            if state.closed {
+                return Err("native session is closed".into());
+            }
+            if state.switching || state.active.is_some() {
+                return Err("native session is busy".into());
+            }
+            cancel.check()?;
+            let token = cancel.clone();
+            state.active = Some(token.clone());
+            (state.device_generation, state.adapter_key.clone(), token)
+        };
+        Ok((generation, adapter_key, token))
+    }
+
+    /// Inspection participates in cancellation, serialization and window shutdown.
+    pub fn inspect(&self, input: &Path, cancel: &CancellationToken) -> NativeResult<SourceInfo> {
+        self.begin_job(cancel)?;
+        let _active_job = ActiveSessionJob { session: self };
+        let (value, _) = self.inspection.load(input, cancel)?;
+        Ok(value.source.clone())
+    }
+
+    pub fn convert_job(
+        &self,
+        job: NativeJob<'_>,
+        cancel: &CancellationToken,
+        on_stage: impl Fn(JobStage),
+    ) -> NativeResult<SessionConversionReport> {
+        let NativeJob {
+            input,
+            output,
+            resize,
+            profile,
+            route,
+        } = job;
+        let (generation, adapter_key, token) = self.begin_job(cancel)?;
+        let _active_job = ActiveSessionJob { session: self };
+        let conversion = convert_with_control_inner(
+            input,
+            output,
+            resize,
+            profile,
+            route,
+            NativeRunOptions {
+                adapter_key: adapter_key.as_deref(),
+                inspection: Some(&self.inspection),
+                on_stage: Some(&on_stage),
+                ..Default::default()
+            },
             &token,
         )?;
         Ok(SessionConversionReport {
@@ -441,7 +704,7 @@ pub fn probe_source_direct(path: &Path) -> NativeResult<SourceInfo> {
 
 fn inspect_source(
     path: &Path,
-    require_zero_origin_cfr: bool,
+    require_plain_geometry: bool,
     allow_10bit: bool,
     cancel: &CancellationToken,
 ) -> NativeResult<(SourceInfo, Vec<i128>)> {
@@ -502,10 +765,10 @@ fn inspect_source(
         .unwrap_or_default()
         .iter()
         .any(|side| side.side_data_type.as_deref() == Some("Display Matrix"));
-    if require_zero_origin_cfr && (sar_num, sar_den) != (1, 1) {
+    if require_plain_geometry && (sar_num, sar_den) != (1, 1) {
         return Err("native M4 harness currently requires square-pixel input".into());
     }
-    if require_zero_origin_cfr && has_display_matrix {
+    if require_plain_geometry && has_display_matrix {
         return Err(
             "native M4 shared-wgpu route does not yet implement source display matrices".into(),
         );
@@ -552,21 +815,13 @@ fn inspect_source(
     if video_start_us < 0 || audio_start_us.is_some_and(|start| start < 0) {
         return Err("native M4 harness does not yet support negative stream origins".into());
     }
-    if require_zero_origin_cfr && video_start_us.abs() > 1 {
-        return Err("native M4 harness currently requires zero-origin video".into());
-    }
-    if !require_zero_origin_cfr && !audio_tracks.is_empty() && audio_start_us.is_none() {
+    if !audio_tracks.is_empty() && audio_start_us.is_none() {
         return Err("direct native timeline requires a known audio start time".into());
     }
     let rate = video
         .avg_frame_rate
         .as_deref()
         .ok_or("ffprobe omitted frame rate")?;
-    if require_zero_origin_cfr && video.r_frame_rate.as_deref() != Some(rate) {
-        return Err(
-            "native M4 harness currently requires matching nominal and average frame rates".into(),
-        );
-    }
     let (num, den) = rate.split_once('/').ok_or("invalid rational frame rate")?;
     let (num, den) = (num.parse::<u32>()?, den.parse::<u32>()?);
     if num == 0 || den == 0 {
@@ -587,11 +842,8 @@ fn inspect_source(
                 .time_base
                 .as_deref()
                 .ok_or("ffprobe omitted video time base")?,
-            rate_num: num,
-            rate_den: den,
             frame_count,
-            size: require_zero_origin_cfr.then_some(coded),
-            require_zero_origin_cfr,
+            size: require_plain_geometry.then_some(coded),
         },
         cancel,
     )?;
@@ -614,9 +866,6 @@ fn inspect_source(
             .ok_or("frame timestamp overflow")?
             .unsigned_abs()
             > 150;
-    }
-    if require_zero_origin_cfr && variable_frame_rate {
-        return Err("native M4 harness currently requires constant frame timestamps".into());
     }
     Ok((
         SourceInfo {
@@ -726,11 +975,8 @@ fn parse_decimal_us(value: &str) -> NativeResult<i128> {
 
 struct FrameScanSpec<'a> {
     time_base: &'a str,
-    rate_num: u32,
-    rate_den: u32,
     frame_count: u64,
     size: Option<Size>,
-    require_zero_origin_cfr: bool,
 }
 
 fn scan_video_timestamps(
@@ -740,19 +986,10 @@ fn scan_video_timestamps(
 ) -> NativeResult<Vec<i128>> {
     let FrameScanSpec {
         time_base,
-        rate_num,
-        rate_den,
         frame_count,
         size,
-        require_zero_origin_cfr,
     } = spec;
     let (time_num, time_den) = parse_rational(time_base)?;
-    let denominator = i128::from(rate_num)
-        .checked_mul(time_num)
-        .ok_or("frame-time denominator overflow")?;
-    let numerator = i128::from(rate_den)
-        .checked_mul(time_den)
-        .ok_or("frame-time numerator overflow")?;
     let mut command = Command::new("ffprobe");
     command
         .args([
@@ -803,20 +1040,6 @@ fn scan_video_timestamps(
                 .into());
             }
             decoded_size = Some(current_size);
-            if require_zero_origin_cfr {
-                let expected = i128::try_from(timeline.len())?
-                    .checked_mul(numerator)
-                    .ok_or("frame-time calculation overflow")?;
-                let expected = (expected + denominator / 2) / denominator;
-                if pts
-                    .checked_sub(expected)
-                    .ok_or("frame-time calculation overflow")?
-                    .unsigned_abs()
-                    > 1
-                {
-                    return Err(format!("video is not zero-origin CFR at frame {}: PTS={pts}, expected {expected}±1 tick", timeline.len()).into());
-                }
-            }
             let micros = pts
                 .checked_mul(time_num)
                 .and_then(|v| v.checked_mul(1_000_000))
@@ -850,14 +1073,14 @@ fn scan_video_timestamps(
     Ok(timeline)
 }
 
-fn verify_direct_timeline(
+fn verify_output_timeline(
     input: &SourceInfo,
     input_timeline: &[i128],
     output: &SourceInfo,
     output_timeline: &[i128],
 ) -> NativeResult<()> {
     if input_timeline.len() != output_timeline.len() {
-        return Err("direct FFmpeg changed the video frame count".into());
+        return Err("native output changed the video frame count".into());
     }
     let origin = input.audio_start_us.map_or(input.video_start_us, |audio| {
         audio.min(input.video_start_us)
@@ -873,7 +1096,7 @@ fn verify_direct_timeline(
             > 1_000
         {
             return Err(format!(
-                "direct FFmpeg changed frame {index} timing: expected {expected}µs, got {after}µs"
+                "native output changed frame {index} timing: expected {expected}µs, got {after}µs"
             )
             .into());
         }
@@ -893,7 +1116,7 @@ fn verify_direct_timeline(
             > 25_000
         {
             return Err(format!(
-                "direct FFmpeg changed audio start: expected {expected}µs, got {after}µs"
+                "native output changed audio start: expected {expected}µs, got {after}µs"
             )
             .into());
         }
@@ -908,7 +1131,7 @@ fn verify_direct_timeline(
             .unsigned_abs()
             > 1_000
         {
-            return Err("direct FFmpeg changed video duration by more than 1 ms".into());
+            return Err("native output changed video duration by more than 1 ms".into());
         }
     }
     if let Some(before) = input.audio_duration_us {
@@ -921,7 +1144,7 @@ fn verify_direct_timeline(
             .unsigned_abs()
             > 25_000
         {
-            return Err("direct FFmpeg changed audio duration by more than one AAC packet".into());
+            return Err("native output changed audio duration by more than one AAC packet".into());
         }
     }
     Ok(())
@@ -1013,7 +1236,20 @@ pub fn save_adapter_preference(path: &Path, key: &str) -> NativeResult<AdapterDe
     }
     let temporary = path.with_extension("pending.json");
     fs::write(&temporary, serde_json::to_vec_pretty(&adapter)?)?;
-    fs::rename(&temporary, path)?;
+    match fs::rename(&temporary, path) {
+        Ok(()) => {}
+        // Some Windows encrypted/redirected application-data directories reject
+        // even a same-parent rename with ERROR_NOT_SAME_DEVICE. Copy only this
+        // tiny preference file; this fallback is not an atomic replacement.
+        Err(error)
+            if error.kind() == std::io::ErrorKind::CrossesDevices
+                || (cfg!(windows) && error.raw_os_error() == Some(17)) =>
+        {
+            fs::copy(&temporary, path)?;
+            fs::remove_file(&temporary)?;
+        }
+        Err(error) => return Err(error.into()),
+    }
     Ok(adapter)
 }
 
@@ -1101,14 +1337,27 @@ pub fn convert_with_control(
         NativeRunOptions {
             adapter_key,
             inject_device_loss_after_frames: None,
+            ..Default::default()
         },
         cancel,
     )
 }
 
+#[derive(Clone, Copy, Default)]
 struct NativeRunOptions<'a> {
     adapter_key: Option<&'a str>,
     inject_device_loss_after_frames: Option<u64>,
+    inspection: Option<&'a InspectionCache>,
+    on_stage: Option<&'a dyn Fn(JobStage)>,
+    hardware_gpu: Option<&'a NvidiaGpu>,
+}
+
+impl NativeRunOptions<'_> {
+    fn stage(self, stage: JobStage) {
+        if let Some(callback) = self.on_stage {
+            callback(stage);
+        }
+    }
 }
 
 fn convert_with_control_inner(
@@ -1120,6 +1369,7 @@ fn convert_with_control_inner(
     options: NativeRunOptions<'_>,
     cancel: &CancellationToken,
 ) -> NativeResult<ConversionReport> {
+    let total_started = Instant::now();
     cancel.check()?;
     if !matches!(
         profile,
@@ -1131,43 +1381,111 @@ fn convert_with_control_inner(
         )
         .into());
     }
-    if route == ProcessingRoute::SharedWgpu && profile == OutputProfileId::Mp4H265Main10Aac {
+    if route.uses_wgpu() && profile == OutputProfileId::Mp4H265Main10Aac {
         return Err(
             "shared-wgpu route cannot preserve 10-bit precision through its RGBA8 bridge".into(),
         );
     }
-    let strict_cfr = route == ProcessingRoute::SharedWgpu;
     let allow_10bit = profile == OutputProfileId::Mp4H265Main10Aac;
-    let (source, input_timeline) = inspect_source(input, strict_cfr, allow_10bit, cancel)?;
+    options.stage(JobStage::Inspecting);
+    let local_cache = InspectionCache::default();
+    let (inspected, inspection_reused) = options
+        .inspection
+        .unwrap_or(&local_cache)
+        .load(input, cancel)?;
+    let source = inspected.source.clone();
+    let input_timeline = &inspected.timeline;
+    if !allow_10bit && matches!(source.pixel_format.as_str(), "yuv420p10le" | "p010le") {
+        return Err(format!(
+            "native 8-bit output has unsupported pixel format: {}",
+            source.pixel_format
+        )
+        .into());
+    }
+    options.stage(JobStage::Preparing);
+    if route.uses_wgpu()
+        && let Some(reason) = source.shared_gpu_limitation()
+    {
+        return Err(reason.into());
+    }
+    let hardware_gpu = if route.uses_nvidia() {
+        if source.sample_aspect_ratio != "1:1" || source.has_display_matrix {
+            return Err("NVIDIA CUDA route currently requires square pixels and no display transform; use software FFmpeg".into());
+        }
+        Some(select_nvidia_gpu(options.adapter_key)?)
+    } else {
+        None
+    };
+    let hardware_adapter = if route == ProcessingRoute::SharedWgpuNvidia {
+        let device = hardware_gpu.as_ref().ok_or("NVIDIA identity unavailable")?;
+        Some(
+            enumerate_adapters()
+                .into_iter()
+                .find(|adapter| {
+                    adapter.vendor == device.vendor
+                        && adapter.device == device.device
+                        && adapter.name == device.name
+                        && options.adapter_key.is_none_or(|key| key == adapter.key)
+                })
+                .ok_or("no matching wgpu adapter for the NVIDIA codec GPU")?,
+        )
+    } else {
+        None
+    };
     cancel.check()?;
-    let input_size = if route == ProcessingRoute::DirectFfmpeg {
+    let input_size = if !route.uses_wgpu() {
         Size::new(source.display_width, source.display_height)?
     } else {
         Size::new(source.width, source.height)?
     };
     let output_size = resize.output_size(input_size)?;
     let mut partial = create_partial(output)?;
+    let preflight_ms = total_started.elapsed().as_millis();
+    options.stage(JobStage::Converting);
     let started = Instant::now();
     let result = match route {
-        ProcessingRoute::DirectFfmpeg => {
-            convert_direct(input, &partial.path, output_size, &source, profile, cancel)
-                .map(|()| (None, 0, 0, None))
-        }
-        ProcessingRoute::SharedWgpu => convert_gpu(
+        ProcessingRoute::DirectFfmpeg => convert_direct(
             input,
             &partial.path,
             output_size,
             &source,
-            options.adapter_key,
+            profile,
+            None,
             cancel,
-            options.inject_device_loss_after_frames,
+        )
+        .map(|()| (None, 0, 0, None)),
+        ProcessingRoute::NvidiaFfmpeg => convert_direct(
+            input,
+            &partial.path,
+            output_size,
+            &source,
+            profile,
+            hardware_gpu.as_ref(),
+            cancel,
+        )
+        .map(|()| (None, 0, 0, None)),
+        ProcessingRoute::SharedWgpu | ProcessingRoute::SharedWgpuNvidia => convert_gpu(
+            input,
+            &partial.path,
+            output_size,
+            &source,
+            input_timeline,
+            NativeRunOptions {
+                adapter_key: hardware_adapter
+                    .as_ref()
+                    .map(|adapter| adapter.key.as_str())
+                    .or(options.adapter_key),
+                hardware_gpu: hardware_gpu.as_ref(),
+                ..options
+            },
+            cancel,
         ),
     };
     let (adapter, uploaded, downloaded, fallback) = result?;
     let conversion_elapsed = started.elapsed().as_millis();
     let verification_started = Instant::now();
-    let (verified, output_timeline) =
-        inspect_source(&partial.path, strict_cfr, allow_10bit, cancel)?;
+    options.stage(JobStage::Verifying);
+    let (verified, output_timeline) = inspect_source(&partial.path, false, allow_10bit, cancel)?;
     cancel.check()?;
     if verified.width != output_size.width
         || verified.height != output_size.height
@@ -1195,9 +1513,7 @@ fn convert_with_control_inner(
             "native output stream metadata does not match expected size/frame/audio counts".into(),
         );
     }
-    if route == ProcessingRoute::DirectFfmpeg {
-        verify_direct_timeline(&source, &input_timeline, &verified, &output_timeline)?;
-    }
+    verify_output_timeline(&source, input_timeline, &verified, &output_timeline)?;
     for (label, input_tag, output_tag) in [
         ("range", &source.color_range, &verified.color_range),
         ("space", &source.color_space, &verified.color_space),
@@ -1215,11 +1531,16 @@ fn convert_with_control_inner(
             .into());
         }
     }
+    inspected.check_unchanged(input)?;
+    let verification_ms = verification_started.elapsed().as_millis();
+    options.stage(JobStage::Publishing);
     let size = finish_output(&mut partial, output)?;
     Ok(ConversionReport {
         route: match route {
             ProcessingRoute::DirectFfmpeg => "direct-ffmpeg",
+            ProcessingRoute::NvidiaFfmpeg => "nvidia-ffmpeg",
             ProcessingRoute::SharedWgpu => "shared-wgpu",
+            ProcessingRoute::SharedWgpuNvidia => "shared-wgpu-nvidia",
         }
         .into(),
         profile: profile.as_str().into(),
@@ -1229,11 +1550,33 @@ fn convert_with_control_inner(
         frames_processed: source.frame_count,
         output_bytes: size,
         elapsed_ms: conversion_elapsed,
-        verification_ms: verification_started.elapsed().as_millis(),
+        verification_ms,
         adapter,
         explicit_cpu_to_gpu_bytes: uploaded,
         explicit_gpu_to_cpu_bytes: downloaded,
         adapter_fallback: fallback,
+        video_encoder: match (hardware_gpu.is_some(), allow_10bit) {
+            (true, true) => "hevc_nvenc",
+            (true, false) => "h264_nvenc",
+            (false, true) => "libx265",
+            (false, false) => "libx264",
+        }
+        .into(),
+        hardware_gpu,
+        inspection_reused,
+        preflight_ms,
+        total_ms: total_started.elapsed().as_millis(),
+        codec_gpu_to_cpu_bytes: if route == ProcessingRoute::SharedWgpuNvidia {
+            u64::from(source.width) * u64::from(source.height) * 3 / 2 * source.frame_count
+        } else {
+            0
+        },
+        codec_cpu_to_gpu_bytes: if route == ProcessingRoute::SharedWgpuNvidia {
+            u64::from(output_size.width) * u64::from(output_size.height) * 3 / 2
+                * source.frame_count
+        } else {
+            0
+        },
     })
 }
 
@@ -1243,20 +1586,40 @@ fn convert_direct(
     output: Size,
     source: &SourceInfo,
     profile: OutputProfileId,
+    hardware_gpu: Option<&NvidiaGpu>,
     cancel: &CancellationToken,
 ) -> NativeResult<()> {
     cancel.check()?;
     let mut cmd = ffmpeg_base();
-    cmd.args(["-copyts", "-start_at_zero"])
-        .arg("-i")
-        .arg(input)
-        .args(["-map", "0:v:0"]);
+    cmd.args(["-copyts", "-start_at_zero"]);
+    if let Some(gpu) = hardware_gpu {
+        // CUDA ordinal 0 is scoped to this UUID, not a wgpu enumeration index.
+        cmd.env("CUDA_VISIBLE_DEVICES", &gpu.uuid).args([
+            "-hwaccel",
+            "cuda",
+            "-hwaccel_device",
+            "0",
+            "-hwaccel_output_format",
+            "cuda",
+        ]);
+    }
+    cmd.arg("-i").arg(input).args(["-map", "0:v:0"]);
     if source.audio_codec.is_some() {
         cmd.args(["-map", "0:a:0"]);
     }
-    cmd.args([
-        "-vf",
-        &format!(
+    let filter = if hardware_gpu.is_some() {
+        format!(
+            "scale_cuda={}:{}:format={}:interp_algo=bilinear,setsar=1",
+            output.width,
+            output.height,
+            if profile.video_bit_depth() == 10 {
+                "p010le"
+            } else {
+                "yuv420p"
+            }
+        )
+    } else {
+        format!(
             "scale={}:{}:flags=bilinear,format={},setsar=1",
             output.width,
             output.height,
@@ -1265,28 +1628,49 @@ fn convert_direct(
             } else {
                 "yuv420p"
             }
-        ),
+        )
+    };
+    cmd.args([
+        "-vf",
+        &filter,
         "-fps_mode",
         "passthrough",
         "-enc_time_base:v",
         "1:90000",
         "-c:v",
-        if profile.video_bit_depth() == 10 {
+        if hardware_gpu.is_some() && profile.video_bit_depth() == 10 {
+            "hevc_nvenc"
+        } else if hardware_gpu.is_some() {
+            "h264_nvenc"
+        } else if profile.video_bit_depth() == 10 {
             "libx265"
         } else {
             "libx264"
         },
         "-preset",
-        "veryfast",
-        "-crf",
-        "20",
-        "-pix_fmt",
-        if profile.video_bit_depth() == 10 {
-            "yuv420p10le"
+        if hardware_gpu.is_some() {
+            "p4"
         } else {
-            "yuv420p"
+            "veryfast"
         },
     ]);
+    if hardware_gpu.is_some() {
+        cmd.args(["-rc", "vbr", "-cq", "20", "-b:v", "0", "-gpu", "0"]);
+        if profile.video_bit_depth() == 10 {
+            cmd.args(["-profile:v", "main10"]);
+        }
+    } else {
+        cmd.args([
+            "-crf",
+            "20",
+            "-pix_fmt",
+            if profile.video_bit_depth() == 10 {
+                "yuv420p10le"
+            } else {
+                "yuv420p"
+            },
+        ]);
+    }
     if profile.video_bit_depth() == 10 {
         cmd.args(["-tag:v", "hvc1"]);
         let mut x265_color = vec!["log-level=error".to_owned()];
@@ -1307,7 +1691,9 @@ fn convert_direct(
                 x265_color.push(format!("{key}={value}"));
             }
         }
-        cmd.arg("-x265-params").arg(x265_color.join(":"));
+        if hardware_gpu.is_none() {
+            cmd.arg("-x265-params").arg(x265_color.join(":"));
+        }
     }
     if source.audio_codec.is_some() {
         cmd.args(["-c:a", "aac", "-b:a", "192k", "-ar", "48000"]);
@@ -1317,7 +1703,16 @@ fn convert_direct(
     let mut child = ChildGuard::spawn(&mut cmd)?;
     let status = child.wait_cancellable(cancel)?;
     if !status.success() {
-        return Err(format!("direct FFmpeg exited with {status}").into());
+        return Err(child
+            .failure(
+                if hardware_gpu.is_some() {
+                    "NVIDIA FFmpeg (no CPU fallback; choose software FFmpeg if unsupported)"
+                } else {
+                    "direct FFmpeg"
+                },
+                status,
+            )
+            .into());
     }
     Ok(())
 }
@@ -1327,45 +1722,113 @@ fn convert_gpu(
     partial: &Path,
     output: Size,
     source: &SourceInfo,
-    adapter_key: Option<&str>,
+    timeline: &[i128],
+    options: NativeRunOptions<'_>,
     cancel: &CancellationToken,
-    inject_device_loss_after_frames: Option<u64>,
 ) -> NativeResult<(Option<AdapterDescriptor>, u64, u64, Option<String>)> {
     cancel.check()?;
-    let mut gpu = GpuProcessor::new(Size::new(source.width, source.height)?, output, adapter_key)?;
+    let mut gpu = GpuProcessor::new(
+        Size::new(source.width, source.height)?,
+        output,
+        options.adapter_key,
+    )?;
     cancel.check()?;
     let mut decoder = ffmpeg_base();
+    if let Some(device) = options.hardware_gpu {
+        if gpu.adapter.vendor != device.vendor
+            || gpu.adapter.device != device.device
+            || gpu.adapter.name != device.name
+        {
+            return Err("wgpu/codec GPU identity mismatch; no hardware fallback".into());
+        }
+        decoder.env("CUDA_VISIBLE_DEVICES", &device.uuid).args([
+            "-hwaccel",
+            "cuda",
+            "-hwaccel_device",
+            "0",
+            "-hwaccel_output_format",
+            "cuda",
+        ]);
+    }
+    decoder.arg("-i").arg(input);
+    if options.hardware_gpu.is_some() {
+        // Explicit NVDEC download; CPU converts NV12 to RGBA for the wgpu bridge.
+        decoder.args(["-vf", "hwdownload,format=nv12,format=rgba"]);
+    }
     decoder
-        .arg("-i")
-        .arg(input)
         .args([
             "-map", "0:v:0", "-f", "rawvideo", "-pix_fmt", "rgba", "-vsync", "0", "pipe:1",
         ])
         .stdout(Stdio::piped());
     let mut decoder = ChildGuard::spawn(&mut decoder)?;
     let mut encoder = ffmpeg_base();
-    encoder.args([
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgba",
-        "-video_size",
-        &format!("{}x{}", output.width, output.height),
-        "-framerate",
-        &format!("{}/{}", source.frame_rate_num, source.frame_rate_den),
-        "-i",
-        "pipe:0",
-    ]);
+    if let Some(device) = options.hardware_gpu {
+        encoder.env("CUDA_VISIBLE_DEVICES", &device.uuid).args([
+            "-init_hw_device",
+            "cuda=codec:0",
+            "-filter_hw_device",
+            "codec",
+        ]);
+    }
+    let origin = source
+        .audio_start_us
+        .map_or(source.video_start_us, |audio| {
+            audio.min(source.video_start_us)
+        });
+    encoder.args(["-copyts", "-f", "matroska", "-i", "pipe:0"]);
     if source.audio_codec.is_some() {
-        encoder.arg("-i").arg(input);
+        encoder
+            .arg("-itsoffset")
+            .arg(format!("-{}.{:06}", origin / 1_000_000, origin % 1_000_000))
+            .arg("-i")
+            .arg(input);
     }
     encoder.args(["-map", "0:v:0"]);
     if source.audio_codec.is_some() {
         encoder.args(["-map", "1:a:0"]);
     }
-    encoder.args([
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
-    ]);
+    if options.hardware_gpu.is_some() {
+        // Explicit NV12 upload after the shared RGBA8 readback/CPU conversion.
+        let mut filter = "format=nv12,hwupload_cuda".to_string();
+        let colors: Vec<_> = [
+            ("range", &source.color_range),
+            ("colorspace", &source.color_space),
+            ("color_trc", &source.color_transfer),
+            ("color_primaries", &source.color_primaries),
+        ]
+        .into_iter()
+        .filter_map(|(name, value)| {
+            value
+                .as_deref()
+                .filter(|value| *value != "unknown")
+                .map(|value| format!("{name}={}", if value == "tv" { "limited" } else { value }))
+        })
+        .collect();
+        if !colors.is_empty() {
+            filter.push_str(&format!(",setparams={}", colors.join(":")));
+        }
+        encoder.args([
+            "-vf",
+            &filter,
+            "-c:v",
+            "h264_nvenc",
+            "-gpu",
+            "0",
+            "-preset",
+            "p4",
+            "-rc",
+            "vbr",
+            "-cq",
+            "20",
+            "-b:v",
+            "0",
+        ]);
+    } else {
+        encoder.args([
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+        ]);
+    }
+    encoder.args(["-fps_mode", "passthrough", "-enc_time_base:v", "1:90000"]);
     for (flag, value) in [
         ("-color_range", &source.color_range),
         ("-colorspace", &source.color_space),
@@ -1390,7 +1853,7 @@ fn convert_gpu(
             .map(|value| format!("{key}={value}"))
     })
     .collect();
-    if !x264_color.is_empty() {
+    if options.hardware_gpu.is_none() && !x264_color.is_empty() {
         encoder.arg("-x264-params").arg(x264_color.join(":"));
     }
     if source.audio_codec.is_some() {
@@ -1413,6 +1876,7 @@ fn convert_gpu(
     let result = (|| -> NativeResult<u64> {
         let mut reader = decoder.take_stdout()?;
         let mut writer = encoder.take_stdin()?;
+        frame_stream::start(&mut writer, output)?;
         let mut count = 0_u64;
         loop {
             cancel.check()?;
@@ -1441,12 +1905,33 @@ fn convert_gpu(
             if filled != frame.len() {
                 return Err("decoder ended with a partial RGBA frame".into());
             }
+            let index = usize::try_from(count)?;
+            let pts = *timeline
+                .get(index)
+                .ok_or("decoder produced more frames than the inspected timeline")?;
+            let end = timeline
+                .get(index + 1)
+                .copied()
+                .or_else(|| {
+                    source
+                        .video_duration_us
+                        .and_then(|duration| source.video_start_us.checked_add(duration))
+                })
+                .ok_or("last frame duration is unavailable")?;
+            frame_stream::frame_header(
+                &mut writer,
+                pts.checked_sub(origin).ok_or("frame origin overflow")?,
+                end.checked_sub(pts)
+                    .filter(|value| *value > 0)
+                    .ok_or("invalid frame duration")?,
+                u64::from(output.width) * u64::from(output.height) * 4,
+            )?;
             if let Err(error) = gpu.process(&frame, &mut writer, cancel) {
                 cancel.check()?;
                 return Err(error);
             }
             count += 1;
-            if inject_device_loss_after_frames == Some(count) {
+            if options.inject_device_loss_after_frames == Some(count) {
                 gpu.device.destroy();
             }
             if count > source.frame_count {
@@ -1465,7 +1950,9 @@ fn convert_gpu(
         Ok(count)
     })();
     cancel.check()?;
-    result?;
+    if let Err(error) = result {
+        return Err(format!("shared pipeline failed: {error}; decoder: {}; encoder: {}. No implicit CPU codec fallback.", decoder.diagnostic().trim(), encoder.diagnostic().trim()).into());
+    }
     let decode_status = decoder.wait_cancellable(cancel)?;
     let encode_status = encoder.wait_cancellable(cancel)?;
     cancel.check()?;
@@ -1735,6 +2222,155 @@ impl GpuProcessor {
 mod tests {
     use super::*;
 
+    #[test]
+    fn session_reuses_inspection_and_reports_ordered_stages_and_total_time() {
+        let session = NativeSession::new(None).unwrap();
+        let source = fixture("m35-vfr-offset.mp4");
+        let token = CancellationToken::default();
+        let directory = std::env::temp_dir().join(format!("diaxus-stage-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        session.inspect(&source, &token).unwrap();
+        let stages = std::cell::RefCell::new(Vec::new());
+        let output = directory.join("output.mp4");
+        let report = session
+            .convert_job(
+                NativeJob {
+                    input: &source,
+                    output: &output,
+                    resize: ResizeSpec::Percent(50),
+                    profile: OutputProfileId::Mp4H264Aac,
+                    route: ProcessingRoute::DirectFfmpeg,
+                },
+                &token,
+                |stage| stages.borrow_mut().push(stage),
+            )
+            .unwrap()
+            .conversion;
+        assert!(report.inspection_reused);
+        assert_eq!(
+            *stages.borrow(),
+            [
+                JobStage::Inspecting,
+                JobStage::Preparing,
+                JobStage::Converting,
+                JobStage::Verifying,
+                JobStage::Publishing
+            ]
+        );
+        assert!(
+            report.total_ms >= report.preflight_ms + report.elapsed_ms + report.verification_ms
+        );
+        assert_eq!(report.frames_processed, 36);
+        assert!(!session.status().active);
+        session.shutdown();
+        assert!(session.inspect(&source, &token).is_err());
+        fs::remove_file(output).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn shutdown_waits_for_cleanup_and_rejects_delayed_jobs() {
+        let session = Arc::new(NativeSession::new(None).unwrap());
+        let token = CancellationToken::default();
+        session.state.lock().unwrap().active = Some(token.clone());
+        let worker_session = session.clone();
+        let (cleaned, cleanup) = mpsc::channel();
+        let (release, released) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let guard = ActiveSessionJob {
+                session: &worker_session,
+            };
+            while !token.is_cancelled() {
+                thread::yield_now();
+            }
+            cleaned.send(()).unwrap();
+            released.recv_timeout(Duration::from_secs(2)).unwrap();
+            drop(guard);
+        });
+        let closing = session.clone();
+        let (done, finished) = mpsc::channel();
+        let closer = thread::spawn(move || {
+            closing.shutdown();
+            done.send(()).unwrap();
+        });
+        cleanup.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(
+            finished.try_recv().is_err(),
+            "shutdown returned before resource cleanup"
+        );
+        release.send(()).unwrap();
+        finished.recv_timeout(Duration::from_secs(2)).unwrap();
+        worker.join().unwrap();
+        closer.join().unwrap();
+        assert!(!session.status().active);
+        let error = session
+            .convert(
+                Path::new("missing-input.mp4"),
+                Path::new("must-not-create.mp4"),
+                ResizeSpec::Original,
+                OutputProfileId::Mp4H264Aac,
+                ProcessingRoute::DirectFfmpeg,
+            )
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "native session is closed");
+        assert!(session.switch_adapter(None).is_err());
+        session.shutdown(); // Idempotent, including an already idle session.
+    }
+
+    #[test]
+    fn cancel_before_worker_start_does_not_open_input_or_output() {
+        let session = NativeSession::new(None).unwrap();
+        let token = CancellationToken::default();
+        token.cancel();
+        let error = session
+            .convert_with_cancellation(
+                Path::new("missing-input.mp4"),
+                Path::new("must-not-create.mp4"),
+                ResizeSpec::Original,
+                OutputProfileId::Mp4H264Aac,
+                ProcessingRoute::DirectFfmpeg,
+                &token,
+            )
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "native conversion cancelled");
+        assert!(!session.status().active);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cancellation_reaps_launcher_descendants_holding_a_pipe() {
+        let mut command = Command::new("cmd.exe");
+        command
+            .args([
+                "/D",
+                "/C",
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Write-Output ready; Start-Sleep -Seconds 5",
+            ])
+            .stdout(Stdio::piped());
+        let child = ChildGuard::spawn(&mut command).unwrap();
+        let mut output = BufReader::new(child.take_stdout().unwrap());
+        let mut ready = String::new();
+        output.read_line(&mut ready).unwrap();
+        assert_eq!(ready.trim(), "ready");
+        let token = CancellationToken::default();
+        let _watch = CancellationWatch::new(&token, &[&child]);
+        let started = Instant::now();
+        token.cancel();
+        let mut byte = [0];
+        assert_eq!(output.read(&mut byte).unwrap(), 0);
+        drop(child);
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "launcher descendant kept the pipe open"
+        );
+    }
+
     #[cfg(windows)]
     #[test]
     fn cancellation_interrupts_blocked_child_pipes() {
@@ -1781,6 +2417,23 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures")
             .join(name)
+    }
+
+    #[test]
+    fn inspected_sources_explain_known_gpu_restrictions() {
+        let cfr = probe_source_direct(&fixture("m2-h264-aac.mp4")).unwrap();
+        assert!(cfr.shared_gpu_limitation().is_none());
+        let vfr = probe_source_direct(&fixture("m35-vfr-offset.mp4")).unwrap();
+        assert!(vfr.shared_gpu_limitation().is_none());
+        let transformed = probe_source_direct(&fixture("m35-geometry-color.mp4")).unwrap();
+        assert!(
+            transformed
+                .shared_gpu_limitation()
+                .unwrap()
+                .contains("display transform")
+        );
+        let main10 = probe_source_direct(&fixture("m4-10bit-sdr.mp4")).unwrap();
+        assert!(main10.shared_gpu_limitation().unwrap().contains("8-bit"));
     }
 
     #[test]
@@ -2003,14 +2656,20 @@ mod tests {
     }
 
     #[test]
-    fn rejects_real_vfr_and_nonzero_origin() {
-        let error = probe_source(&fixture("m35-vfr-offset.mp4"))
-            .unwrap_err()
-            .to_string();
-        assert!(
-            error.contains("zero-origin") || error.contains("frame rates") || error.contains("CFR"),
-            "{error}"
-        );
+    fn shared_probe_accepts_real_vfr_and_nonzero_origin() {
+        let info = probe_source(&fixture("m35-vfr-offset.mp4")).unwrap();
+        assert!(info.variable_frame_rate);
+        assert_eq!(info.video_start_us, 1_250_000);
+        assert_eq!(info.frame_count, 36);
+    }
+
+    #[test]
+    fn nvidia_identity_is_not_a_wgpu_enumeration_index() {
+        let gpus = parse_nvidia_gpus("NVIDIA RTX, GPU-example, 0x25A210DE\n").unwrap();
+        assert_eq!(gpus[0].vendor, 0x10de);
+        assert_eq!(gpus[0].device, 0x25a2);
+        assert_eq!(gpus[0].uuid, "GPU-example");
+        assert!(parse_nvidia_gpus("invalid").is_err());
     }
 
     #[test]
@@ -2044,10 +2703,10 @@ mod tests {
         output.video_start_us = 22_000;
         output.audio_start_us = Some(0);
         let mut normalized: Vec<_> = timeline.iter().map(|pts| pts - 1_228_000).collect();
-        verify_direct_timeline(&source, &timeline, &output, &normalized).unwrap();
+        verify_output_timeline(&source, &timeline, &output, &normalized).unwrap();
         normalized[5] += 2_000;
         assert!(
-            verify_direct_timeline(&source, &timeline, &output, &normalized)
+            verify_output_timeline(&source, &timeline, &output, &normalized)
                 .unwrap_err()
                 .to_string()
                 .contains("frame 5")
@@ -2138,6 +2797,7 @@ mod tests {
             NativeRunOptions {
                 adapter_key: None,
                 inject_device_loss_after_frames: Some(1),
+                ..Default::default()
             },
             &CancellationToken::default(),
         )
