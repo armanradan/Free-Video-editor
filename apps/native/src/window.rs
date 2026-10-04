@@ -5,15 +5,91 @@ use dioxus::native::{
     DioxusDocument, DioxusNativeApplication, DioxusNativeWindowRenderer, DocumentConfig,
 };
 use dioxus::prelude::*;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    collections::VecDeque,
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 use winit::{
     application::ApplicationHandler,
-    event::{StartCause, WindowEvent},
+    event::{ElementState, StartCause, WindowEvent},
     event_loop::ActiveEventLoop,
+    keyboard::{Key, ModifiersState, NamedKey},
     window::{WindowAttributes, WindowId},
 };
 
 static LOGICAL_WIDTH: AtomicU64 = AtomicU64::new(960.0_f64.to_bits());
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayerKey {
+    Toggle,
+    Back,
+    Forward,
+    Start,
+    End,
+    Close,
+}
+
+// Commands only: bounded, no pixels, codec handles or Dioxus state here.
+#[derive(Default)]
+struct PlayerKeys {
+    open: bool,
+    pending: VecDeque<PlayerKey>,
+}
+static PLAYER_KEYS: Mutex<PlayerKeys> = Mutex::new(PlayerKeys {
+    open: false,
+    pending: VecDeque::new(),
+});
+
+impl PlayerKeys {
+    fn set_open(&mut self, open: bool) {
+        if self.open != open {
+            self.pending.clear();
+        }
+        self.open = open;
+    }
+    fn push(&mut self, key: PlayerKey, repeat: bool) -> bool {
+        if !self.open {
+            return false;
+        }
+        if repeat && matches!(key, PlayerKey::Toggle | PlayerKey::Close) {
+            return true;
+        }
+        if key == PlayerKey::Close {
+            self.pending.clear();
+        }
+        if self.pending.len() < 16 {
+            self.pending.push_back(key);
+        }
+        true
+    }
+}
+
+pub fn set_player_open(open: bool) {
+    if let Ok(mut keys) = PLAYER_KEYS.lock() {
+        keys.set_open(open);
+    }
+}
+pub fn take_player_key() -> Option<PlayerKey> {
+    PLAYER_KEYS.lock().ok()?.pending.pop_front()
+}
+fn player_key(key: &Key, modifiers: ModifiersState) -> Option<PlayerKey> {
+    if modifiers.intersects(ModifiersState::CONTROL | ModifiersState::ALT | ModifiersState::SUPER) {
+        return None;
+    }
+    Some(match key {
+        Key::Named(NamedKey::Space) => PlayerKey::Toggle,
+        Key::Character(value) if value == " " => PlayerKey::Toggle,
+        Key::Named(NamedKey::ArrowLeft) => PlayerKey::Back,
+        Key::Named(NamedKey::ArrowRight) => PlayerKey::Forward,
+        Key::Named(NamedKey::Home) => PlayerKey::Start,
+        Key::Named(NamedKey::End) => PlayerKey::End,
+        Key::Named(NamedKey::Escape) => PlayerKey::Close,
+        _ => return None,
+    })
+}
 
 pub fn timeline_fraction(client_x: f64) -> f64 {
     let width = f64::from_bits(LOGICAL_WIDTH.load(Ordering::Acquire));
@@ -21,9 +97,10 @@ pub fn timeline_fraction(client_x: f64) -> f64 {
 }
 
 fn fraction_in_viewport(client_x: f64, width: f64) -> f64 {
-    // The centered panel's border-box is 676px; its content is exactly 640px.
-    let left = (width - 676.0) / 2.0 + 17.0;
-    (client_x - left) / 640.0
+    // app-shell: max-width 1100, 16px padding. Right panel: 346px including
+    // 12px padding + 1px border each side; its track content is exactly 320px.
+    let left = ((width - 1100.0) / 2.0).max(0.0) + width.min(1100.0) - 349.0;
+    (client_x - left) / 320.0
 }
 
 pub fn launch(app: fn() -> Element, attributes: WindowAttributes) {
@@ -40,6 +117,7 @@ pub fn launch(app: fn() -> Element, attributes: WindowAttributes) {
         physical_width: 960,
         scale: 1.0,
         initialized: false,
+        modifiers: ModifiersState::empty(),
     };
     event_loop.run_app(&mut application).unwrap();
 }
@@ -49,6 +127,7 @@ struct ViewportApplication {
     physical_width: u32,
     scale: f64,
     initialized: bool,
+    modifiers: ModifiersState,
 }
 
 impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
@@ -74,6 +153,27 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
         match &event {
             WindowEvent::Resized(size) => self.physical_width = size.width,
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => self.scale = *scale_factor,
+            WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
+            WindowEvent::Focused(false) => {
+                self.modifiers = ModifiersState::empty();
+                if let Ok(mut keys) = PLAYER_KEYS.lock() {
+                    keys.pending.clear();
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+                // Tab moves focus to ordinary controls. Re-enable shortcuts by
+                // clicking the inline player, never intercept path-field typing.
+                if event.logical_key == Key::Named(NamedKey::Tab) {
+                    set_player_open(false);
+                }
+                if let Some(key) = player_key(&event.logical_key, self.modifiers)
+                    && let Ok(mut keys) = PLAYER_KEYS.lock()
+                    && keys.push(key, event.repeat)
+                {
+                    // Do not also activate a focused DOM button (e.g. Space).
+                    return;
+                }
+            }
             _ => {}
         }
         LOGICAL_WIDTH.store(
@@ -89,11 +189,49 @@ mod tests {
     use super::*;
     #[test]
     fn timeline_coordinates_match_centered_layout() {
-        assert_eq!(timeline_fraction(159.0), 0.0);
-        assert_eq!(timeline_fraction(479.0), 0.5);
-        assert_eq!(timeline_fraction(799.0), 1.0);
-        // Centered placement must move with a resized logical viewport.
-        assert_eq!(fraction_in_viewport(639.0, 1280.0), 0.5);
-        assert_eq!(fraction_in_viewport(1299.0, 2600.0), 0.5);
+        assert_eq!(timeline_fraction(611.0), 0.0);
+        assert_eq!(timeline_fraction(771.0), 0.5);
+        assert_eq!(timeline_fraction(931.0), 1.0);
+        assert_eq!(fraction_in_viewport(711.0, 900.0), 0.5);
+        assert_eq!(fraction_in_viewport(1001.0, 1280.0), 0.5);
+        assert_eq!(fraction_in_viewport(1661.0, 2600.0), 0.5);
+    }
+
+    #[test]
+    fn native_player_keys_are_active_only_bounded_and_do_not_repeat_toggles() {
+        let mut keys = PlayerKeys::default();
+        assert!(!keys.push(PlayerKey::Toggle, false));
+        keys.set_open(true);
+        keys.push(PlayerKey::Toggle, false);
+        keys.push(PlayerKey::Toggle, true);
+        assert_eq!(keys.pending.pop_front(), Some(PlayerKey::Toggle));
+        assert!(keys.pending.is_empty());
+        for _ in 0..100 {
+            keys.push(PlayerKey::Forward, true);
+        }
+        assert_eq!(keys.pending.len(), 16);
+        // Escape must not get stuck behind a full repeat queue.
+        keys.push(PlayerKey::Close, false);
+        assert_eq!(keys.pending.pop_front(), Some(PlayerKey::Close));
+        assert!(keys.pending.is_empty());
+        keys.push(PlayerKey::Back, false);
+        keys.set_open(false);
+        keys.set_open(true);
+        assert!(
+            keys.pending.is_empty(),
+            "old player commands must not survive reopening"
+        );
+        assert_eq!(
+            player_key(&Key::Named(NamedKey::ArrowRight), ModifiersState::empty()),
+            Some(PlayerKey::Forward)
+        );
+        assert_eq!(
+            player_key(&Key::Named(NamedKey::Space), ModifiersState::CONTROL),
+            None
+        );
+        assert_eq!(
+            player_key(&Key::Character("a".into()), ModifiersState::empty()),
+            None
+        );
     }
 }

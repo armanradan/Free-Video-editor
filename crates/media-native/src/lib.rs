@@ -1792,7 +1792,15 @@ fn convert_gpu(
     }
     if options.hardware_gpu.is_some() {
         // Explicit NV12 upload after the shared RGBA8 readback/CPU conversion.
-        let mut filter = "format=nv12,hwupload_cuda".to_string();
+        // The Matroska bridge contains full-range RGBA, not source-range YUV.
+        // Output tags/setparams alone do not select swscale's conversion matrix:
+        // an automatic RGBA -> NV12 conversion can otherwise use BT.601 while
+        // NVENC advertises BT.709. Select the pixel conversion before upload.
+        let mut filter = "scale=in_range=full:out_range=limited".to_string();
+        if source.color_space.as_deref() == Some("bt709") {
+            filter.push_str(":out_color_matrix=bt709");
+        }
+        filter.push_str(",format=nv12,hwupload_cuda");
         let colors: Vec<_> = [
             ("range", &source.color_range),
             ("colorspace", &source.color_space),

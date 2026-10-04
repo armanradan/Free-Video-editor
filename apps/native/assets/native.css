@@ -55,12 +55,21 @@ button[data-selected="true"] { background: var(--selected); border-color: var(--
 .gpu-picker { width: 840px; max-width: 100%; max-height: 90vh; overflow: auto; padding: 16px; }
 .picker-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .picker-heading h2 { margin: 0; }
-.preview-panel { width: 676px; padding: 16px; }
-.preview-path { margin: 0 0 8px; font-size: 12px; overflow-wrap: anywhere; }
-.preview-canvas { display: block; width: 640px; height: 360px; background: #000000; }
-.preview-controls { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
-.player-time { font-variant-numeric: tabular-nums; min-width: 128px; }
-.player-timeline { width: 640px; height: 28px; padding: 11px 0; cursor: pointer; }
+.workspace-row { display: flex; align-items: flex-start; gap: 8px; }
+.conversion-column { flex: 1; min-width: 0; }
+.processing-panel { flex: 1; min-width: 0; }
+.preview-panel { width: 346px; flex-shrink: 0; }
+.preview-panel .picker-heading { margin-bottom: 6px; }
+.preview-path { margin: 0 0 6px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-viewport { width: 320px; height: 180px; overflow: hidden; background: #000000; }
+/* Blitz custom paint samples at the registered texture's intrinsic dimensions.
+   Scale its whole scene, not the canvas bounds (which only crop the image). */
+.preview-canvas { display: block; width: 640px; height: 360px; transform: scale(0.5); transform-origin: top left; }
+.preview-empty { display: flex; align-items: center; justify-content: center; width: 320px; height: 180px; background: var(--input); color: var(--muted); padding: 16px; font-size: 12px; text-align: center; }
+.preview-controls { display: flex; align-items: center; gap: 6px; margin-top: 0; }
+.preview-controls .primary { padding-left: 12px; padding-right: 12px; }
+.player-time { font-variant-numeric: tabular-nums; min-width: 80px; font-size: 12px; }
+.player-timeline { width: 320px; height: 24px; padding: 9px 0; cursor: pointer; }
 .player-timeline:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .timeline-track { position: relative; height: 6px; background: var(--control-border); border-radius: 3px; pointer-events: none; }
 .timeline-fill { height: 6px; background: var(--accent); border-radius: 3px; pointer-events: none; }

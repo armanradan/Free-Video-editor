@@ -44,3 +44,9 @@ The geometry fixture deliberately records both source/container intent and obser
 ## M4 10-bit SDR fixture
 
 `m4-10bit-sdr.mp4` is a one-second, 24-frame, 160×96 HEVC Main 10 (`hvc1`) and AAC MP4. FFmpeg `geq` generates deterministic 10-bit Y, U, and V gradients with values between 8-bit code steps; libx265 encodes the fixture losslessly. BT.709 limited-range SDR tags distinguish bit depth from HDR. It contains no third-party media and is CC0-1.0. Its JSON manifest records the generation command, size, and SHA-256. Regenerate it with `pwsh -File tools/generate-m4-10bit-fixture.ps1` using the recorded FFmpeg build.
+
+## M5 release comparison fixtures
+
+`tests/native-m5-hardware.mjs` also generates a tiny 320×192/30-frame BT.709 limited-range H.264/AAC `testsrc2`/523 Hz sine source under ignored `tmp/m5`. It is CC0-1.0 with no third-party media. Its shared-NVIDIA output is compared to an uncompressed bilinear resize, so correct tags cannot conceal a wrong RGB→NV12 matrix. The generation command lives with the hardware regression.
+
+`tests/native-m5-release-bench.mjs` generates 1920×1080/180-frame and 3840×2160/90-frame 30 fps H.264/AAC sources from FFmpeg `testsrc2`, seeded temporal noise (`all_seed=17`) and a 523 Hz, 48 kHz mono sine. They contain no third-party media and are CC0-1.0. Source SPS/VUI explicitly declares BT.709 limited SDR, checked before conversion; libx264 VUI parameters are necessary because output flags alone did not retain all tags in the tested FFmpeg build. The benchmark's `evidence.json` records source generation arguments, exact versions, hashes, dimensions, timestamps/duration and output validation. Large generated fixtures and compressed outputs remain under ignored `tmp/m5/release-bench`, never checked into Git. These short high-frequency synthetic sources are not representative camera footage or long-duration memory/thermal tests.

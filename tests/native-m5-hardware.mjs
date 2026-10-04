@@ -24,12 +24,22 @@ const main10Source = path.join(directory, "main10-source.mp4");
 run("ffmpeg", ["-v", "error", "-nostdin", "-n", "-i", "fixtures/m4-10bit-sdr.mp4",
   "-vf", "scale=320:192", "-c:v", "libx265", "-preset", "ultrafast",
   "-x265-params", "log-level=error", "-pix_fmt", "yuv420p10le", "-c:a", "copy", main10Source]);
+// Explicit BT.709 pixels/tags exercise RGB -> NV12 conversion, not merely VUI
+// preservation. Untagged fixtures did not expose the old default-matrix bug.
+const taggedSource = path.join(directory, "bt709-source.mp4");
+run("ffmpeg", ["-v", "error", "-nostdin", "-n", "-f", "lavfi", "-i", "testsrc2=size=320x192:rate=30",
+  "-f", "lavfi", "-i", "sine=frequency=523:sample_rate=48000", "-frames:v", "30",
+  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-pix_fmt", "yuv420p",
+  "-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709", "-color_range", "tv",
+  "-colorspace", "bt709", "-color_trc", "bt709", "-color_primaries", "bt709",
+  "-c:a", "aac", "-shortest", taggedSource]);
 const frames = file => run("ffprobe", ["-v", "error", "-select_streams", "v:0",
   "-show_entries", "frame=best_effort_timestamp_time", "-of", "csv=p=0", file])
   .split(/\r?\n/).filter(line => line.trim()).map(line => Number(line.split(",")[0]));
 const evidence = [];
 let decodedVideoPsnrDb;
 let sharedDecodedVideoPsnrDb;
+let taggedSharedDecodedVideoPsnrDb;
 for (const [name, input, profile, expectedFrames] of [
   ["cfr", "fixtures/m2-h264-aac.mp4", "mp4-h264-aac", 60],
   ["vfr", "fixtures/m35-vfr-offset.mp4", "mp4-h264-aac", 36],
@@ -38,6 +48,7 @@ for (const [name, input, profile, expectedFrames] of [
   ["shared-cfr", "fixtures/m2-h264-aac.mp4", "mp4-h264-aac", 60],
   ["shared-vfr", "fixtures/m35-vfr-offset.mp4", "mp4-h264-aac", 36],
   ["shared-hevc-input", "fixtures/m36-h265-aac.mp4", "mp4-h264-aac", 30],
+  ["shared-bt709", taggedSource, "mp4-h264-aac", 30],
 ]) {
   const shared = name.startsWith("shared-");
   const output = path.join(directory, `${name}.mp4`);
@@ -88,6 +99,18 @@ for (const [name, input, profile, expectedFrames] of [
     if (shared) sharedDecodedVideoPsnrDb = psnr; else decodedVideoPsnrDb = psnr;
     assert.ok(Number.isFinite(psnr) && psnr > 30,
       `${name} image diverges from software reference: ${psnr} dB`);
+  }
+  if (name === "shared-bt709") {
+    for (const tag of ["color_space", "color_transfer", "color_primaries"])
+      assert.equal(video[tag], "bt709");
+    assert.equal(video.color_range, "tv");
+    const comparison = spawnSync("ffmpeg", ["-hide_banner", "-nostdin", "-i", input, "-i", output,
+      "-filter_complex", "[0:v]scale=160:96:flags=bilinear,format=yuv420p[ref];[ref][1:v]psnr",
+      "-an", "-f", "null", "-"], { encoding: "utf8", windowsHide: true });
+    assert.equal(comparison.status, 0, comparison.stderr);
+    taggedSharedDecodedVideoPsnrDb = Number(comparison.stderr.match(/PSNR y:[^\n]*average:([\d.]+)/)?.[1]);
+    assert.ok(Number.isFinite(taggedSharedDecodedVideoPsnrDb) && taggedSharedDecodedVideoPsnrDb > 30,
+      `BT.709 shared pixels diverged: ${taggedSharedDecodedVideoPsnrDb} dB`);
   }
   const before = frames(input), after = frames(output);
   assert.equal(after.length, before.length);
@@ -148,5 +171,6 @@ assert.equal(fs.readdirSync(directory).filter(file => file.includes(".partial.")
 fs.writeFileSync(path.join(directory, "evidence.json"), JSON.stringify(evidence, null, 2));
 console.log(JSON.stringify({ directory, cases: evidence.map(({ name, report, maxErrorUs, audioMaxDb }) =>
   ({ name, frames: report.frames_processed, encoder: report.video_encoder, elapsedMs: report.elapsed_ms, maxErrorUs, audioMaxDb })),
-  decodedVideoPsnrDb, sharedDecodedVideoPsnrDb, wrongAdapterRejected: true, unsupportedHardwareRejectedWithoutFallback: true,
+  decodedVideoPsnrDb, sharedDecodedVideoPsnrDb, taggedSharedDecodedVideoPsnrDb,
+  wrongAdapterRejected: true, unsupportedHardwareRejectedWithoutFallback: true,
   stagedCancellationAfterOutputStarted: sawPartial, stagedRetry: true, noPartialOutputs: true }, null, 2));

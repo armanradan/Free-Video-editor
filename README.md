@@ -1,5 +1,7 @@
 # Diaxus GPU video converter — M4 native headless harness
 
+M5 also provides a Dioxus Native/Blitz app with dark/light themes, GPU selection and a compact inline source/output player. Click Preview to load the small main-window box; Play/Pause, Mute and a seek timeline sit below the image. Click the player to enable Space and arrow shortcuts; clicking a path field or pressing Tab relinquishes them. Preview is independently CPU-decoded SDR display, not hardware codec-surface sharing. See the interop report for tested behavior and remaining M5 work.
+
 Dioxus Web accepts MP4 with H.264/AVC or H.265/HEVC video and applies shared Rust/wgpu configurable resizing. Output profiles are WebM/VP8/Opus, explicit video-only WebM, capability-gated MP4/H.264/AAC, and capability-gated MP4/H.265/AAC. Browser codecs, container handling, and GPU processing run together in a dedicated worker when supported; otherwise the UI reports the main-thread compatibility fallback and its reason.
 
 M3.1 through M3.6 pass their acceptance gates in the available Firefox/Chromium environments. The app defaults to original-size output and provides user-selectable 75%, 50%, 25%, HD 720p, Full HD 1080p, 2K-width, QHD 1440p, 4K UHD, and exact-size output plus bounded browser input/output. Named modes are aspect-preserving maximum bounds; exact sizing preserves aspect ratio by default and exposes an explicit stretch option. Every mode rejects implicit upscaling, displays codec-safe even dimensions before conversion, checks the actual WebGPU device limit, and re-probes every output profile for that exact size. Selecting a file immediately displays its display/coded resolution, codec string, duration, average frame rate, frame count, audio details, and file size. Deterministic codec-failure and WebGPU device-loss tests verify cleanup and same-page restart.
@@ -52,9 +54,13 @@ node tests/native-m5-hardware.mjs
 cargo test -p media-native --lib cancel_active_jobs_and_retry_in_same_process -- --ignored --nocapture
 cargo test -p media-native --lib injected_device_loss_cleans_job_and_allows_fresh_gpu_job -- --ignored --nocapture
 node tests/native-m4-release-bench.mjs
+node --test tests/native-m5-release-bench.test.mjs
+node tests/native-m5-release-bench.mjs
 ```
 
 `list-gpus` shows the adapter keys available on your machine; use one of those keys in place of the example. A saved preference is re-resolved on each run, with an explicit reported fallback if missing. The harness refuses to overwrite an output. The ignored lifecycle test also exercises the headless `NativeSession` adapter switch when both a discrete and an integrated GPU are present: it cancels an active job, waits for cleanup, then runs on the second GPU with a new generation. The release benchmark generates seeded 1080p/4K synthetic A/V inputs and checks both routes; its outputs and evidence stay under ignored `tmp/m4/release-bench`. Neither facility adds a native UI. Details and measured limitations are in the interop report.
+
+The M5 release benchmark compares `direct`, `nvidia`, `wgpu`, and `wgpu-nvidia` serially on generated 1080p/180-frame and 4K/90-frame sources. It requires a compatible NVIDIA device and hardware-enabled FFmpeg; unavailable hardware is a failure, not a passing skip. One warm-up per route/workload is excluded, followed by three timed rounds in rotated order. Every output passes independent video/audio/timestamp/color checks; reports include stage-time ranges/medians, transfer counts, output bytes and first-timed-output PSNR/SSIM against an uncompressed bilinear reference. CPU CRF20 and NVIDIA CQ20 are not matched-rate or matched-quality settings, so these are current-route baselines, not encoder-efficiency or universal-speedup claims. Use `--runs=4` for four timed rounds or `--adapter-key="EXACT KEY"` to select another uniquely resolvable NVIDIA descriptor. Fixtures, hashes, commands and evidence stay under ignored `tmp/m5/release-bench`; failed runs retain their artifacts for diagnosis. CPU/power/VRAM and opaque codec/driver memory remain unmeasured. Close any playing previews before timing comparisons.
 
 ## Checks
 

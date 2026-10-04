@@ -130,6 +130,62 @@ fn app() -> Element {
     let mut choosing_gpu = use_signal(|| false);
     let mut showing_preview = use_signal(|| false);
     let mut preview_path = use_signal(String::new);
+    let mut pointer_released = use_signal(|| 0_u64);
+    use_effect(move || window::set_player_open(showing_preview() && !choosing_gpu()));
+    use_drop(|| window::set_player_open(false));
+    use_future(move || async move {
+        loop {
+            while let Some(key) = window::take_player_key() {
+                if !showing_preview() {
+                    continue;
+                }
+                if key == window::PlayerKey::Close {
+                    app_state().preview.cancel();
+                    showing_preview.set(false);
+                    window::set_player_open(false);
+                    continue;
+                }
+                let state = app_state().preview.state();
+                if !state.ready {
+                    continue;
+                }
+                let target = match key {
+                    window::PlayerKey::Back => Some(state.position_us.saturating_sub(5_000_000)),
+                    window::PlayerKey::Forward => Some(
+                        state
+                            .position_us
+                            .saturating_add(5_000_000)
+                            .min(state.duration_us.saturating_sub(1)),
+                    ),
+                    window::PlayerKey::Start => Some(0),
+                    window::PlayerKey::End => Some(state.duration_us.saturating_sub(1)),
+                    window::PlayerKey::Toggle => {
+                        if state.ended || state.error.is_some() {
+                            let _ = app_state().preview.start(
+                                PathBuf::from(preview_path()),
+                                0,
+                                true,
+                                state.muted,
+                            );
+                        } else {
+                            app_state().preview.pause(!state.paused);
+                        }
+                        None
+                    }
+                    window::PlayerKey::Close => None,
+                };
+                if let Some(target) = target {
+                    let _ = app_state().preview.start(
+                        PathBuf::from(preview_path()),
+                        target,
+                        !state.paused,
+                        state.muted,
+                    );
+                }
+            }
+            futures_timer::Delay::new(std::time::Duration::from_millis(50)).await;
+        }
+    });
     let mut verified_output = use_signal(String::new);
     let mut input = use_signal(String::new);
     let mut output = use_signal(String::new);
@@ -354,32 +410,8 @@ fn app() -> Element {
     rsx! {
         style { {include_str!("../assets/native.css")} }
         div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" },
-            onkeydown: move |event| {
-                use dioxus::html::input_data::keyboard_types::Key;
-                if !showing_preview() { return; }
-                if event.key() == Key::Escape {
-                    event.prevent_default(); app_state().preview.cancel(); showing_preview.set(false); return;
-                }
-                let state = app_state().preview.state();
-                if !state.ready { return; }
-                let target = match event.key() {
-                    Key::ArrowLeft => Some(state.position_us.saturating_sub(5_000_000)),
-                    Key::ArrowRight => Some(state.position_us.saturating_add(5_000_000).min(state.duration_us.saturating_sub(1))),
-                    Key::Home => Some(0), Key::End => Some(state.duration_us.saturating_sub(1)),
-                    Key::Character(value) if value == " " => {
-                        event.prevent_default();
-                        if state.ended || state.error.is_some() {
-                            let _ = app_state().preview.start(PathBuf::from(preview_path()), 0, true, state.muted);
-                        } else { app_state().preview.pause(!state.paused); }
-                        None
-                    },
-                    _ => None,
-                };
-                if let Some(target) = target {
-                    event.prevent_default();
-                    let _ = app_state().preview.start(PathBuf::from(preview_path()), target, !state.paused, state.muted);
-                }
-            },
+        onmousedown: move |_| window::set_player_open(false),
+        onmouseup: move |_| pointer_released.set(pointer_released().wrapping_add(1)),
         main { class: "app-shell",
             header { class: "app-header",
                 div {
@@ -443,7 +475,9 @@ fn app() -> Element {
                     }
                 }
             }
-            section { class: "panel",
+            div { class: "workspace-row",
+            div { class: "conversion-column",
+            section { class: "panel processing-panel",
                 h2 { "Processing" }
                 div { class: "route-options",
                     Choice { label: "Direct FFmpeg · NVIDIA".to_string(), hint: "CUDA decode / resize · NVENC video · AAC on CPU".to_string(),
@@ -539,17 +573,31 @@ fn app() -> Element {
                 p { id: "native-status", class: "job-status", role: "status", aria_live: "polite", "{status}" }
                 p { class: "note", "Last conversion: {active_gpu}" }
             }
+            }
+            if showing_preview() {
+                VideoPlayer { key: "{preview_path}", path: preview_path(), canvas: preview_canvas.to_string(), pointer_released,
+                    on_close: move |_| { showing_preview.set(false); window::set_player_open(false); } }
+            } else {
+                section { class: "panel preview-panel",
+                    h2 { "Video preview" }
+                    div { class: "preview-empty", "Select a source and click Preview, or preview your converted output." }
+                    p { class: "note", "Independent player · Conversion keeps every frame" }
+                }
+            }
+            }
             footer { "Hardware failures never silently fall back to CPU · Preview playback is independent of conversion" }
-        }
-        if showing_preview() {
-            VideoPlayer { path: preview_path(), canvas: preview_canvas.to_string(), on_close: move |_| showing_preview.set(false) }
         }
         }
     }
 }
 
 #[component]
-fn VideoPlayer(path: String, canvas: String, on_close: EventHandler) -> Element {
+fn VideoPlayer(
+    path: String,
+    canvas: String,
+    pointer_released: Signal<u64>,
+    on_close: EventHandler,
+) -> Element {
     let mut player = use_signal(preview::PlayerState::default);
     let mut muted = use_signal(|| false);
     let mut dragging = use_signal(|| false);
@@ -557,10 +605,10 @@ fn VideoPlayer(path: String, canvas: String, on_close: EventHandler) -> Element 
     let mut resume_after_seek = use_signal(|| false);
     let mut command_error = use_signal(|| None::<String>);
     let initial_path = path.clone();
-    use_hook(move || {
+    use_effect(move || {
         if let Err(error) = app_state()
             .preview
-            .start(PathBuf::from(initial_path), 0, false, false)
+            .start(PathBuf::from(&initial_path), 0, false, false)
         {
             command_error.set(Some(error));
         }
@@ -619,16 +667,38 @@ fn VideoPlayer(path: String, canvas: String, on_close: EventHandler) -> Element 
             }
         }
     };
+    let release_path = path.clone();
+    use_effect(move || {
+        let _ = pointer_released();
+        // Do not subscribe to dragging here: only a release ends a drag. A
+        // release over another main-window control must also finish the seek.
+        if *dragging.peek() {
+            let position = *drag_position.peek();
+            let playing = *resume_after_seek.peek();
+            let mute = *muted.peek();
+            dragging.set(false);
+            command_error.set(
+                app_state()
+                    .preview
+                    .start(PathBuf::from(&release_path), position, playing, mute)
+                    .err(),
+            );
+            player.set(app_state().preview.state());
+        }
+    });
     let error = command_error().or(state.error.clone());
     rsx! {
-        div { class: "picker-backdrop", onmouseup: move |_| finish_seek(),
-            section { class: "panel preview-panel", role: "dialog", aria_modal: "true", aria_label: "Video preview",
+            section { class: "panel preview-panel", aria_label: "Video preview",
+                onmousedown: move |event| { event.stop_propagation(); window::set_player_open(true); },
+                onmouseup: move |_| finish_seek(),
                 div { class: "picker-heading",
                     h2 { "Video preview" }
                     button { onclick: move |_| { app_state().preview.cancel(); on_close.call(()); }, "Close" }
                 }
                 p { class: "preview-path", "{path}" }
-                canvas { class: "preview-canvas", "src": "{canvas}", width: "640", height: "360" }
+                div { class: "preview-viewport",
+                    canvas { class: "preview-canvas", "src": "{canvas}", width: "640", height: "360" }
+                }
                 div { class: "player-timeline", role: "slider", tabindex: "0", aria_label: "Playback position",
                     aria_valuemin: "0", aria_valuemax: state.duration_us / 1_000,
                     aria_valuenow: position / 1_000, aria_valuetext: preview::format_time(position),
@@ -655,11 +725,10 @@ fn VideoPlayer(path: String, canvas: String, on_close: EventHandler) -> Element 
                     button { disabled: (!state.ready).then_some("true"), aria_pressed: muted(), onclick: move |_| {
                         muted.set(!muted()); restart(player().position_us, !player().paused, muted());
                     }, if muted() { "Unmute" } else { "Mute" } }
-                    span { class: "note", if !state.ready { "Preparing preview…" } else if state.ended { "Ended" } else if state.audio_active { "Audio enabled" } else { "Video only" } }
                 }
+                p { class: "note", if !state.ready { "Preparing preview…" } else if state.ended { "Ended" } else if state.audio_active { "Audio enabled" } else { "Video only" } }
                 if let Some(error) = error { p { class: "job-status", role: "alert", "Preview failed: {error}" } }
-                p { class: "note", "Independent SDR preview · Drag to seek · ←/→ skip 5 s · Space play/pause" }
+                p { class: "note", "Drag to seek · ←/→ 5 s · Space play/pause" }
             }
-        }
     }
 }
