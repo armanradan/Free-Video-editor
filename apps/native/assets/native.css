@@ -41,6 +41,17 @@ button:disabled, button[disabled] { background: var(--disabled); border-color: v
 .path-row button { flex-shrink: 0; }
 .settings-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; }
 .resize-options { display: flex; flex-wrap: wrap; gap: 5px; }
+.bitrate-options { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.bitrate-options .preset { padding: 4px 6px; font-size: 11px; }
+.bitrate-label { font-size: 11px; align-self: center; }
+.format-options { display: flex; gap: 5px; }
+.format-options button { flex: 1; }
+.bitrate-custom, .fps-summary { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+.bitrate-custom input { width: 60px; flex: 0 0 60px; height: 24px; font-size: 11px; }
+.bitrate-custom .note, .fps-summary .note { margin: 0; font-size: 11px; }
+.fps-summary .preset { font-size: 11px; padding: 4px 6px; }
+.fps-picker { width: 460px; }
+.fps-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 .preset { padding: 5px 8px; font-weight: 500; }
 .choice-list { display: flex; flex-direction: column; gap: 5px; }
 .choice { display: flex; flex-direction: column; align-items: flex-start; text-align: left; width: 100%; padding: 6px 9px; }

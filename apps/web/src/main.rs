@@ -1,5 +1,8 @@
 use dioxus::prelude::*;
-use media_core::{CodecAcceleration, OutputProfileId, ResizeSpec};
+use media_core::{
+    CodecAcceleration, FrameRateSpec, OutputProfileId, ResizeSpec, Size, VideoBitrate,
+};
+use media_web::{SourceMetadata, VideoSettings};
 use ui::{ConverterControls, JobStatus};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 
@@ -61,6 +64,11 @@ fn App() -> Element {
     let mut exact_width = use_signal(|| "320".to_string());
     let mut exact_height = use_signal(|| "180".to_string());
     let mut preserve_aspect_ratio = use_signal(|| true);
+    let mut bitrate_mode = use_signal(|| "recommended".to_string());
+    let mut custom_bitrate = use_signal(|| "4".to_string());
+    let mut frame_rate = use_signal(|| "original".to_string());
+    let mut inspected_source = use_signal(|| None::<SourceMetadata>);
+    let output_size = use_signal(|| None::<Size>);
     let resolved_size = use_signal(String::new);
     let mut source_metadata = use_signal(String::new);
     let mut has_source = use_signal(|| false);
@@ -83,6 +91,11 @@ fn App() -> Element {
         resolved_size,
         source_metadata,
         status,
+        bitrate_mode,
+        custom_bitrate,
+        frame_rate,
+        inspected_source,
+        output_size,
     };
 
     let convert = move |_| {
@@ -102,6 +115,13 @@ fn App() -> Element {
                 return;
             }
         };
+        let settings = match video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate()) {
+            Ok(settings) => settings,
+            Err(error) => {
+                status.set(display_error(error));
+                return;
+            }
+        };
         running.set(true);
         download_url.set(String::new());
         status.set("Inspecting MP4 container and exact video codec configuration…".to_string());
@@ -115,6 +135,7 @@ fn App() -> Element {
                 selected_profile,
                 selected_acceleration,
                 selected_resize,
+                settings,
                 callback
                     .as_ref()
                     .unchecked_ref::<js_sys::Function>()
@@ -157,6 +178,7 @@ fn App() -> Element {
         has_source.set(true);
         profile_ready.set(false);
         source_metadata.set(String::new());
+        inspected_source.set(None);
         let resize = match requested_resize(
             &resize_mode(),
             &exact_width(),
@@ -217,6 +239,39 @@ fn App() -> Element {
             probe_signals,
         );
     };
+    let bitrate_changed = move |event: FormEvent| {
+        bitrate_mode.set(event.value());
+        reprobe_if_ready(
+            has_source(),
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+            probe_signals,
+        );
+    };
+    let custom_bitrate_changed = move |event: FormEvent| {
+        custom_bitrate.set(event.value());
+        reprobe_if_ready(
+            has_source(),
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+            probe_signals,
+        );
+    };
+    let frame_rate_changed = move |event: FormEvent| {
+        frame_rate.set(event.value());
+        reprobe_if_ready(
+            has_source(),
+            &resize_mode(),
+            &exact_width(),
+            &exact_height(),
+            preserve_aspect_ratio(),
+            probe_signals,
+        );
+    };
     let cancel = move |_| {
         media_web::cancel();
         status.set(
@@ -245,6 +300,55 @@ fn App() -> Element {
         });
     };
 
+    let settings = video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate());
+    let bitrate_options = ui::BITRATE_PRESETS
+        .iter()
+        .copied()
+        .map(|(value, label, policy)| {
+            let rate = inspected_source()
+                .zip(output_size())
+                .and_then(|(source, size)| {
+                    settings.as_ref().ok().and_then(|settings| {
+                        source
+                            .resolve_bitrate(
+                                size,
+                                profile(),
+                                VideoSettings {
+                                    bitrate: policy,
+                                    ..*settings
+                                },
+                            )
+                            .ok()
+                    })
+                });
+            (
+                value.to_string(),
+                rate.map_or_else(
+                    || label.to_string(),
+                    |rate| format!("{label} · {:.2} Mbps", f64::from(rate) / 1_000_000.0),
+                ),
+            )
+        })
+        .chain(std::iter::once((
+            "custom".to_string(),
+            "Custom…".to_string(),
+        )))
+        .collect::<Vec<_>>();
+    let output_estimate = match (inspected_source(), output_size(), settings) {
+        (_, _, Err(error)) => error,
+        (Some(source), Some(size), Ok(settings)) => {
+            match source.estimate(size, profile(), settings) {
+                Ok((bps, Some(bytes))) => format!(
+                    "{:.2} Mbps video · Estimated ~{:.1} MB (VBR may differ)",
+                    f64::from(bps) / 1_000_000.0,
+                    bytes as f64 / 1_000_000.0
+                ),
+                Ok((_, None)) => "Estimated size unavailable: unknown duration.".into(),
+                Err(error) => error.to_string(),
+            }
+        }
+        _ => "Select a source for adaptive bitrate and estimated output size.".into(),
+    };
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
         document::Script { src: M1_SCRIPT }
@@ -288,6 +392,9 @@ fn App() -> Element {
                         exact_height: exact_height(),
                         preserve_aspect_ratio: preserve_aspect_ratio(),
                         resolved_size: resolved_size(),
+                        bitrate_mode: bitrate_mode(), custom_bitrate: custom_bitrate(), bitrate_options,
+                        frame_rate: frame_rate(), output_estimate,
+                        on_bitrate_change: bitrate_changed, on_custom_bitrate_change: custom_bitrate_changed, on_frame_rate_change: frame_rate_changed,
                         source_metadata: source_metadata(),
                         has_source: has_source(),
                         profile_ready: profile_ready(),
@@ -331,6 +438,11 @@ fn App() -> Element {
 
 #[derive(Clone, Copy)]
 struct ProbeSignals {
+    bitrate_mode: Signal<String>,
+    custom_bitrate: Signal<String>,
+    frame_rate: Signal<String>,
+    inspected_source: Signal<Option<SourceMetadata>>,
+    output_size: Signal<Option<Size>>,
     ffmpeg_spike: bool,
     generation: Signal<u64>,
     running: Signal<bool>,
@@ -343,6 +455,23 @@ struct ProbeSignals {
     resolved_size: Signal<String>,
     source_metadata: Signal<String>,
     status: Signal<String>,
+}
+
+fn video_settings(mode: &str, custom: &str, fps: &str) -> Result<VideoSettings, String> {
+    let bitrate = match mode {
+        "smaller" => VideoBitrate::Smaller,
+        "recommended" => VideoBitrate::Recommended,
+        "higher" => VideoBitrate::Higher,
+        "custom" => VideoBitrate::from_mbps(custom).map_err(|error| error.to_string())?,
+        _ => return Err("Unknown bitrate policy.".into()),
+    };
+    let frame_rate = fps
+        .parse::<FrameRateSpec>()
+        .map_err(|error| error.to_string())?;
+    Ok(VideoSettings {
+        bitrate,
+        frame_rate,
+    })
 }
 
 fn requested_resize(
@@ -424,12 +553,27 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
     signals
         .status
         .set("Inspecting input and probing output profiles for the selected size…".to_string());
-    let result = media_web::probe_output_profiles("source-file", resize).await;
+    let settings = match video_settings(
+        &(signals.bitrate_mode)(),
+        &(signals.custom_bitrate)(),
+        &(signals.frame_rate)(),
+    ) {
+        Ok(settings) => settings,
+        Err(error) => {
+            signals.status.set(display_error(error));
+            return;
+        }
+    };
+    let result = media_web::probe_output_profiles("source-file", resize, settings).await;
     if (signals.generation)() != generation || (signals.running)() {
         return;
     }
     match result {
         Ok(capabilities) => {
+            signals
+                .inspected_source
+                .set(Some(capabilities.source.clone()));
+            signals.output_size.set(Some(capabilities.output_size));
             signals.mp4_supported.set(capabilities.mp4_supported);
             signals.mp4_reason.set(capabilities.mp4_reason.clone());
             signals.hevc_supported.set(capabilities.hevc_supported);
@@ -508,7 +652,7 @@ fn format_source_metadata(source: &media_web::SourceMetadata) -> String {
         None => "No audio track".to_string(),
     };
     format!(
-        "{} · display {}×{} · coded {}×{}\nVideo: {} ({}) · {:.3} fps · {} frames · {:.3} s\nAudio: {} · file size {}",
+        "{} · display {}×{} · coded {}×{}\nVideo: {} ({}) · {:.3} fps ({}) · {} frames · {:.3} s\nAudio: {} · file size {}",
         source.file_name,
         source.display_size.width,
         source.display_size.height,
@@ -517,6 +661,11 @@ fn format_source_metadata(source: &media_web::SourceMetadata) -> String {
         video_codec,
         source.video_codec,
         source.frame_rate,
+        if source.variable_frame_rate {
+            "VFR average"
+        } else {
+            "CFR"
+        },
         source.frame_count,
         source.duration_seconds,
         audio,

@@ -1,7 +1,65 @@
 #![forbid(unsafe_code)]
 
 use dioxus::prelude::*;
-use media_core::{CodecAcceleration, OutputProfileId};
+use media_core::{CodecAcceleration, FrameRateSpec, OutputProfileId, VideoBitrate};
+
+const fn fps(numerator: u32, denominator: u32) -> FrameRateSpec {
+    FrameRateSpec::Constant {
+        numerator,
+        denominator,
+    }
+}
+
+pub const FRAME_RATE_PRESETS: &[(&str, &str, FrameRateSpec)] = &[
+    ("original", "Original", FrameRateSpec::Original),
+    ("15", "15", fps(15, 1)),
+    ("24000/1001", "23.976", fps(24000, 1001)),
+    ("24", "24", fps(24, 1)),
+    ("25", "25", fps(25, 1)),
+    ("30000/1001", "29.970", fps(30000, 1001)),
+    ("30", "30", fps(30, 1)),
+    ("50", "50", fps(50, 1)),
+    ("60000/1001", "59.940", fps(60000, 1001)),
+    ("60", "60", fps(60, 1)),
+];
+
+pub const BITRATE_PRESETS: &[(&str, &str, VideoBitrate)] = &[
+    ("smaller", "Smaller", VideoBitrate::Smaller),
+    ("recommended", "Recommended", VideoBitrate::Recommended),
+    ("higher", "Higher", VideoBitrate::Higher),
+];
+
+pub fn frame_rate_label(spec: FrameRateSpec) -> String {
+    if let Some((_, label, _)) = FRAME_RATE_PRESETS.iter().find(|(_, _, rate)| *rate == spec) {
+        return (*label).into();
+    }
+    match spec {
+        FrameRateSpec::Original => "Original".into(),
+        FrameRateSpec::Constant {
+            numerator,
+            denominator: 1,
+        } => format!("{numerator}"),
+        FrameRateSpec::Constant {
+            numerator,
+            denominator,
+        } => format!("{:.3}", f64::from(numerator) / f64::from(denominator)),
+    }
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+
+    #[test]
+    fn fps_preset_values_round_trip_through_shared_command_parser() {
+        for &(value, label, rate) in FRAME_RATE_PRESETS {
+            assert_eq!(value.parse::<FrameRateSpec>().unwrap(), rate);
+            assert_eq!(frame_rate_label(rate), label);
+        }
+        assert_eq!(frame_rate_label("120".parse().unwrap()), "120");
+        assert_eq!(frame_rate_label("7/2".parse().unwrap()), "3.500");
+    }
+}
 
 const RESIZE_PRESETS: &[(&str, &str)] = &[
     ("original", "Original size"),
@@ -77,6 +135,14 @@ pub fn ConverterControls(
     exact_height: String,
     preserve_aspect_ratio: bool,
     resolved_size: String,
+    bitrate_mode: String,
+    custom_bitrate: String,
+    bitrate_options: Vec<(String, String)>,
+    frame_rate: String,
+    output_estimate: String,
+    on_bitrate_change: EventHandler<FormEvent>,
+    on_custom_bitrate_change: EventHandler<FormEvent>,
+    on_frame_rate_change: EventHandler<FormEvent>,
     source_metadata: String,
     has_source: bool,
     profile_ready: bool,
@@ -184,6 +250,31 @@ pub fn ConverterControls(
             }
             if ffmpeg_spike {
                 p { class: "profile-note note", "FFmpeg WASM software encoder: live raw-frame streaming uses shared memory and explicit GPU readbacks." }
+            }
+            label { r#for: "output-fps", "Output FPS" }
+            select { id: "output-fps", value: frame_rate.clone(), disabled: running,
+                onchange: move |event| on_frame_rate_change.call(event),
+                for &(value, label, _) in FRAME_RATE_PRESETS {
+                    option { value, selected: frame_rate == value,
+                        if value == "original" { "Original — preserve source timing" } else { "{label}" }
+                    }
+                }
+            }
+            label { r#for: "video-bitrate", "Video bitrate" }
+            select { id: "video-bitrate", value: bitrate_mode.clone(), disabled: running,
+                onchange: move |event| on_bitrate_change.call(event),
+                for (value, label) in bitrate_options {
+                    option { value: value.clone(), selected: bitrate_mode == value, "{label}" }
+                }
+            }
+            if bitrate_mode == "custom" {
+                label { r#for: "custom-bitrate", "Custom Mbps" }
+                input { id: "custom-bitrate", r#type: "number", min: "0.25", max: "120", step: "0.01", value: custom_bitrate, disabled: running,
+                    oninput: move |event| on_custom_bitrate_change.call(event) }
+            }
+            p { id: "output-estimate", class: "profile-note note", "{output_estimate}" }
+            if frame_rate != "original" {
+                p { class: "profile-note note", "Fixed FPS duplicates/drops frames; playback speed and audio timing are unchanged. No motion interpolation." }
             }
             if !has_source {
                 p { class: "profile-note note", "Select an input to check compatible formats." }

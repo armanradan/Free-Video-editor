@@ -1,11 +1,14 @@
 #![forbid(unsafe_code)]
 
+pub use media_core::VideoSettings;
+
 #[cfg(target_arch = "wasm32")]
 mod browser {
     use js_sys::{Function, Promise, Reflect};
     use media_core::{
-        CodecAcceleration, FrameGeometry, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId,
-        Rect, ResizeSpec, Rotation, Size, validate_input_size,
+        BitrateSource, CodecAcceleration, FrameGeometry, FrameRateGrid, FrameRateSpec, INPUT_SIZE,
+        MediaError, OUTPUT_SIZE, OutputProfileId, Rect, ResizeSpec, Rotation, Size, TrackCoverage,
+        VideoBitrate, VideoCodec, VideoSettings, estimate_output_coverage, validate_input_size,
     };
     use media_gpu::ResizePipeline;
     use std::{
@@ -56,6 +59,12 @@ mod browser {
 
     #[derive(Clone, Debug)]
     pub struct SourceMetadata {
+        pub video_bitrate_bps: Option<u64>,
+        pub variable_frame_rate: bool,
+        pub video_start_us: i64,
+        pub video_end_us: i64,
+        pub audio_start_us: Option<i64>,
+        pub audio_end_us: Option<i64>,
         pub file_name: String,
         pub file_size: u64,
         pub display_size: Size,
@@ -67,6 +76,74 @@ mod browser {
         pub audio_codec: Option<String>,
         pub audio_channels: u32,
         pub audio_sample_rate: u32,
+    }
+
+    impl SourceMetadata {
+        pub fn resolve_bitrate(
+            &self,
+            output: Size,
+            profile: OutputProfileId,
+            settings: VideoSettings,
+        ) -> Result<u32, MediaError> {
+            // Average rate is used only for bitrate policy, never to replace VFR timestamps.
+            let num = (self.frame_rate * 1_000_000.0).round();
+            if !num.is_finite() || num < 1.0 || num > f64::from(u32::MAX) {
+                return Err(MediaError::InvalidFrameRate);
+            }
+            settings.resolve_bitrate(
+                output,
+                profile.video_codec(),
+                BitrateSource {
+                    size: self.display_size,
+                    fps_num: num as u32,
+                    fps_den: 1_000_000,
+                    codec: if self.video_codec.starts_with("hvc")
+                        || self.video_codec.starts_with("hev")
+                    {
+                        VideoCodec::H265
+                    } else {
+                        VideoCodec::H264
+                    },
+                    bitrate_bps: self.video_bitrate_bps,
+                },
+            )
+        }
+
+        pub fn estimate(
+            &self,
+            output: Size,
+            profile: OutputProfileId,
+            settings: VideoSettings,
+        ) -> Result<(u32, Option<u64>), MediaError> {
+            let bps = self.resolve_bitrate(output, profile, settings)?;
+            let audio = profile != OutputProfileId::WebmVp8VideoOnly && self.audio_codec.is_some();
+            Ok((
+                bps,
+                estimate_output_coverage(
+                    bps,
+                    TrackCoverage {
+                        start_us: i128::from(self.video_start_us),
+                        end_us: Some(i128::from(self.video_end_us)),
+                    },
+                    audio.then_some((
+                        TrackCoverage {
+                            start_us: i128::from(
+                                self.audio_start_us.unwrap_or(self.video_start_us),
+                            ),
+                            end_us: self
+                                .audio_end_us
+                                .filter(|_| self.audio_start_us.is_some())
+                                .map(i128::from),
+                        },
+                        if profile == OutputProfileId::WebmVp8Opus {
+                            128_000
+                        } else {
+                            192_000
+                        },
+                    )),
+                ),
+            ))
+        }
     }
 
     #[wasm_bindgen(inline_js = r#"
@@ -102,11 +179,11 @@ mod browser {
                 }
             }
         }
-        export function probeBrowserProfiles(file, width, height) {
-            return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height);
+        export function probeBrowserProfiles(file, width, height, options) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.probeProfiles(file, width, height, options);
         }
-        export function invokeBrowserJob(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled) {
-            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled);
+        export function invokeBrowserJob(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled, options, grid) {
+            return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled, options, grid);
         }
         export async function describeSelectedAdapter() {
             const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
@@ -143,8 +220,12 @@ mod browser {
         #[wasm_bindgen(js_name = inspectBrowserInput, catch)]
         fn inspect_browser_input(file: &File) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = probeBrowserProfiles, catch)]
-        fn probe_browser_profiles(file: &File, width: u32, height: u32)
-        -> Result<Promise, JsValue>;
+        fn probe_browser_profiles(
+            file: &File,
+            width: u32,
+            height: u32,
+            options: &JsValue,
+        ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = invokeBrowserJob, catch)]
         fn invoke_browser_job(
             file: &File,
@@ -159,6 +240,8 @@ mod browser {
             bitmap_ingress_required: &Function,
             status: &Function,
             cancelled: &Function,
+            options: &JsValue,
+            grid: &Function,
         ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = describeSelectedAdapter, catch)]
         fn describe_selected_adapter() -> Result<Promise, JsValue>;
@@ -198,9 +281,26 @@ mod browser {
         profile: &str,
         acceleration: &str,
         resize: ResizeSpec,
+        settings: Option<VideoSettings>,
         status: Function,
     ) -> Result<JsValue, MediaError> {
-        let resize = resize_command(resize);
+        let mut resize = resize_command(resize);
+        if let Some(settings) = settings {
+            let bitrate = match settings.bitrate {
+                VideoBitrate::Smaller => "smaller".into(),
+                VideoBitrate::Recommended => "recommended".into(),
+                VideoBitrate::Higher => "higher".into(),
+                VideoBitrate::BitsPerSecond(value) => format!("bps={value}"),
+            };
+            let fps = match settings.frame_rate {
+                FrameRateSpec::Original => "original".into(),
+                FrameRateSpec::Constant {
+                    numerator,
+                    denominator,
+                } => format!("{numerator}/{denominator}"),
+            };
+            resize.push_str(&format!("~{bitrate}~{fps}"));
+        }
         let local = Closure::<
             dyn FnMut(JsValue, String, String, String, String, String, Function) -> Promise,
         >::new(
@@ -271,14 +371,23 @@ mod browser {
         execution_options: String,
         status: Function,
     ) -> Result<JsValue, JsValue> {
-        let resize =
-            resize_from_command(&resize).map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let mut parts = resize.split('~');
+        let resize = resize_from_command(parts.next().unwrap_or(""))
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let settings = match (parts.next(), parts.next(), parts.next()) {
+            (None, None, None) => None,
+            (Some(rate), Some(fps), None) => Some(
+                settings_from_command(rate, fps)
+                    .map_err(|error| JsValue::from_str(&error.to_string()))?,
+            ),
+            _ => return Err(JsValue::from_str("invalid video settings")),
+        };
         let execution_options = execution_options_from_command(&execution_options)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let result = match operation.as_str() {
             "m1" => run_m1_local(status).await,
             "probe" => match file {
-                Some(file) => probe_file(file, resize).await,
+                Some(file) => probe_file(file, resize, settings).await,
                 None => Err(platform("no source file")),
             },
             "convert" => {
@@ -300,6 +409,7 @@ mod browser {
                             profile,
                             acceleration,
                             resize,
+                            settings,
                             execution_options,
                             status,
                         )
@@ -330,7 +440,12 @@ mod browser {
             status: &Function,
             cancelled: &Function,
         ) -> Result<Promise, JsValue>;
-        fn probe_profiles(&self, file: &File, output: Size) -> Result<Promise, JsValue>;
+        fn probe_profiles(
+            &self,
+            file: &File,
+            output: Size,
+            options: &JsValue,
+        ) -> Result<Promise, JsValue>;
     }
 
     struct WebCodecsMediabunnyBackend;
@@ -349,6 +464,8 @@ mod browser {
         output_mode: &'a str,
         verify_output: bool,
         failure_mode: &'a str,
+        options: &'a JsValue,
+        grid: &'a Function,
     }
 
     impl BrowserConversionBackend for WebCodecsMediabunnyBackend {
@@ -378,11 +495,18 @@ mod browser {
                 bitmap_ingress_required,
                 status,
                 cancelled,
+                request.options,
+                request.grid,
             )
         }
 
-        fn probe_profiles(&self, file: &File, output: Size) -> Result<Promise, JsValue> {
-            probe_browser_profiles(file, output.width, output.height)
+        fn probe_profiles(
+            &self,
+            file: &File,
+            output: Size,
+            options: &JsValue,
+        ) -> Result<Promise, JsValue> {
+            probe_browser_profiles(file, output.width, output.height, options)
         }
     }
 
@@ -408,7 +532,7 @@ mod browser {
     }
 
     pub async fn run_m1(_canvas_id: &str, status: Function) -> Result<String, MediaError> {
-        let result = dispatch(None, "m1", "", "", ResizeSpec::DEFAULT, status).await?;
+        let result = dispatch(None, "m1", "", "", ResizeSpec::DEFAULT, None, status).await?;
         string_property(&result, "summary", "probe returned no summary")
     }
 
@@ -447,6 +571,7 @@ mod browser {
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
         resize: ResizeSpec,
+        settings: VideoSettings,
         status: Function,
     ) -> Result<ConversionResult, MediaError> {
         let file = selected_file(file_input_id)?;
@@ -456,6 +581,7 @@ mod browser {
             profile.as_str(),
             acceleration.as_str(),
             resize,
+            Some(settings),
             status,
         )
         .await?;
@@ -478,6 +604,7 @@ mod browser {
         profile: OutputProfileId,
         acceleration: CodecAcceleration,
         resize: ResizeSpec,
+        settings: Option<VideoSettings>,
         execution_options: ExecutionOptions,
         status: Function,
     ) -> Result<JsValue, MediaError> {
@@ -489,6 +616,8 @@ mod browser {
             .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
         let output = resize.output_size(geometry.display_size())?;
+        let options = video_options(&inspection, output, settings)?;
+        let grid = frame_rate_callback(settings)?;
         let gpu = configured_gpu(
             geometry.square_pixel,
             output,
@@ -519,6 +648,8 @@ mod browser {
                         output_mode: &execution_options.output_mode,
                         verify_output: execution_options.verify_output,
                         failure_mode: &execution_options.failure_mode,
+                        options: &options,
+                        grid: grid.as_ref().unchecked_ref(),
                     },
                     process.as_ref().unchecked_ref(),
                     bitmap_ingress_required.as_ref().unchecked_ref(),
@@ -546,6 +677,7 @@ mod browser {
     pub async fn probe_output_profiles(
         file_input_id: &str,
         resize: ResizeSpec,
+        settings: VideoSettings,
     ) -> Result<OutputProfileCapabilities, MediaError> {
         let file = selected_file(file_input_id)?;
         let capabilities = dispatch(
@@ -554,6 +686,7 @@ mod browser {
             "",
             "no-preference",
             resize,
+            Some(settings),
             Function::new_no_args(""),
         )
         .await?;
@@ -580,7 +713,11 @@ mod browser {
         })
     }
 
-    async fn probe_file(file: File, resize: ResizeSpec) -> Result<JsValue, MediaError> {
+    async fn probe_file(
+        file: File,
+        resize: ResizeSpec,
+        settings: Option<VideoSettings>,
+    ) -> Result<JsValue, MediaError> {
         validate_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
         let inspection = JsFuture::from(backend.inspect(&file).map_err(js_error)?)
@@ -588,9 +725,14 @@ mod browser {
             .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
         let output = resize.output_size(geometry.display_size())?;
-        let capabilities = JsFuture::from(backend.probe_profiles(&file, output).map_err(js_error)?)
-            .await
-            .map_err(js_error)?;
+        let options = video_options(&inspection, output, settings)?;
+        let capabilities = JsFuture::from(
+            backend
+                .probe_profiles(&file, output, &options)
+                .map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)?;
         Reflect::set(
             &capabilities,
             &"outputWidth".into(),
@@ -605,6 +747,120 @@ mod browser {
         .map_err(js_error)?;
         Reflect::set(&capabilities, &"source".into(), &inspection).map_err(js_error)?;
         Ok(capabilities)
+    }
+
+    fn settings_from_command(rate: &str, fps: &str) -> Result<VideoSettings, MediaError> {
+        let bitrate = match rate {
+            "smaller" => VideoBitrate::Smaller,
+            "recommended" => VideoBitrate::Recommended,
+            "higher" => VideoBitrate::Higher,
+            value => VideoBitrate::BitsPerSecond(
+                value
+                    .strip_prefix("bps=")
+                    .ok_or_else(|| platform("invalid bitrate policy"))?
+                    .parse()
+                    .map_err(|_| platform("invalid bitrate"))?,
+            ),
+        };
+        let frame_rate = fps.parse()?;
+        Ok(VideoSettings {
+            bitrate,
+            frame_rate,
+        })
+    }
+
+    fn video_options(
+        inspection: &JsValue,
+        output: Size,
+        settings: Option<VideoSettings>,
+    ) -> Result<JsValue, MediaError> {
+        let source = source_metadata(inspection)?;
+        let options = js_sys::Object::new();
+        for (name, profile) in [
+            ("avc", OutputProfileId::Mp4H264Aac),
+            ("hevc", OutputProfileId::Mp4H265Aac),
+            ("vp8", OutputProfileId::WebmVp8Opus),
+        ] {
+            let rate = settings
+                .map(|settings| source.resolve_bitrate(output, profile, settings))
+                .transpose()?
+                .unwrap_or(0);
+            Reflect::set(&options, &name.into(), &JsValue::from_f64(f64::from(rate)))
+                .map_err(js_error)?;
+        }
+        let (num, den) = match settings.map(|settings| settings.frame_rate) {
+            Some(FrameRateSpec::Constant {
+                numerator,
+                denominator,
+            }) => (numerator, denominator),
+            _ => (0, 1),
+        };
+        for (name, value) in [
+            ("fpsNumerator", f64::from(num)),
+            ("fpsDenominator", f64::from(den)),
+            (
+                "frameRate",
+                if num > 0 {
+                    f64::from(num) / f64::from(den)
+                } else {
+                    source.frame_rate
+                },
+            ),
+        ] {
+            Reflect::set(&options, &name.into(), &JsValue::from_f64(value)).map_err(js_error)?;
+        }
+        Ok(options.into())
+    }
+
+    fn safe_integer(value: f64) -> Result<i64, MediaError> {
+        if !value.is_finite() || value.fract() != 0.0 || value.abs() > 9_007_199_254_740_991.0 {
+            return Err(MediaError::TimestampOverflow);
+        }
+        Ok(value as i64)
+    }
+
+    type FrameRateCallback = Closure<dyn FnMut(String, f64, f64, f64) -> Result<f64, JsValue>>;
+    fn frame_rate_callback(
+        settings: Option<VideoSettings>,
+    ) -> Result<FrameRateCallback, MediaError> {
+        let grid = match settings.map(|settings| settings.frame_rate) {
+            Some(FrameRateSpec::Constant {
+                numerator,
+                denominator,
+            }) => Some(FrameRateGrid::new(numerator, denominator)?),
+            _ => None,
+        };
+        Ok(Closure::new(
+            move |kind: String, value: f64, resolution: f64, origin: f64| {
+                let result = (|| -> Result<i64, MediaError> {
+                    let grid = grid.ok_or(MediaError::InvalidFrameRate)?;
+                    let value = safe_integer(value)?;
+                    match kind.as_str() {
+                        "index" => grid.index(i128::from(value), 1, false),
+                        "time" => grid.timestamp_us(value),
+                        "end" => {
+                            let resolution = safe_integer(resolution)?;
+                            let origin = safe_integer(origin)?;
+                            let scaled = i128::from(value)
+                                .checked_mul(1_000_000)
+                                .and_then(|end| {
+                                    i128::from(origin)
+                                        .checked_mul(i128::from(resolution))
+                                        .and_then(|origin| end.checked_sub(origin))
+                                })
+                                .ok_or(MediaError::TimestampOverflow)?;
+                            grid.index(scaled, i128::from(resolution), true)
+                        }
+                        _ => Err(platform("invalid frame-grid operation")),
+                    }
+                })()
+                .and_then(|value| {
+                    safe_integer(value as f64)?;
+                    Ok(value as f64)
+                });
+                result.map_err(|error| JsValue::from_str(&error.to_string()))
+            },
+        ))
     }
 
     fn resize_command(resize: ResizeSpec) -> String {
@@ -1457,6 +1713,24 @@ mod browser {
 
     fn source_metadata(value: &JsValue) -> Result<SourceMetadata, MediaError> {
         Ok(SourceMetadata {
+            video_bitrate_bps: Reflect::get(value, &"videoBitrate".into())
+                .map_err(js_error)?
+                .as_f64()
+                .filter(|rate| rate.is_finite() && *rate > 0.0)
+                .map(|rate| rate.round() as u64),
+            variable_frame_rate: bool_property(value, "variableFrameRate")?,
+            video_start_us: safe_integer(number_property(value, "videoStartUs")?)?,
+            video_end_us: safe_integer(number_property(value, "videoEndUs")?)?,
+            audio_start_us: Reflect::get(value, &"audioStartUs".into())
+                .map_err(js_error)?
+                .as_f64()
+                .map(safe_integer)
+                .transpose()?,
+            audio_end_us: Reflect::get(value, &"audioEndUs".into())
+                .map_err(js_error)?
+                .as_f64()
+                .map(safe_integer)
+                .transpose()?,
             file_name: string_property(value, "name", "input metadata has no filename")?,
             file_size: u64_property(value, "size")?,
             display_size: Size::new(

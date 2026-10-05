@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use futures_channel::{mpsc, oneshot};
 use futures_util::StreamExt;
-use media_core::{OutputProfileId, ResizeSpec};
+use media_core::{FrameRateSpec, OutputProfileId, ResizeSpec, Size, VideoBitrate};
 use media_native::{
     CancellationToken, JobStage, NativeJob, NativeSession, ProcessingRoute,
     SessionConversionReport, enumerate_adapters, enumerate_nvidia_gpus,
@@ -12,7 +12,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, OnceLock},
 };
-use ui::ResizePresetButtons;
+use ui::{ResizePresetButtons, frame_rate_label};
 mod preferences;
 mod preview;
 mod window;
@@ -120,6 +120,34 @@ fn Choice(
     }
 }
 
+#[cfg(test)]
+mod bitrate_tests {
+    use super::*;
+
+    #[test]
+    fn custom_mbps_accepts_decimals_without_silently_replacing_invalid_values() {
+        let policy = VideoBitrate::BitsPerSecond(4_000_000);
+        assert_eq!(
+            selected_bitrate(policy, "3.5").unwrap(),
+            VideoBitrate::BitsPerSecond(3_500_000)
+        );
+        for value in ["", "NaN", "inf", "0.2", "121", "oops"] {
+            assert!(selected_bitrate(policy, value).is_err());
+        }
+        assert_eq!(
+            selected_bitrate(VideoBitrate::Recommended, "oops").unwrap(),
+            VideoBitrate::Recommended
+        );
+    }
+}
+
+fn selected_bitrate(policy: VideoBitrate, custom: &str) -> Result<VideoBitrate, String> {
+    if !matches!(policy, VideoBitrate::BitsPerSecond(_)) {
+        return Ok(policy);
+    }
+    VideoBitrate::from_mbps(custom).map_err(|error| error.to_string())
+}
+
 fn app() -> Element {
     let preview_canvas =
         dioxus::native::use_wgpu(|| preview::Presenter::new(app_state().preview.frames.clone()));
@@ -128,10 +156,13 @@ fn app() -> Element {
     let nvidia_available = !nvidia_gpus.is_empty();
     let mut dark_mode = use_signal(|| true);
     let mut choosing_gpu = use_signal(|| false);
+    let mut choosing_fps = use_signal(|| false);
     let mut showing_preview = use_signal(|| false);
     let mut preview_path = use_signal(String::new);
     let mut pointer_released = use_signal(|| 0_u64);
-    use_effect(move || window::set_player_open(showing_preview() && !choosing_gpu()));
+    use_effect(move || {
+        window::set_player_open(showing_preview() && !choosing_gpu() && !choosing_fps())
+    });
     use_drop(|| window::set_player_open(false));
     use_future(move || async move {
         loop {
@@ -191,6 +222,10 @@ fn app() -> Element {
     let mut output = use_signal(String::new);
     let mut resize = use_signal(|| "original".to_string());
     let mut profile = use_signal(|| OutputProfileId::Mp4H264Aac);
+    let mut bitrate = use_signal(VideoBitrate::default);
+    let mut custom_bitrate = use_signal(|| "4".to_string());
+    let mut frame_rate = use_signal(FrameRateSpec::default);
+    let mut estimate_source = use_signal(|| None::<media_native::SourceInfo>);
     let mut route = use_signal(move || {
         if nvidia_available {
             ProcessingRoute::NvidiaFfmpeg
@@ -222,6 +257,7 @@ fn app() -> Element {
             if let Ok(Some(path)) = receive.await {
                 input.set(path.display().to_string());
                 source_metadata.set(String::new());
+                estimate_source.set(None);
                 gpu_limitation.set(None);
                 status.set("Source selected. Inspect it before conversion.".into());
             }
@@ -245,54 +281,58 @@ fn app() -> Element {
     };
 
     let inspect_session = session.clone();
-    let inspect = move |_| {
-        let source = PathBuf::from(input());
-        if source.as_os_str().is_empty() {
-            status.set("Enter a source path first.".into());
-            return;
-        }
-        running.set(true);
-        job_stage.set(JobStage::Inspecting);
-        let cancel = CancellationToken::default();
-        job_cancel.set(cancel.clone());
-        status.set(stage_label(JobStage::Inspecting).into());
-        let session = inspect_session.clone();
-        let inspected_path = source.clone();
-        spawn(async move {
-            let (send, receive) = oneshot::channel();
-            std::thread::spawn(move || {
-                let _ = send.send(
-                    session
-                        .inspect(&source, &cancel)
-                        .map_err(|error| error.to_string()),
-                );
-            });
-            let result = receive.await;
-            running.set(false);
-            if input() != inspected_path.display().to_string() {
+    let inspect =
+        move |_| {
+            let source = PathBuf::from(input());
+            if source.as_os_str().is_empty() {
+                status.set("Enter a source path first.".into());
                 return;
             }
-            match result {
-                Ok(Ok(info)) => {
-                    gpu_limitation.set(info.shared_gpu_limitation());
-                    source_metadata.set(format!(
-                        "{} × {} (display {} × {}), {}, {}, {} frames, audio: {}",
+            running.set(true);
+            job_stage.set(JobStage::Inspecting);
+            let cancel = CancellationToken::default();
+            job_cancel.set(cancel.clone());
+            status.set(stage_label(JobStage::Inspecting).into());
+            let session = inspect_session.clone();
+            let inspected_path = source.clone();
+            spawn(async move {
+                let (send, receive) = oneshot::channel();
+                std::thread::spawn(move || {
+                    let _ = send.send(
+                        session
+                            .inspect(&source, &cancel)
+                            .map_err(|error| error.to_string()),
+                    );
+                });
+                let result = receive.await;
+                running.set(false);
+                if input() != inspected_path.display().to_string() {
+                    return;
+                }
+                match result {
+                    Ok(Ok(info)) => {
+                        estimate_source.set(Some(info.clone()));
+                        gpu_limitation.set(info.shared_gpu_limitation());
+                        source_metadata.set(format!(
+                        "{} × {} (display {} × {}), {}, {}, {:.3} fps ({}), {} frames, audio: {}",
                         info.width,
                         info.height,
                         info.display_width,
                         info.display_height,
                         info.codec,
                         info.pixel_format,
+                        f64::from(info.frame_rate_num) / f64::from(info.frame_rate_den),
+                        if info.variable_frame_rate { "VFR average" } else { "CFR" },
                         info.frame_count,
                         info.audio_codec.as_deref().unwrap_or("none"),
                     ));
-                    status.set("Source inspected. Choose settings and convert.".into());
+                        status.set("Source inspected. Choose settings and convert.".into());
+                    }
+                    Ok(Err(error)) => status.set(format!("Source inspection failed: {error}")),
+                    Err(_) => status.set("Source inspection worker stopped.".into()),
                 }
-                Ok(Err(error)) => status.set(format!("Source inspection failed: {error}")),
-                Err(_) => status.set("Source inspection worker stopped.".into()),
-            }
-        });
-    };
+            });
+        };
 
     let convert_session = session.clone();
     let convert = move |_| {
@@ -311,6 +351,14 @@ fn app() -> Element {
             return;
         };
         let selected_profile = profile();
+        let selected_bitrate = match selected_bitrate(bitrate(), &custom_bitrate()) {
+            Ok(value) => value,
+            Err(error) => {
+                status.set(error);
+                return;
+            }
+        };
+        let selected_fps = frame_rate();
         let selected_route = route();
         if selected_route.uses_wgpu()
             && let Some(reason) = gpu_limitation()
@@ -341,6 +389,8 @@ fn app() -> Element {
                             resize: size,
                             profile: selected_profile,
                             route: selected_route,
+                            bitrate: Some(selected_bitrate),
+                            frame_rate: selected_fps,
                         },
                         &cancel,
                         |stage| {
@@ -384,8 +434,8 @@ fn app() -> Element {
                         },
                     ));
                     status.set(format!(
-                        "Complete: {} frames, {} × {}, {} bytes. Total {} ms: inspection/setup {} ms, conversion {} ms, verification {} ms. Inspection {}. Saved to {}",
-                        result.frames_processed,
+                        "Complete: {} input → {} output frames, {} × {}, {} bytes. Total {} ms: inspection/setup {} ms, conversion {} ms, verification {} ms. Inspection {}. Saved to {}",
+                        result.frames_processed, result.output_frame_count,
                         result.output_width,
                         result.output_height,
                         result.output_bytes,
@@ -402,6 +452,40 @@ fn app() -> Element {
     };
 
     let busy = running() || switching();
+    let estimate = match (estimate_source(), resize_spec(&resize())) {
+        (Some(source), Some(size)) => match selected_bitrate(bitrate(), &custom_bitrate())
+            .map_err(|error| error.into())
+            .and_then(|policy| {
+                source.output_estimate_with_rate(size, profile(), policy, frame_rate())
+            }) {
+            Ok((bps, Some(bytes))) => format!(
+                "{:.2} Mbps video · Estimated ~{:.1} MB",
+                f64::from(bps) / 1_000_000.0,
+                bytes as f64 / 1_000_000.0
+            ),
+            Ok((bps, None)) => format!(
+                "{:.2} Mbps video · Size unavailable: unknown duration",
+                f64::from(bps) / 1_000_000.0
+            ),
+            Err(error) => format!("Estimate unavailable: {error}"),
+        },
+        _ => "Inspect source for bitrate and size estimate.".to_string(),
+    };
+    let fps_label = frame_rate_label(frame_rate());
+    let bitrate_label = |policy: VideoBitrate, name: &str| -> String {
+        let rate = estimate_source().and_then(|source| {
+            let size = resize_spec(&resize())?
+                .output_size(Size::new(source.display_width, source.display_height).ok()?)
+                .ok()?;
+            source
+                .resolve_bitrate(size, profile(), policy, frame_rate())
+                .ok()
+        });
+        rate.map_or_else(
+            || name.to_string(),
+            |rate| format!("{name} · {:.2} Mbps", f64::from(rate) / 1_000_000.0),
+        )
+    };
     let gpu_label = adapters
         .iter()
         .find(|adapter| adapter.key == selected_adapter())
@@ -430,7 +514,7 @@ fn app() -> Element {
                 div { class: "path-row",
                     input { id: "native-input", r#type: "text", value: input,
                         placeholder: "Select an MP4 or enter its path", disabled: busy.then_some("true"),
-                        oninput: move |event| { input.set(event.value()); source_metadata.set(String::new()); gpu_limitation.set(None); } }
+                        oninput: move |event| { input.set(event.value()); source_metadata.set(String::new()); estimate_source.set(None); gpu_limitation.set(None); } }
                     button { disabled: busy.then_some("true"), onclick: pick_source, "Browse…" }
                     button { disabled: (busy || input().trim().is_empty()).then_some("true"), onclick: inspect, "Inspect" }
                     button { disabled: (busy || input().trim().is_empty()).then_some("true"),
@@ -460,18 +544,46 @@ fn app() -> Element {
                         running: busy, resize_mode: resize(),
                         on_change: move |value| resize.set(value),
                     }
-                    p { class: "note", "Keeps aspect ratio · No upscaling" }
+                    div { class: "fps-summary",
+                        button { class: "preset", disabled: busy.then_some("true"), onclick: move |_| choosing_fps.set(true), "FPS: {fps_label}…" }
+                        span { class: "note", if frame_rate() == FrameRateSpec::Original { "No upscaling" } else { "CFR · frames resampled" } }
+                    }
+                    p { class: "note", title: "Approximate size including audio when present and 2% muxing allowance. Variable bitrate can differ substantially from this estimate.", "{estimate}" }
                 }
                 section { class: "panel",
-                    h2 { "Format" }
-                    div { class: "choice-list",
-                        Choice { label: "MP4 · H.264".to_string(), hint: "8-bit SDR · AAC audio".to_string(),
-                            selected: profile() == OutputProfileId::Mp4H264Aac, disabled: busy,
-                            on_select: move |_| profile.set(OutputProfileId::Mp4H264Aac) }
-                        Choice { label: "MP4 · H.265 Main 10".to_string(), hint: "10-bit SDR · AAC audio · Direct FFmpeg only".to_string(),
-                            selected: profile() == OutputProfileId::Mp4H265Main10Aac,
-                            disabled: busy || route().uses_wgpu(),
-                            on_select: move |_| profile.set(OutputProfileId::Mp4H265Main10Aac) }
+                    h2 { "Format · MP4 / AAC · SDR" }
+                    div { class: "format-options",
+                        button { class: "preset", "data-selected": profile() == OutputProfileId::Mp4H264Aac,
+                            disabled: busy.then_some("true"), onclick: move |_| profile.set(OutputProfileId::Mp4H264Aac), "H.264 · 8-bit" }
+                        button { class: "preset", "data-selected": profile() == OutputProfileId::Mp4H265Main10Aac,
+                            title: "H.265 Main 10 · Direct FFmpeg only",
+                            disabled: (busy || route().uses_wgpu()).then_some("true"), onclick: move |_| profile.set(OutputProfileId::Mp4H265Main10Aac), "H.265 · 10-bit" }
+                    }
+                    div { class: "bitrate-options", role: "group", aria_label: "Video bitrate",
+                        for &(_, name, policy) in ui::BITRATE_PRESETS {
+                            button { class: "preset", "data-selected": bitrate() == policy,
+                                disabled: (busy || (estimate_source().is_none() && policy != VideoBitrate::Recommended)).then_some("true"),
+                                onclick: move |_| bitrate.set(policy), "{bitrate_label(policy, name)}" }
+                        }
+                    }
+                    div { class: "bitrate-custom",
+                        button { class: "preset", "data-selected": matches!(bitrate(), VideoBitrate::BitsPerSecond(_)), disabled: busy.then_some("true"), onclick: move |_| bitrate.set(VideoBitrate::BitsPerSecond(4_000_000)), "Custom" }
+                        input { r#type: "text", aria_label: "Custom video bitrate in Mbps", value: custom_bitrate,
+                            disabled: busy.then_some("true"), oninput: move |event| { custom_bitrate.set(event.value()); bitrate.set(VideoBitrate::BitsPerSecond(4_000_000)); } }
+                        span { class: "note", "Mbps · lower = smaller files" }
+                    }
+                }
+            }
+            if choosing_fps() {
+                div { class: "picker-backdrop",
+                    section { class: "panel fps-picker", role: "dialog", aria_modal: "true", aria_label: "Output frame rate",
+                        div { class: "picker-heading", h2 { "Output frame rate" } button { onclick: move |_| choosing_fps.set(false), "Done" } }
+                        div { class: "fps-options",
+                            for &(_, _, value) in ui::FRAME_RATE_PRESETS {
+                                button { "data-selected": frame_rate() == value, onclick: move |_| { frame_rate.set(value); choosing_fps.set(false); }, "{frame_rate_label(value)}" }
+                            }
+                        }
+                        p { class: "note", "Original preserves source timing, including VFR. Fixed FPS duplicates/drops frames; no motion interpolation or speed change. Audio timing is preserved." }
                     }
                 }
             }
@@ -490,7 +602,7 @@ fn app() -> Element {
                         selected: route() == ProcessingRoute::SharedWgpuNvidia,
                         disabled: busy || !nvidia_available || profile() == OutputProfileId::Mp4H265Main10Aac || gpu_limitation().is_some(),
                         on_select: move |_| route.set(ProcessingRoute::SharedWgpuNvidia) }
-                    Choice { label: "Shared GPU · software codecs".to_string(), hint: "wgpu resize · CPU decode / encode · 8-bit · Preserves VFR".to_string(),
+                    Choice { label: "Shared GPU · software codecs".to_string(), hint: "wgpu resize · CPU decode / encode · 8-bit".to_string(),
                         selected: route() == ProcessingRoute::SharedWgpu,
                         disabled: busy || profile() == OutputProfileId::Mp4H265Main10Aac || gpu_limitation().is_some(),
                         on_select: move |_| route.set(ProcessingRoute::SharedWgpu) }
@@ -581,7 +693,7 @@ fn app() -> Element {
                 section { class: "panel preview-panel",
                     h2 { "Video preview" }
                     div { class: "preview-empty", "Select a source and click Preview, or preview your converted output." }
-                    p { class: "note", "Independent player · Conversion keeps every frame" }
+                    p { class: "note", "Independent player · Original FPS keeps every frame" }
                 }
             }
             }

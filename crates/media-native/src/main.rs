@@ -1,14 +1,14 @@
-use media_core::{OutputProfileId, ResizeSpec};
+use media_core::{FrameRateSpec, OutputProfileId, ResizeSpec, VideoBitrate};
 use media_native::{
-    CancellationToken, ProcessingRoute, convert_with_control, enumerate_adapters,
-    load_adapter_preference, save_adapter_preference,
+    CancellationToken, NativeJob, NativeSession, ProcessingRoute, convert_with_control,
+    enumerate_adapters, load_adapter_preference, save_adapter_preference,
 };
 use std::path::PathBuf;
 
 fn usage() -> &'static str {
     "native-convert list-gpus\n\
      native-convert save-gpu --adapter-key KEY --preference FILE\n\
-     native-convert convert --input FILE --output FILE [--route direct|nvidia|wgpu|wgpu-nvidia] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
+     native-convert convert --input FILE --output FILE [--route direct|nvidia|wgpu|wgpu-nvidia] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--bitrate smaller|recommended|higher|MBPS] [--fps original|NUM[/DEN]] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
      CLI defaults to software direct FFmpeg. NVIDIA uses CUDA decode/resize and NVENC video. wgpu uses software codecs around GPU resize. wgpu-nvidia uses NVDEC/NVENC around the shared wgpu resize, with explicit CPU-staged pixel transfers. NVIDIA routes never silently fall back to CPU. Audio and full inspection/verification still use CPU. Session inspection can be reused for unchanged files; standalone CLI runs start with an empty cache. All routes preserve tested VFR/non-negative A/V origins and require one video and at most one audio track. NVIDIA and wgpu require square pixels and no display transform. Main 10 is available on direct/NVIDIA only. BT.709 limited SDR or unspecified tags only; HDR, wide color, negative origins and multiple audio tracks are unsupported. Output must not already exist."
 }
 
@@ -92,15 +92,47 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     timer_token.cancel();
                 });
             }
-            let report = convert_with_control(
-                &input,
-                &output,
-                resize,
-                profile,
-                route,
-                adapter_key.as_deref(),
-                &cancel,
-            )?;
+            let frame_rate = argument(&args, "--fps")
+                .as_deref()
+                .unwrap_or("original")
+                .parse::<FrameRateSpec>()?;
+            let report = if argument(&args, "--bitrate").is_some()
+                || frame_rate != FrameRateSpec::Original
+            {
+                let bitrate = match argument(&args, "--bitrate").as_deref() {
+                    None => None,
+                    Some("recommended") => Some(VideoBitrate::Recommended),
+                    Some("smaller") => Some(VideoBitrate::Smaller),
+                    Some("higher") => Some(VideoBitrate::Higher),
+                    Some(value) => Some(VideoBitrate::from_mbps(value)?),
+                };
+                let session = NativeSession::new(adapter_key.as_deref())?;
+                session
+                    .convert_job(
+                        NativeJob {
+                            input: &input,
+                            output: &output,
+                            resize,
+                            profile,
+                            route,
+                            bitrate,
+                            frame_rate,
+                        },
+                        &cancel,
+                        |_| {},
+                    )?
+                    .conversion
+            } else {
+                convert_with_control(
+                    &input,
+                    &output,
+                    resize,
+                    profile,
+                    route,
+                    adapter_key.as_deref(),
+                    &cancel,
+                )?
+            };
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
         _ => return Err(usage().into()),

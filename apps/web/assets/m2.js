@@ -298,14 +298,16 @@ class MediabunnyInputAdapter {
   const audioTrack = audioTracks[0] ?? null;
   let audio = null;
   if (audioTrack) {
-    const [audioCodec, numberOfChannels, sampleRate, canDecode, audioStats] = await Promise.all([
+    const [audioCodec, numberOfChannels, sampleRate, canDecode, audioStats, start, end] = await Promise.all([
       audioTrack.getCodec(),
       audioTrack.getNumberOfChannels(),
       audioTrack.getSampleRate(),
       audioTrack.canDecode(),
       audioTrack.computePacketStats(),
+      audioTrack.getFirstTimestamp(),
+      input.computeDuration([audioTrack]),
     ]);
-    audio = { track: audioTrack, codec: audioCodec, numberOfChannels, sampleRate, canDecode, packetCount: audioStats.packetCount };
+    audio = { track: audioTrack, codec: audioCodec, numberOfChannels, sampleRate, canDecode, packetCount: audioStats.packetCount, start, end };
   }
   return {
     input,
@@ -325,6 +327,10 @@ class MediabunnyInputAdapter {
     duration,
     packetCount: stats.packetCount,
     averagePacketRate: stats.averagePacketRate,
+    videoBitrate: stats.averageBitrate,
+    videoStart: await track.getFirstTimestamp(),
+    timeResolution: await track.getTimeResolution(),
+    variableFrameRate: !(await track.computeFrameRateMetrics()).frameRateIsConstant,
     audioTrackCount: audioTracks.length,
     audio,
     codec,
@@ -358,6 +364,12 @@ async function inspect(file) {
       duration: opened.duration,
       packetCount: opened.packetCount,
       averagePacketRate: opened.averagePacketRate,
+      videoBitrate: opened.videoBitrate,
+      variableFrameRate: opened.variableFrameRate,
+      videoStartUs: Math.round(opened.videoStart * 1_000_000),
+      videoEndUs: Math.round(opened.duration * 1_000_000),
+      audioStartUs: opened.audio ? Math.round(opened.audio.start * 1_000_000) : null,
+      audioEndUs: opened.audio ? Math.round(opened.audio.end * 1_000_000) : null,
       audioTracks: opened.audioTrackCount,
       audioCodec: opened.audio?.codec ?? null,
       audioChannels: opened.audio?.numberOfChannels ?? 0,
@@ -396,7 +408,7 @@ function resolveProfile(id) {
   return profile;
 }
 
-async function probeProfile(profile, opened, outputWidth, outputHeight, hardwareAcceleration = "no-preference") {
+async function probeProfile(profile, opened, outputWidth, outputHeight, hardwareAcceleration = "no-preference", options = {}) {
   const ffmpeg = ffmpegSelected();
   if (ffmpeg && profile.container !== "mp4") {
     return { supported: false, reason: "The FFmpeg WASM spike supports MP4/H.264/AAC only; choose the WebCodecs backend for this profile." };
@@ -434,7 +446,7 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
     const ringUnavailable = ffmpegRingCapability();
     if (ringUnavailable) return { supported: false, reason: ringUnavailable };
     if (opened.audioTrackCount !== 1) return { supported: false, reason: "FFmpeg WASM spike requires exactly one input audio track." };
-    if (!ffmpegFrameRate(opened.averagePacketRate)) {
+    if (!(options.fpsNumerator > 0) && (opened.variableFrameRate || !ffmpegFrameRate(opened.averagePacketRate))) {
       return { supported: false, reason: "FFmpeg WASM raw-video bridge requires a constant integer frame rate from 1–120 fps or 24000/1001, 30000/1001, 60000/1001." };
     }
     const frameBytes = outputWidth * outputHeight * 4;
@@ -447,8 +459,8 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
     const videoSupported = await canEncodeVideo(profile.videoCodec, {
       width: outputWidth,
       height: outputHeight,
-      frameRate: opened.averagePacketRate,
-      quality: new Quality("high"),
+      frameRate: options.frameRate ?? opened.averagePacketRate,
+      ...(options[profile.videoCodec] > 0 ? { bitrate: options[profile.videoCodec] } : { quality: new Quality("high") }),
       latencyMode: "quality",
       hardwareAcceleration,
     });
@@ -466,7 +478,7 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
       const audioSupported = await canEncodeAudio(profile.audioCodec, {
         numberOfChannels: opened.audio.numberOfChannels,
         sampleRate: 48_000,
-        quality: new Quality("high"),
+        ...(options[profile.videoCodec] > 0 ? { bitrate: profile.audioCodec === "opus" ? 128_000 : 192_000 } : { quality: new Quality("high") }),
       });
       if (!audioSupported) {
         return {
@@ -481,11 +493,11 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
   return { supported: true, reason: "Supported for the selected input and exact output configuration." };
 }
 
-async function probeProfiles(file, outputWidth, outputHeight) {
+async function probeProfiles(file, outputWidth, outputHeight, options = {}) {
   const opened = await MediabunnyInputAdapter.open(file);
   try {
-    const mp4 = await probeProfile(OUTPUT_PROFILES["mp4-h264-aac"], opened, outputWidth, outputHeight);
-    const hevc = await probeProfile(OUTPUT_PROFILES["mp4-h265-aac"], opened, outputWidth, outputHeight);
+    const mp4 = await probeProfile(OUTPUT_PROFILES["mp4-h264-aac"], opened, outputWidth, outputHeight, "no-preference", options);
+    const hevc = await probeProfile(OUTPUT_PROFILES["mp4-h265-aac"], opened, outputWidth, outputHeight, "no-preference", options);
     return {
       mp4Supported: mp4.supported,
       mp4Reason: mp4.reason,
@@ -561,7 +573,10 @@ async function verifyOutput(blob, expected) {
     }
     // WebM uses millisecond timecode ticks here; a packet duration is the
     // difference between two independently rounded endpoints.
-    const timelineToleranceUs = expected.container === "webm" ? 1_000 : 5;
+    // Compare against the actual container clock, not an assumed MP4 timescale.
+    // Durations subtract independently rounded endpoints (up to two ticks).
+    const timelineToleranceUs = expected.container === "webm" ? 1_000
+      : Math.ceil(2_000_000 / await videoTrack.getTimeResolution()) + 2;
     let maxTimelineErrorUs = 0;
     for (let index = 0; index < outputTimeline.length; index++) {
       const actual = outputTimeline[index];
@@ -651,7 +666,7 @@ async function verifyOutput(blob, expected) {
 }
 
 class MediabunnyOutputAdapter {
-  static async create(profile, audioConfig, hardwareAcceleration, telemetry, outputMode) {
+  static async create(profile, audioConfig, hardwareAcceleration, telemetry, outputMode, options = {}) {
     const storage = await createOutputStorage(outputMode);
     if (storage.kind === OutputStorageKind.OPFS) {
       try {
@@ -682,10 +697,11 @@ class MediabunnyOutputAdapter {
       hardwareAcceleration,
       telemetry,
       storage,
+      options,
     );
   }
 
-  constructor(profile, audioConfig, hardwareAcceleration, telemetry, storage) {
+  constructor(profile, audioConfig, hardwareAcceleration, telemetry, storage, options) {
     this.storage = storage;
     this.target = storage.target;
     this.videoPackets = 0;
@@ -698,7 +714,7 @@ class MediabunnyOutputAdapter {
     this.output = new Output({ format, target: this.target });
     this.videoSource = new VideoSampleSource({
       codec: profile.videoCodec,
-      quality: new Quality("high"),
+      ...(options[profile.videoCodec] > 0 ? { bitrate: options[profile.videoCodec], bitrateMode: "variable" } : { quality: new Quality("high") }),
       keyFrameInterval: 2,
       latencyMode: "quality",
       hardwareAcceleration,
@@ -716,7 +732,7 @@ class MediabunnyOutputAdapter {
     if (profile.audioCodec) {
       this.audioSource = new AudioSampleSource({
         codec: profile.audioCodec,
-        quality: new Quality("high"),
+        ...(options[profile.videoCodec] > 0 ? { bitrate: profile.audioCodec === "opus" ? 128_000 : 192_000 } : { quality: new Quality("high") }),
         transform: { sampleRate: 48_000, numberOfChannels: audioConfig.numberOfChannels },
         onEncoderConfig: (config) => { this.audioEncoderConfig = config; },
         onEncodedSample: () => telemetry.enter("audioEncoderCallbacks"),
@@ -761,7 +777,7 @@ class MediabunnyOutputAdapter {
 // The shared wgpu processor still supplies every frame. FFmpeg's explicit
 // RGBA readback feeds a bounded live ring, never a raw-video disk spool.
 class FfmpegWasmOutputAdapter {
-  static async create(file, width, height, frameRate, cancelled, status, outputMode) {
+  static async create(file, width, height, frameRate, cancelled, status, outputMode, bitrate = 0) {
     const rate = ffmpegFrameRate(frameRate);
     if (!rate) fail(`FFmpeg WASM requires a supported constant frame rate (reported ${frameRate}).`);
     const unavailable = ffmpegRingCapability();
@@ -771,6 +787,7 @@ class FfmpegWasmOutputAdapter {
     const ffmpeg = new FFmpeg();
     const adapter = new FfmpegWasmOutputAdapter(ffmpeg, file, width, height, rate, cancelled,
       storage, new FfmpegRgbaRing(cancelled));
+    adapter.bitrate = bitrate;
     ffmpeg.on("log", ({ message }) => {
       const match = /^DIAXUS_WASM_HEAP_PEAK=(\d+)$/.exec(message);
       if (match) adapter.peakWasmHeapBytes = Math.max(adapter.peakWasmHeapBytes, Number(match[1]));
@@ -851,7 +868,7 @@ class FfmpegWasmOutputAdapter {
     const args = ["-f", "rawvideo", "-pixel_format", "rgba", "-video_size", `${this.width}x${this.height}`,
       "-framerate", `${this.frameRate.num}/${this.frameRate.den}`, "-i", "/dev/diaxus-raw", "-i", "/input/source.mp4",
       "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
-      "-crf", "20", "-pix_fmt", "yuv420p", "-vf", `settb=1/1000000,setpts=PTS+${this.firstTimestamp}`,
+      ...(this.bitrate > 0 ? ["-b:v", String(this.bitrate)] : ["-crf", "20"]), "-pix_fmt", "yuv420p", "-vf", `settb=1/1000000,setpts=PTS+${this.firstTimestamp}`,
       "-enc_time_base:v", "1:1000000", "-fps_mode", "passthrough", "-c:a", "aac", "-b:a", "192k",
       "-ar", "48000", "-video_track_timescale", "1000000", "-movie_timescale", "1000000",
       "-f", "mp4", "-movflags", "+faststart", "/dev/diaxus-output"];
@@ -932,7 +949,7 @@ class FfmpegWasmOutputAdapter {
   }
 }
 
-async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled) {
+async function runBrowserJob(file, outputWidth, outputHeight, profileId, requestedAcceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled, options = {}, grid) {
   if (!globalThis.isSecureContext || !globalThis.VideoDecoder || !globalThis.VideoEncoder || !navigator.gpu) {
     fail("The browser backend requires a secure context, WebCodecs, and WebGPU.");
   }
@@ -945,6 +962,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
   let outputStarted = false;
   let completed = false;
   let processed = 0;
+  let encoded = 0;
   let audioSamples = 0;
   const stages = Object.create(null);
   const telemetry = {
@@ -1001,10 +1019,10 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     }
     let selectedAcceleration = requested;
     let accelerationFallback = null;
-    let profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight, selectedAcceleration);
+    let profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight, selectedAcceleration, options);
     if (!profileCapability.supported && requested === "prefer-hardware") {
       const preferredReason = profileCapability.reason;
-      profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight, "no-preference");
+      profileCapability = await probeProfile(profile, opened, outputWidth, outputHeight, "no-preference", options);
       if (profileCapability.supported) {
         selectedAcceleration = "no-preference";
         accelerationFallback = preferredReason;
@@ -1017,15 +1035,20 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const selectedTracks = profile.audioCodec ? [opened.track, opened.audio.track] : [opened.track];
     const originSeconds = await opened.input.getFirstTimestamp(selectedTracks);
     const originUs = asSafeMicroseconds(Math.round(originSeconds * 1_000_000), "input origin");
-    const videoFirstSeconds = (asSafeMicroseconds(Math.round(await opened.track.getFirstTimestamp() * 1_000_000), "video start") - originUs) / 1_000_000;
+    let videoFirstSeconds = (asSafeMicroseconds(Math.round(await opened.track.getFirstTimestamp() * 1_000_000), "video start") - originUs) / 1_000_000;
+    const fixedFps = options.fpsNumerator > 0;
+    const firstIndex = fixedFps ? grid("index", Math.round(videoFirstSeconds * 1_000_000), 0, 0) : null;
+    const endIndex = fixedFps ? grid("end", Math.round(opened.duration * opened.timeResolution), opened.timeResolution, originUs) : null;
+    if (fixedFps && endIndex <= firstIndex) fail("Selected output FPS would produce no frames.");
+    if (fixedFps) videoFirstSeconds = grid("time", firstIndex, 0, 0) / 1_000_000;
     const audioFirstSeconds = opened.audio
       ? (asSafeMicroseconds(Math.round(await opened.audio.track.getFirstTimestamp() * 1_000_000), "audio start") - originUs) / 1_000_000
       : 0;
     status(`Demuxed MP4/${opened.codec === "hevc" ? "H.265/HEVC" : "H.264/AVC"}: coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, square-pixel ${opened.width}×${opened.height}, rotation ${opened.rotation}°, flip=${opened.flip}, display ${opened.displayWidth}×${opened.displayHeight}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}; ${opened.packetCount} video packets; profile ${profile.label}; codec preference ${selectedAcceleration}.`);
 
     muxer = ffmpeg
-      ? await FfmpegWasmOutputAdapter.create(file, outputWidth, outputHeight, opened.averagePacketRate, cancelled, status, outputMode)
-      : await MediabunnyOutputAdapter.create(profile, opened.audio, selectedAcceleration, telemetry, outputMode);
+      ? await FfmpegWasmOutputAdapter.create(file, outputWidth, outputHeight, options.frameRate ?? opened.averagePacketRate, cancelled, status, outputMode, options.avc)
+      : await MediabunnyOutputAdapter.create(profile, opened.audio, selectedAcceleration, telemetry, outputMode, options);
     if (!muxer.storage.handle && file.size > MEMORY_FALLBACK_MAX_INPUT_BYTES) {
       fail(`The selected file is ${(file.size / 1048576).toFixed(1)} MiB. Bounded output streaming is unavailable (${muxer.storage.fallbackReason}); the memory fallback accepts at most ${MEMORY_FALLBACK_MAX_INPUT_BYTES / 1048576} MiB inputs.`);
     }
@@ -1050,6 +1073,39 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       const sink = new VideoSampleSink(opened.track, { hardwareAcceleration: selectedAcceleration });
       const iterator = sink.samples()[Symbol.asyncIterator]();
       let previousTimestamp = null;
+      let pendingFrame = null;
+      let outputIndex = firstIndex;
+      const encodeFrame = async (frame, timestamp, duration) => {
+        ensureActive();
+        // VideoSample owns its VideoFrame. Keep the lookahead frame alive across duplicates.
+        const outputSample = ffmpeg ? null : new VideoSample(frame.clone());
+        if (outputSample) retain("samples");
+        try {
+          if (outputSample) {
+            outputSample.setTimestamp(timestamp / 1_000_000);
+            outputSample.setDuration(duration / 1_000_000);
+          }
+          await muxer.videoSource.add(outputSample ?? frame, timestamp, duration);
+          videoTimeline.push({ timestamp, duration });
+          encoded++;
+          lastVideoDurationSeconds = duration / 1_000_000;
+          videoEndSeconds = (timestamp + duration) / 1_000_000;
+        } finally { release(outputSample, "samples"); }
+      };
+      const emitPending = async until => {
+        while (outputIndex < until) {
+          const timestamp = grid("time", outputIndex, 0, 0);
+          const end = grid("time", outputIndex + 1, 0, 0);
+          await encodeFrame(pendingFrame, timestamp, end - timestamp);
+          outputIndex++;
+        }
+      };
+      const finishVideo = async () => {
+        if (fixedFps && pendingFrame) {
+          await emitPending(endIndex);
+          if (encoded !== endIndex - firstIndex) fail("Output frame count differs from planned rational FPS coverage.");
+        }
+      };
       const createItem = (sample, prepareInParallel) => {
         telemetry.enter("decodedVideo");
         retain("samples");
@@ -1064,7 +1120,6 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
             fail(`Video timestamps are not strictly increasing: ${timestamp} µs followed ${previousTimestamp} µs.`);
           }
           previousTimestamp = timestamp;
-          videoTimeline.push({ timestamp, duration });
           const visible = sample.visibleRect;
           if (sample.codedWidth !== opened.codedWidth || sample.codedHeight !== opened.codedHeight
               || visible.left !== opened.visibleRect.left || visible.top !== opened.visibleRect.top
@@ -1132,8 +1187,6 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
             telemetry.leave("gpu");
           }
           retain("frames");
-          const outputSample = ffmpeg ? null : new VideoSample(processedFrame);
-          if (outputSample) retain("samples");
           try {
             if (failureMode === "codec-once"
                 && !consumedFailureInjections.has(failureMode)
@@ -1141,7 +1194,15 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
               consumedFailureInjections.add(failureMode);
               fail("INJECTED: codec failure after 5 GPU-processed frames");
             }
-            await muxer.videoSource.add(outputSample ?? processedFrame, item.timestamp, item.duration);
+            if (fixedFps) {
+              const nextIndex = grid("index", item.timestamp, 0, 0);
+              if (pendingFrame) await emitPending(Math.min(nextIndex, endIndex));
+              release(pendingFrame, "frames");
+              pendingFrame = processedFrame;
+              processedFrame = null; // ownership transferred to the one-frame lookahead
+            } else {
+              await encodeFrame(processedFrame, item.timestamp, item.duration);
+            }
           } catch (error) {
             if (errorMessage(error).startsWith("INJECTED:")) throw error;
             const config = muxer.videoEncoderConfig;
@@ -1149,12 +1210,8 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
               ? `${config.codec}, ${config.width}×${config.height}, ${config.bitrate ?? "auto"} bit/s, hardware=${config.hardwareAcceleration ?? "no-preference"}`
               : `${outputWidth}×${outputHeight} ${profile.videoCodec.toUpperCase()} (encoder config was not emitted)`;
             fail(`${profile.videoCodec.toUpperCase()} encoder configuration failed (${configured}): ${errorMessage(error)}`);
-          } finally {
-            release(outputSample, "samples");
           }
           processed += 1;
-          lastVideoDurationSeconds = item.duration / 1_000_000;
-          videoEndSeconds = (item.timestamp + item.duration) / 1_000_000;
           const percent = opened.packetCount > 0 ? Math.min(99, Math.floor((processed / opened.packetCount) * 100)) : 0;
           status(`Converting ${percent}% — video ${processed}/${opened.packetCount || "?"}, audio ${audioSamples}/${opened.audio?.packetCount ?? 0}.`);
         } finally {
@@ -1177,6 +1234,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
             if (next.done) break;
             await processItem(createItem(next.value, false));
           }
+          await finishVideo();
           return;
         }
 
@@ -1205,7 +1263,10 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           }
           if (group.length < 4) break;
         }
+        await finishVideo();
       } finally {
+        release(pendingFrame, "frames");
+        pendingFrame = null;
         try { await iterator.return?.(); } catch (_) { /* retain pipeline result */ }
       }
     };
@@ -1267,8 +1328,8 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     }
     completed = true;
     const outputBlob = await muxer.finalizedBlob(profile);
-    if (muxer.videoPackets !== processed) {
-      fail(`Video encoder emitted ${muxer.videoPackets} packets for ${processed} processed frames.`);
+    if (muxer.videoPackets !== encoded) {
+      fail(`Video encoder emitted ${muxer.videoPackets} packets for ${encoded} submitted output frames.`);
     }
     if (profile.audioCodec && muxer.audioPackets === 0) {
       fail(`${profile.audioCodec.toUpperCase()} encoder emitted no packets.`);
@@ -1290,7 +1351,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           audioCodecLabel: profile.audioCodec === "aac" ? "AAC" : "Opus",
           width: outputWidth,
           height: outputHeight,
-          frameCount: processed,
+          frameCount: encoded,
           videoTimeline,
           videoEndSeconds,
           lastVideoDurationSeconds,
@@ -1325,16 +1386,19 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         ? `PASS: ${processed} ${inputCodecLabel} input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; audio queue peak=1; conversion pixel readbacks=${ffmpeg ? muxer.readbacks : 0}; backend=${ffmpeg ? "FFmpeg WASM" : "WebCodecs"}.`
         : `PASS: ${processed} ${inputCodecLabel} input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0; backend=WebCodecs.`)
         + `\n${verificationSummary}`
+        + `\nOutput policy: ${processed} input → ${encoded} output frames; FPS=${fixedFps ? `${options.fpsNumerator}/${options.fpsDenominator} (duplicate/drop resampling, unchanged playback speed)` : "Original (source PTS preserved)"}; target video bitrate=${options[profile.videoCodec] || "legacy quality"} bps (VBR, not a file-size guarantee).`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; ${ffmpeg ? "browser decoder probed, FFmpeg software encoder selected explicitly" : "exact decoder+encoder probes passed"}${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
         + `\nGeometry/color: input coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}, rotation ${opened.rotation}°, flip=${opened.flip}; baked square-pixel output ${outputWidth}×${outputHeight}; SDR ${opened.color.primaries ?? "unspecified"}/${opened.color.transfer ?? "unspecified"}/${opened.color.matrix ?? "unspecified"}, browser-normalized to sRGB processing; HDR rejected.`
-        + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; prepared frames are consumed in timestamp order; ${ffmpeg ? "raw RGBA bridge ≤one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded" : "WebCodecs encoder queue ≤4; mux writes are serialized"}.`
+        + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; ${ffmpeg ? "raw RGBA bridge ≤one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded" : "WebCodecs encoder queue ≤4; mux writes are serialized"}.`
         + `\n${muxer.storageReport()}`
         + `\n${bitmapPreparationReport()}\n${telemetry.report()}\n${lifecycle()}`,
       // Only a Blob/File handle crosses the execution-context boundary. OPFS-backed
       // output remains disk-backed; the host owns the object URL lifecycle.
       blob: outputBlob,
       fileName: `${base}-${outputWidth}x${outputHeight}.${profile.extension}`,
-      frameCount: processed,
+      frameCount: encoded,
+      inputFrameCount: processed,
+      targetVideoBitrate: options[profile.videoCodec] || null,
       duration: verified.duration,
       outputBytes: outputBlob.size,
     };
@@ -1366,12 +1430,12 @@ class WebCodecsMediabunnyBackend {
     return inspect(file);
   }
 
-  probeProfiles(file, outputWidth, outputHeight) {
-    return probeProfiles(file, outputWidth, outputHeight);
+  probeProfiles(file, outputWidth, outputHeight, options) {
+    return probeProfiles(file, outputWidth, outputHeight, options);
   }
 
-  run(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled) {
-    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled);
+  run(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled, options, grid) {
+    return runBrowserJob(file, outputWidth, outputHeight, profileId, acceleration, outputMode, verifyOutputFully, failureMode, processFrame, bitmapIngressRequired, status, cancelled, options, grid);
   }
 }
 

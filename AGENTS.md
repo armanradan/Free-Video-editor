@@ -34,7 +34,7 @@ Read `docs/architecture.md` before implementation. M1 established the browser de
 - Browser futures and handles may be non-Send. Do not add unsafe Send/Sync implementations or force Tokio/threading into shared code.
 - Drain codec output concurrently with input. Do not assume one packet produces exactly one frame immediately.
 - Bound decoder submissions, callback queues, encoder submissions, and retained frames. Codec queue counters alone are insufficient.
-- Preserve all frames during conversion; preview is independently rate-limited.
+- Preserve all frames during conversion by default; preview is independently rate-limited. An explicitly selected constant output FPS may duplicate/drop frames without changing playback speed; verify its complete rational timestamp grid and A/V coverage instead of original frame-count equality.
 - Preserve integer timestamps, durations, geometry, orientation, and color metadata. Use checked time-base conversion.
 - End-of-stream drains decoder, processing, and encoder in order while consuming callbacks, then finalizes output.
 - Cancellation stops input, ignores stale job callbacks, cleans resources, and handles already-submitted GPU work safely.

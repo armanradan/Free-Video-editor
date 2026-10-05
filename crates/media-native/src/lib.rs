@@ -1,6 +1,9 @@
 #![forbid(unsafe_code)]
 
-use media_core::{FrameGeometry, OutputProfileId, Rect, ResizeSpec, Rotation, Size};
+use media_core::{
+    BitrateSource, FrameGeometry, FrameRateSpec, OutputProfileId, Rect, ResizeSpec, Rotation, Size,
+    TrackCoverage, VideoBitrate, VideoCodec, VideoSettings, estimate_output_coverage,
+};
 use media_gpu::ResizePipeline;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -245,6 +248,9 @@ pub struct NativeJob<'a> {
     pub resize: ResizeSpec,
     pub profile: OutputProfileId,
     pub route: ProcessingRoute,
+    /// None retains legacy CRF/CQ20 for existing harnesses.
+    pub bitrate: Option<VideoBitrate>,
+    pub frame_rate: FrameRateSpec,
 }
 
 #[derive(Debug, Deserialize)]
@@ -254,6 +260,7 @@ struct Probe {
 
 #[derive(Debug, Deserialize)]
 struct ProbeStream {
+    bit_rate: Option<String>,
     codec_type: String,
     codec_name: String,
     codec_tag_string: Option<String>,
@@ -265,6 +272,7 @@ struct ProbeStream {
     time_base: Option<String>,
     start_time: Option<String>,
     duration: Option<String>,
+    duration_ts: Option<i64>,
     nb_frames: Option<String>,
     pix_fmt: Option<String>,
     profile: Option<String>,
@@ -283,6 +291,7 @@ struct SideData {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SourceInfo {
+    pub video_bitrate_bps: Option<u64>,
     pub codec: String,
     pub codec_tag: Option<String>,
     pub codec_profile: Option<String>,
@@ -305,11 +314,88 @@ pub struct SourceInfo {
     pub video_start_us: i128,
     pub audio_start_us: Option<i128>,
     pub video_duration_us: Option<i128>,
+    /// Exact stream duration for CFR endpoint planning, not rounded decimal seconds.
+    pub video_duration_ticks: Option<i64>,
+    pub video_time_base: Option<String>,
     pub audio_duration_us: Option<i128>,
     pub variable_frame_rate: bool,
 }
 
 impl SourceInfo {
+    pub fn resolve_bitrate(
+        &self,
+        size: Size,
+        profile: OutputProfileId,
+        bitrate: VideoBitrate,
+        frame_rate: FrameRateSpec,
+    ) -> NativeResult<u32> {
+        Ok(VideoSettings {
+            bitrate,
+            frame_rate,
+        }
+        .resolve_bitrate(
+            size,
+            profile.video_codec(),
+            BitrateSource {
+                size: Size::new(self.display_width, self.display_height)?,
+                fps_num: self.frame_rate_num,
+                fps_den: self.frame_rate_den,
+                codec: if self.codec == "hevc" {
+                    VideoCodec::H265
+                } else {
+                    VideoCodec::H264
+                },
+                bitrate_bps: self.video_bitrate_bps,
+            },
+        )?)
+    }
+
+    pub fn output_estimate(
+        &self,
+        resize: ResizeSpec,
+        profile: OutputProfileId,
+        bitrate: VideoBitrate,
+    ) -> NativeResult<(u32, Option<u64>)> {
+        self.output_estimate_with_rate(resize, profile, bitrate, FrameRateSpec::Original)
+    }
+
+    pub fn output_estimate_with_rate(
+        &self,
+        resize: ResizeSpec,
+        profile: OutputProfileId,
+        bitrate: VideoBitrate,
+        frame_rate: FrameRateSpec,
+    ) -> NativeResult<(u32, Option<u64>)> {
+        let size = resize.output_size(Size::new(self.display_width, self.display_height)?)?;
+        let bps = self.resolve_bitrate(size, profile, bitrate, frame_rate)?;
+        let video_end = self
+            .video_duration_us
+            .and_then(|duration| self.video_start_us.checked_add(duration));
+        let audio_end = self
+            .audio_start_us
+            .zip(self.audio_duration_us)
+            .and_then(|(start, duration)| start.checked_add(duration));
+        Ok((
+            bps,
+            estimate_output_coverage(
+                bps,
+                TrackCoverage {
+                    start_us: self.video_start_us,
+                    end_us: video_end,
+                },
+                self.audio_codec.as_ref().map(|_| {
+                    (
+                        TrackCoverage {
+                            start_us: self.audio_start_us.unwrap_or(self.video_start_us),
+                            end_us: audio_end,
+                        },
+                        192_000,
+                    )
+                }),
+            ),
+        ))
+    }
+
     /// Known shared-RGBA bridge restrictions after direct-source inspection.
     /// An absent reason does not replace the GPU route's full preflight.
     pub fn shared_gpu_limitation(&self) -> Option<String> {
@@ -356,6 +442,9 @@ impl AdapterDescriptor {
 
 #[derive(Debug, Serialize)]
 pub struct ConversionReport {
+    pub output_frame_count: u64,
+    pub frame_rate: FrameRateSpec,
+    pub video_bitrate_bps: Option<u32>,
     pub route: String,
     pub profile: String,
     pub input: SourceInfo,
@@ -613,6 +702,8 @@ impl NativeSession {
                 resize,
                 profile,
                 route,
+                bitrate: None,
+                frame_rate: FrameRateSpec::Original,
             },
             cancel,
             |_| {},
@@ -659,6 +750,8 @@ impl NativeSession {
             resize,
             profile,
             route,
+            bitrate,
+            frame_rate,
         } = job;
         let (generation, adapter_key, token) = self.begin_job(cancel)?;
         let _active_job = ActiveSessionJob { session: self };
@@ -669,6 +762,8 @@ impl NativeSession {
             profile,
             route,
             NativeRunOptions {
+                bitrate,
+                frame_rate,
                 adapter_key: adapter_key.as_deref(),
                 inspection: Some(&self.inspection),
                 on_stage: Some(&on_stage),
@@ -872,6 +967,11 @@ fn inspect_source(
     }
     Ok((
         SourceInfo {
+            video_bitrate_bps: video
+                .bit_rate
+                .as_deref()
+                .and_then(|value| value.parse().ok())
+                .filter(|rate| *rate > 0),
             codec: video.codec_name.clone(),
             codec_tag: video.codec_tag_string.clone(),
             codec_profile: video.profile.clone(),
@@ -897,6 +997,8 @@ fn inspect_source(
             video_start_us,
             audio_start_us,
             video_duration_us,
+            video_duration_ticks: video.duration_ts,
+            video_time_base: video.time_base.clone(),
             audio_duration_us,
             variable_frame_rate,
         },
@@ -1076,6 +1178,136 @@ fn scan_video_timestamps(
     Ok(timeline)
 }
 
+#[derive(Clone, Copy, Debug)]
+struct CfrPlan {
+    numerator: u32,
+    denominator: u32,
+    first: i64,
+    end: i64,
+}
+
+impl CfrPlan {
+    fn for_source(
+        source: &SourceInfo,
+        timeline: &[i128],
+        spec: FrameRateSpec,
+    ) -> NativeResult<Option<Self>> {
+        let FrameRateSpec::Constant { .. } = spec else {
+            return Ok(None);
+        };
+        let (numerator, denominator) =
+            spec.resolve(source.frame_rate_num, source.frame_rate_den)?;
+        let origin = source
+            .audio_start_us
+            .map_or(source.video_start_us, |audio| {
+                audio.min(source.video_start_us)
+            });
+        let start = timeline
+            .first()
+            .copied()
+            .ok_or("empty video timeline")?
+            .checked_sub(origin)
+            .ok_or("CFR origin overflow")?;
+        source
+            .video_duration_us
+            .ok_or("frame-rate conversion requires known video duration")?;
+        let ticks = source
+            .video_duration_ticks
+            .ok_or("frame-rate conversion requires exact video duration ticks")?;
+        let (time_num, time_den) = parse_rational(
+            source
+                .video_time_base
+                .as_deref()
+                .ok_or("frame-rate conversion requires video time base")?,
+        )?;
+        if ticks <= 0 || time_num <= 0 || time_den <= 0 {
+            return Err("invalid exact video duration".into());
+        }
+        let end = i128::from(ticks)
+            .checked_mul(time_num)
+            .and_then(|value| value.checked_mul(1_000_000))
+            .and_then(|value| {
+                source
+                    .video_start_us
+                    .checked_sub(origin)
+                    .and_then(|offset| offset.checked_mul(time_den))
+                    .and_then(|offset| value.checked_add(offset))
+            })
+            .ok_or("CFR duration overflow")?;
+        if start < 0 || end <= start.checked_mul(time_den).ok_or("CFR start overflow")? {
+            return Err("invalid video coverage for frame-rate conversion".into());
+        }
+        let grid = media_core::FrameRateGrid::new(numerator, denominator)?;
+        let plan = Self {
+            numerator,
+            denominator,
+            first: grid.index(start, 1, false)?,
+            end: grid.index(end, time_den, true)?,
+        };
+        if plan.end <= plan.first {
+            return Err("frame-rate conversion would produce no frames".into());
+        }
+        Ok(Some(plan))
+    }
+
+    fn count(self) -> u64 {
+        (self.end - self.first) as u64
+    }
+
+    fn timestamp_us(self, index: i64) -> NativeResult<i128> {
+        Ok(i128::from(
+            media_core::FrameRateGrid::new(self.numerator, self.denominator)?
+                .timestamp_us(index)?,
+        ))
+    }
+
+    fn duration_us(self) -> NativeResult<i128> {
+        self.timestamp_us(self.end - self.first)
+    }
+
+    fn verify(self, timeline: &[i128]) -> NativeResult<()> {
+        if u64::try_from(timeline.len())? != self.count() {
+            return Err("CFR output frame count differs from planned coverage".into());
+        }
+        for (index, &pts) in timeline.iter().enumerate() {
+            let expected = self.timestamp_us(
+                self.first
+                    .checked_add(i64::try_from(index)?)
+                    .ok_or("CFR index overflow")?,
+            )?;
+            if pts
+                .checked_sub(expected)
+                .ok_or("CFR verification overflow")?
+                .unsigned_abs()
+                > 1_000
+            {
+                return Err(format!("CFR output frame {index} timestamp mismatch: expected {expected}µs, got {pts}µs").into());
+            }
+        }
+        Ok(())
+    }
+}
+
+fn append_fps_filter(filter: &mut String, plan: Option<CfrPlan>) -> NativeResult<()> {
+    if let Some(plan) = plan {
+        if !filter.is_empty() {
+            filter.push(',');
+        }
+        let start = plan.timestamp_us(plan.first)?;
+        // Force the planned first grid point; trim only a possible extra tail
+        // caused by the bridge's microsecond-rounded EOF. Never pad missing EOF.
+        filter.push_str(&format!(
+            "fps=fps={}/{}:start_time={}.{:06}:round=near:eof_action=pass,trim=end_frame={}",
+            plan.numerator,
+            plan.denominator,
+            start / 1_000_000,
+            start % 1_000_000,
+            plan.count()
+        ));
+    }
+    Ok(())
+}
+
 fn verify_output_timeline(
     input: &SourceInfo,
     input_timeline: &[i128],
@@ -1104,6 +1336,15 @@ fn verify_output_timeline(
             .into());
         }
     }
+    verify_track_coverage(input, output, input.video_duration_us, origin)
+}
+
+fn verify_track_coverage(
+    input: &SourceInfo,
+    output: &SourceInfo,
+    expected_video_duration: Option<i128>,
+    origin: i128,
+) -> NativeResult<()> {
     if input.audio_codec.is_some() {
         let before = input
             .audio_start_us
@@ -1124,7 +1365,7 @@ fn verify_output_timeline(
             .into());
         }
     }
-    if let Some(before) = input.video_duration_us {
+    if let Some(before) = expected_video_duration {
         let after = output
             .video_duration_us
             .ok_or("output video duration was unavailable")?;
@@ -1303,6 +1544,17 @@ fn ffmpeg_base() -> Command {
     cmd
 }
 
+fn configure_video_bitrate(cmd: &mut Command, bitrate: Option<u32>, hardware: bool) {
+    if let Some(bitrate) = bitrate {
+        // Average VBR target. Do not also impose CRF/CQ (quality mode).
+        cmd.arg("-b:v").arg(bitrate.to_string());
+    } else if hardware {
+        cmd.args(["-cq", "20", "-b:v", "0"]);
+    } else {
+        cmd.args(["-crf", "20"]);
+    }
+}
+
 pub fn convert(
     input: &Path,
     output: &Path,
@@ -1348,6 +1600,10 @@ pub fn convert_with_control(
 
 #[derive(Clone, Copy, Default)]
 struct NativeRunOptions<'a> {
+    frame_rate: FrameRateSpec,
+    cfr_plan: Option<CfrPlan>,
+    bitrate: Option<VideoBitrate>,
+    video_bitrate_bps: Option<u32>,
     adapter_key: Option<&'a str>,
     inject_device_loss_after_frames: Option<u64>,
     inspection: Option<&'a InspectionCache>,
@@ -1442,6 +1698,11 @@ fn convert_with_control_inner(
         Size::new(source.width, source.height)?
     };
     let output_size = resize.output_size(input_size)?;
+    let cfr_plan = CfrPlan::for_source(&source, input_timeline, options.frame_rate)?;
+    let video_bitrate_bps = options
+        .bitrate
+        .map(|bitrate| source.resolve_bitrate(output_size, profile, bitrate, options.frame_rate))
+        .transpose()?;
     let mut partial = create_partial(output)?;
     let preflight_ms = total_started.elapsed().as_millis();
     options.stage(JobStage::Converting);
@@ -1453,7 +1714,11 @@ fn convert_with_control_inner(
             output_size,
             &source,
             profile,
-            None,
+            NativeRunOptions {
+                cfr_plan,
+                video_bitrate_bps,
+                ..options
+            },
             cancel,
         )
         .map(|()| (None, 0, 0, None)),
@@ -1463,7 +1728,12 @@ fn convert_with_control_inner(
             output_size,
             &source,
             profile,
-            hardware_gpu.as_ref(),
+            NativeRunOptions {
+                cfr_plan,
+                video_bitrate_bps,
+                hardware_gpu: hardware_gpu.as_ref(),
+                ..options
+            },
             cancel,
         )
         .map(|()| (None, 0, 0, None)),
@@ -1474,6 +1744,8 @@ fn convert_with_control_inner(
             &source,
             input_timeline,
             NativeRunOptions {
+                cfr_plan,
+                video_bitrate_bps,
                 adapter_key: hardware_adapter
                     .as_ref()
                     .map(|adapter| adapter.key.as_str())
@@ -1492,7 +1764,7 @@ fn convert_with_control_inner(
     cancel.check()?;
     if verified.width != output_size.width
         || verified.height != output_size.height
-        || verified.frame_count != source.frame_count
+        || verified.frame_count != cfr_plan.map_or(source.frame_count, |plan| plan.count())
         || verified.audio_codec.is_some() != source.audio_codec.is_some()
         || verified.codec != if allow_10bit { "hevc" } else { "h264" }
         || verified.pixel_format
@@ -1516,7 +1788,21 @@ fn convert_with_control_inner(
             "native output stream metadata does not match expected size/frame/audio counts".into(),
         );
     }
-    verify_output_timeline(&source, input_timeline, &verified, &output_timeline)?;
+    if let Some(plan) = cfr_plan {
+        plan.verify(&output_timeline)?;
+        verify_track_coverage(
+            &source,
+            &verified,
+            Some(plan.duration_us()?),
+            source
+                .audio_start_us
+                .map_or(source.video_start_us, |audio| {
+                    audio.min(source.video_start_us)
+                }),
+        )?;
+    } else {
+        verify_output_timeline(&source, input_timeline, &verified, &output_timeline)?;
+    }
     for (label, input_tag, output_tag) in [
         ("range", &source.color_range, &verified.color_range),
         ("space", &source.color_space, &verified.color_space),
@@ -1539,6 +1825,9 @@ fn convert_with_control_inner(
     options.stage(JobStage::Publishing);
     let size = finish_output(&mut partial, output)?;
     Ok(ConversionReport {
+        frame_rate: options.frame_rate,
+        output_frame_count: verified.frame_count,
+        video_bitrate_bps,
         route: match route {
             ProcessingRoute::DirectFfmpeg => "direct-ffmpeg",
             ProcessingRoute::NvidiaFfmpeg => "nvidia-ffmpeg",
@@ -1589,10 +1878,11 @@ fn convert_direct(
     output: Size,
     source: &SourceInfo,
     profile: OutputProfileId,
-    hardware_gpu: Option<&NvidiaGpu>,
+    options: NativeRunOptions<'_>,
     cancel: &CancellationToken,
 ) -> NativeResult<()> {
     cancel.check()?;
+    let hardware_gpu = options.hardware_gpu;
     let mut cmd = ffmpeg_base();
     cmd.args(["-copyts", "-start_at_zero"]);
     if let Some(gpu) = hardware_gpu {
@@ -1610,7 +1900,7 @@ fn convert_direct(
     if source.audio_codec.is_some() {
         cmd.args(["-map", "0:a:0"]);
     }
-    let filter = if hardware_gpu.is_some() {
+    let mut filter = if hardware_gpu.is_some() {
         format!(
             "scale_cuda={}:{}:format={}:interp_algo=bilinear,setsar=1",
             output.width,
@@ -1633,6 +1923,7 @@ fn convert_direct(
             }
         )
     };
+    append_fps_filter(&mut filter, options.cfr_plan)?;
     cmd.args([
         "-vf",
         &filter,
@@ -1658,14 +1949,12 @@ fn convert_direct(
         },
     ]);
     if hardware_gpu.is_some() {
-        cmd.args(["-rc", "vbr", "-cq", "20", "-b:v", "0", "-gpu", "0"]);
+        cmd.args(["-rc", "vbr", "-gpu", "0"]);
         if profile.video_bit_depth() == 10 {
             cmd.args(["-profile:v", "main10"]);
         }
     } else {
         cmd.args([
-            "-crf",
-            "20",
             "-pix_fmt",
             if profile.video_bit_depth() == 10 {
                 "yuv420p10le"
@@ -1674,6 +1963,7 @@ fn convert_direct(
             },
         ]);
     }
+    configure_video_bitrate(&mut cmd, options.video_bitrate_bps, hardware_gpu.is_some());
     if profile.video_bit_depth() == 10 {
         cmd.args(["-tag:v", "hvc1"]);
         let mut x265_color = vec!["log-level=error".to_owned()];
@@ -1801,6 +2091,7 @@ fn convert_gpu(
             filter.push_str(":out_color_matrix=bt709");
         }
         filter.push_str(",format=nv12,hwupload_cuda");
+        append_fps_filter(&mut filter, options.cfr_plan)?;
         let colors: Vec<_> = [
             ("range", &source.color_range),
             ("colorspace", &source.color_space),
@@ -1829,16 +2120,22 @@ fn convert_gpu(
             "p4",
             "-rc",
             "vbr",
-            "-cq",
-            "20",
-            "-b:v",
-            "0",
         ]);
     } else {
+        let mut filter = String::new();
+        append_fps_filter(&mut filter, options.cfr_plan)?;
+        if !filter.is_empty() {
+            encoder.args(["-vf", &filter]);
+        }
         encoder.args([
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
         ]);
     }
+    configure_video_bitrate(
+        &mut encoder,
+        options.video_bitrate_bps,
+        options.hardware_gpu.is_some(),
+    );
     encoder.args(["-fps_mode", "passthrough", "-enc_time_base:v", "1:90000"]);
     for (flag, value) in [
         ("-color_range", &source.color_range),
@@ -2232,6 +2529,87 @@ impl GpuProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use media_core::estimate_output_bytes;
+
+    #[test]
+    fn cfr_plan_checks_full_grid_coverage_and_fractional_rates() {
+        let source = probe_source(&fixture("m2-h264-aac.mp4")).unwrap();
+        for (numerator, denominator, count) in [(15, 1, 30), (60, 1, 120), (30_000, 1001, 60)] {
+            let plan = CfrPlan::for_source(
+                &source,
+                &[0],
+                FrameRateSpec::Constant {
+                    numerator,
+                    denominator,
+                },
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(plan.count(), count);
+            let mut timeline: Vec<_> = (plan.first..plan.end)
+                .map(|index| plan.timestamp_us(index).unwrap())
+                .collect();
+            plan.verify(&timeline).unwrap();
+            timeline[1] += 2_000;
+            assert!(plan.verify(&timeline).is_err());
+            assert!(plan.verify(&timeline[..timeline.len() - 1]).is_err());
+        }
+        assert!(
+            CfrPlan::for_source(&source, &[0], FrameRateSpec::Original)
+                .unwrap()
+                .is_none()
+        );
+        let mut unknown = source;
+        unknown.video_duration_us = None;
+        assert!(
+            CfrPlan::for_source(
+                &unknown,
+                &[0],
+                FrameRateSpec::Constant {
+                    numerator: 25,
+                    denominator: 1
+                }
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn cfr_plan_retains_relative_audio_video_offset_for_vfr() {
+        let source = probe_source(&fixture("m35-vfr-offset.mp4")).unwrap();
+        let plan = CfrPlan::for_source(
+            &source,
+            &[source.video_start_us],
+            FrameRateSpec::Constant {
+                numerator: 60,
+                denominator: 1,
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(plan.first, 1);
+        assert_eq!(plan.end, 120);
+        assert_eq!(plan.count(), 119);
+    }
+
+    #[test]
+    fn cfr_endpoint_does_not_ceil_a_rounded_two_frame_duration_to_three() {
+        let mut source = probe_source(&fixture("m2-h264-aac.mp4")).unwrap();
+        source.video_duration_us = Some(66_667);
+        source.video_duration_ticks = Some(2);
+        source.video_time_base = Some("1/30".into());
+        let spec = FrameRateSpec::Constant {
+            numerator: 30,
+            denominator: 1,
+        };
+        let plan = CfrPlan::for_source(&source, &[0], spec).unwrap().unwrap();
+        assert_eq!(plan.count(), 2);
+        let mut filter = String::new();
+        append_fps_filter(&mut filter, Some(plan)).unwrap();
+        assert!(filter.contains("trim=end_frame=2"));
+        source.video_duration_ticks = None;
+        assert!(CfrPlan::for_source(&source, &[0], spec).is_err());
+    }
 
     #[test]
     fn session_reuses_inspection_and_reports_ordered_stages_and_total_time() {
@@ -2251,6 +2629,8 @@ mod tests {
                     resize: ResizeSpec::Percent(50),
                     profile: OutputProfileId::Mp4H264Aac,
                     route: ProcessingRoute::DirectFfmpeg,
+                    bitrate: None,
+                    frame_rate: FrameRateSpec::Original,
                 },
                 &token,
                 |stage| stages.borrow_mut().push(stage),
@@ -2445,6 +2825,72 @@ mod tests {
         );
         let main10 = probe_source_direct(&fixture("m4-10bit-sdr.mp4")).unwrap();
         assert!(main10.shared_gpu_limitation().unwrap().contains("8-bit"));
+    }
+
+    #[test]
+    fn size_estimate_accounts_for_offsets_audio_tail_and_unknown_duration() {
+        let mut source = probe_source_direct(&fixture("m2-h264-aac.mp4")).unwrap();
+        source.video_start_us = 1_000_000;
+        source.video_duration_us = Some(2_000_000);
+        source.audio_start_us = Some(0);
+        source.audio_duration_us = Some(4_000_000);
+        let (_, estimate) = source
+            .output_estimate(
+                ResizeSpec::Original,
+                OutputProfileId::Mp4H264Aac,
+                VideoBitrate::BitsPerSecond(1_000_000),
+            )
+            .unwrap();
+        assert_eq!(
+            estimate,
+            estimate_output_bytes(1_000_000, 192_000, 4_000_000)
+        );
+        source.audio_duration_us = None;
+        assert!(
+            source
+                .output_estimate(
+                    ResizeSpec::Original,
+                    OutputProfileId::Mp4H264Aac,
+                    VideoBitrate::Recommended
+                )
+                .unwrap()
+                .1
+                .is_none()
+        );
+        source.audio_codec = None;
+        source.audio_start_us = None;
+        assert_eq!(
+            source
+                .output_estimate(
+                    ResizeSpec::Original,
+                    OutputProfileId::Mp4H264Aac,
+                    VideoBitrate::BitsPerSecond(1_000_000)
+                )
+                .unwrap()
+                .1,
+            estimate_output_bytes(1_000_000, 0, 2_000_000)
+        );
+    }
+
+    #[test]
+    fn bitrate_commands_do_not_mix_target_rate_with_quality_mode() {
+        for hardware in [false, true] {
+            let mut command = ffmpeg_base();
+            configure_video_bitrate(&mut command, Some(2_000_000), hardware);
+            let args: Vec<_> = command
+                .get_args()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect();
+            assert!(args.windows(2).any(|pair| pair == ["-b:v", "2000000"]));
+            assert!(!args.iter().any(|arg| arg == "-crf" || arg == "-cq"));
+            let mut legacy = ffmpeg_base();
+            configure_video_bitrate(&mut legacy, None, hardware);
+            assert!(
+                legacy
+                    .get_args()
+                    .any(|arg| arg == if hardware { "-cq" } else { "-crf" })
+            );
+        }
     }
 
     #[test]
