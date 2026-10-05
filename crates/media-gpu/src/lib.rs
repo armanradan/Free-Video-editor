@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use media_core::{Rotation, Size};
+use media_core::{ColorAdjustments, Rotation, Size};
 
 pub const RESIZE_SHADER: &str = include_str!("resize.wgsl");
 
@@ -8,6 +8,7 @@ pub struct ResizePipeline {
     pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    target_is_srgb: bool,
 }
 
 impl ResizePipeline {
@@ -35,7 +36,7 @@ impl ResizePipeline {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                        min_binding_size: wgpu::BufferSize::new(32),
                     },
                     count: None,
                 },
@@ -87,6 +88,7 @@ impl ResizePipeline {
             pipeline,
             layout,
             sampler,
+            target_is_srgb: target_format.is_srgb(),
         }
     }
 
@@ -153,18 +155,62 @@ impl ResizePipeline {
         rotation: Rotation,
         flip_horizontal: bool,
     ) -> wgpu::Buffer {
+        self.create_adjustment_buffer(
+            device,
+            queue,
+            rotation,
+            flip_horizontal,
+            ColorAdjustments::default(),
+        )
+    }
+
+    pub fn create_adjustment_buffer(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        rotation: Rotation,
+        flip_horizontal: bool,
+        color: ColorAdjustments,
+    ) -> wgpu::Buffer {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("frame orientation uniform"),
-            size: 16,
+            size: 32,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let values = [rotation as u32, u32::from(flip_horizontal), 0_u32, 0_u32];
-        let mut bytes = [0_u8; 16];
-        for (index, value) in values.into_iter().enumerate() {
-            bytes[index * 4..index * 4 + 4].copy_from_slice(&value.to_ne_bytes());
-        }
-        queue.write_buffer(&buffer, 0, &bytes);
+        queue.write_buffer(
+            &buffer,
+            0,
+            &adjustment_uniform_bytes(rotation, flip_horizontal, color, self.target_is_srgb),
+        );
         buffer
     }
+}
+
+/// Renderer adapters may use a different wgpu ABI, but share this shader contract.
+pub fn adjustment_uniform_bytes(
+    rotation: Rotation,
+    flip_horizontal: bool,
+    color: ColorAdjustments,
+    target_is_srgb: bool,
+) -> [u8; 32] {
+    let values = [
+        rotation as u32,
+        u32::from(flip_horizontal),
+        u32::from(target_is_srgb),
+        0_u32,
+    ];
+    let mut bytes = [0_u8; 32];
+    for (index, value) in values.into_iter().enumerate() {
+        bytes[index * 4..index * 4 + 4].copy_from_slice(&value.to_ne_bytes());
+    }
+    for (index, value) in color
+        .parameters()
+        .into_iter()
+        .chain([if color.is_neutral() { 0.0 } else { 1.0 }])
+        .enumerate()
+    {
+        bytes[16 + index * 4..20 + index * 4].copy_from_slice(&value.to_ne_bytes());
+    }
+    bytes
 }

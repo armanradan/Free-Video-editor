@@ -23,8 +23,10 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 struct FrameOrientation {
     rotation: u32,
     flip_horizontal: u32,
-    _padding_0: u32,
+    target_is_srgb: u32,
     _padding_1: u32,
+    // Encoded RGB controls; source is an Unorm texture, not an sRGB-sampling view.
+    color: vec4<f32>,
 };
 
 @group(0) @binding(2) var<uniform> orientation: FrameOrientation;
@@ -46,6 +48,17 @@ fn source_uv(output_uv: vec2<f32>) -> vec2<f32> {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let rgb = textureSample(source_texture, source_sampler, source_uv(input.uv)).rgb;
+    var rgb = textureSample(source_texture, source_sampler, source_uv(input.uv)).rgb;
+    if orientation.color.w != 0.0 {
+        let gray = dot(rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+        rgb = clamp((vec3<f32>(gray) + orientation.color.z * (rgb - gray) - 0.5)
+            * orientation.color.y + 0.5 + orientation.color.x, vec3<f32>(0.0), vec3<f32>(1.0));
+    }
+    // sRGB attachments encode linear output. Cancel that encoding for this
+    // explicitly encoded-channel operation (including its neutral path).
+    if orientation.target_is_srgb != 0u {
+        rgb = select(pow((rgb + 0.055) / 1.055, vec3<f32>(2.4)), rgb / 12.92,
+            rgb <= vec3<f32>(0.04045));
+    }
     return vec4<f32>(rgb, 1.0);
 }

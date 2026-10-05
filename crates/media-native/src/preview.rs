@@ -9,7 +9,7 @@ use std::{
 pub const WIDTH: u32 = 640;
 pub const HEIGHT: u32 = 360;
 pub const FRAME_BYTES: usize = (WIDTH * HEIGHT * 4) as usize;
-pub const FILTER: &str = "scale=640:360:force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black,format=rgba";
+pub const FILTER: &str = "zscale=matrixin=709:transferin=709:primariesin=709:rangein=limited:matrix=gbr:transfer=iec61966-2-1:primaries=709:range=full,format=gbrp,scale=640:360:force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black,format=rgba";
 
 #[derive(Clone, Copy, Debug)]
 pub struct PreviewInfo {

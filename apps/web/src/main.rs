@@ -1,9 +1,10 @@
 use dioxus::prelude::*;
 use media_core::{
-    CodecAcceleration, FrameRateSpec, OutputProfileId, ResizeSpec, Size, VideoBitrate,
+    CodecAcceleration, ColorAdjustments, FrameRateSpec, OutputProfileId, ResizeSpec, Size,
+    VideoBitrate,
 };
 use media_web::{SourceMetadata, VideoSettings};
-use ui::{ConverterControls, JobStatus};
+use ui::{ColorControls, ConverterControls, JobStatus};
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -14,9 +15,11 @@ const FFMPEG_CORE_WASM: Asset = asset!("/node_modules/@ffmpeg/core/dist/esm/ffmp
 const FFMPEG_WORKER_SCRIPT: Asset = asset!("/assets/ffmpeg-worker.js");
 
 #[wasm_bindgen::prelude::wasm_bindgen(
-    inline_js = "export function ffmpegSpikeSelected() { return new URL(location.href).searchParams.get('backend') === 'ffmpeg-wasm'; } export function backendHref(backend) { const url = new URL(location.href); if (backend === 'webcodecs') url.searchParams.delete('backend'); else url.searchParams.set('backend', 'ffmpeg-wasm'); return url.href; }"
+    inline_js = "export function previewDelay() { return new Promise(resolve => setTimeout(resolve, 34)); } export function ffmpegSpikeSelected() { return new URL(location.href).searchParams.get('backend') === 'ffmpeg-wasm'; } export function backendHref(backend) { const url = new URL(location.href); if (backend === 'webcodecs') url.searchParams.delete('backend'); else url.searchParams.set('backend', 'ffmpeg-wasm'); return url.href; }"
 )]
 extern "C" {
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = previewDelay)]
+    fn preview_delay() -> js_sys::Promise;
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = ffmpegSpikeSelected)]
     fn ffmpeg_spike_selected() -> bool;
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = backendHref)]
@@ -46,6 +49,14 @@ fn App() -> Element {
             &FFMPEG_WORKER_SCRIPT.to_string(),
         );
     });
+    let mut color = use_signal(ColorAdjustments::default);
+    let mut before = use_signal(|| false);
+    let mut preview_seconds = use_signal(|| 0.0_f64);
+    let mut source_key = use_signal(|| 0_u64);
+    let mut preview_revision = use_signal(|| 0_u64);
+    let mut preview_busy = use_signal(|| false);
+    let mut preview_status =
+        use_signal(|| "Select an input for paused source preview.".to_string());
     let mut status = use_signal(|| "Ready. Select an MP4 with H.264 or H.265 video.".to_string());
     let mut running = use_signal(|| false);
     let selected_gpu =
@@ -98,6 +109,69 @@ fn App() -> Element {
         output_size,
     };
 
+    // One producer task and one latest desired state, never a task/command per event.
+    use_effect(move || {
+        let _desired = (
+            color(),
+            before(),
+            preview_seconds(),
+            source_key(),
+            resize_mode(),
+            exact_width(),
+            exact_height(),
+            preserve_aspect_ratio(),
+        );
+        let next_revision = preview_revision.peek().wrapping_add(1);
+        preview_revision.set(next_revision);
+        if running() || !profile_ready() || !has_source() {
+            return;
+        }
+        if *preview_busy.peek() {
+            return;
+        }
+        preview_busy.set(true);
+        spawn(async move {
+            loop {
+                let _ = wasm_bindgen_futures::JsFuture::from(preview_delay()).await;
+                if *running.peek() || !*profile_ready.peek() {
+                    break;
+                }
+                let revision = *preview_revision.peek();
+                let resize = requested_resize(
+                    &resize_mode.peek(),
+                    &exact_width.peek(),
+                    &exact_height.peek(),
+                    *preserve_aspect_ratio.peek(),
+                );
+                if let Ok(resize) = resize {
+                    let selected_color = if *before.peek() {
+                        ColorAdjustments::default()
+                    } else {
+                        *color.peek()
+                    };
+                    let result = media_web::preview_source(
+                        *source_key.peek(),
+                        *preview_seconds.peek(),
+                        resize,
+                        selected_color,
+                    )
+                    .await;
+                    if revision == *preview_revision.peek() && !*running.peek() {
+                        update_gpu(selected_gpu);
+                        preview_status.set(match result {
+                            Ok(summary) => summary,
+                            Err(error) => format!("Source preview unavailable: {error}"),
+                        });
+                    }
+                }
+                if revision == *preview_revision.peek() || *running.peek() {
+                    break;
+                }
+            }
+            preview_busy.set(false);
+        });
+    });
+
     let convert = move |_| {
         if !profile_ready() {
             status.set("Select an input and wait for its output profile checks.".to_string());
@@ -115,13 +189,14 @@ fn App() -> Element {
                 return;
             }
         };
-        let settings = match video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate()) {
+        let mut settings = match video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate()) {
             Ok(settings) => settings,
             Err(error) => {
                 status.set(display_error(error));
                 return;
             }
         };
+        settings.color = color();
         running.set(true);
         download_url.set(String::new());
         status.set("Inspecting MP4 container and exact video codec configuration…".to_string());
@@ -175,6 +250,13 @@ fn App() -> Element {
         });
     };
     let file_changed = move |_| {
+        let next_source_key = source_key.peek().wrapping_add(1);
+        source_key.set(next_source_key);
+        preview_seconds.set(0.0);
+        preview_status.set("Loading this input's source preview…".into());
+        spawn(async {
+            let _ = media_web::clear_source_preview().await;
+        });
         has_source.set(true);
         profile_ready.set(false);
         source_metadata.set(String::new());
@@ -412,14 +494,25 @@ fn App() -> Element {
                         on_convert: convert,
                         on_cancel: cancel,
                     }
+                    ColorControls { color: color(), disabled: running() || !has_source(), before: before(),
+                        on_change: move |value| { color.set(value); before.set(false); },
+                        on_compare: move |_| { let value = !before(); before.set(value); },
+                    }
                 }
                 section { class: "monitor-panel", aria_label: "Preview and progress",
-                    div { class: "preview-panel",
+                    div { class: "preview-panel", style: if !running() && (preview_status().starts_with("Loading") || preview_status().starts_with("Source preview unavailable")) { "visibility:hidden" } else { "visibility:visible" },
                         h2 { "GPU preview" }
                         div { id: "worker-preview" }
                         canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
                     }
                     JobStatus { status: status(), selected_gpu: selected_gpu() }
+                    p { id: "source-preview-status", class: "note", "{preview_status}" }
+                    if let Some(source) = inspected_source() {
+                        label { r#for: "source-preview-position", class: "note", "Source preview position: {preview_seconds():.2} s" }
+                        input { id: "source-preview-position", r#type: "range", min: "0", max: "{source.duration_seconds.max(0.001)}", step: "0.01", value: "{preview_seconds()}", disabled: running(),
+                            oninput: move |event| { if let Ok(value) = event.value().parse::<f64>() && value.is_finite() && value >= 0.0 { preview_seconds.set(value); } }
+                        }
+                    }
                     p { id: "execution-context", class: "note", "Execution: checking worker support." }
                 }
             }
@@ -471,6 +564,7 @@ fn video_settings(mode: &str, custom: &str, fps: &str) -> Result<VideoSettings, 
     Ok(VideoSettings {
         bitrate,
         frame_rate,
+        ..Default::default()
     })
 }
 

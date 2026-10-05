@@ -18,6 +18,8 @@ use std::{
 pub struct FrameSlot {
     frame: Option<PreviewFrame>,
     revision: u64,
+    color: media_core::ColorAdjustments,
+    color_revision: u64,
 }
 
 struct Job {
@@ -46,6 +48,14 @@ pub struct PreviewService {
 }
 
 impl PreviewService {
+    pub fn set_color(&self, color: media_core::ColorAdjustments) {
+        if let Ok(mut slot) = self.frames.lock()
+            && slot.color != color
+        {
+            slot.color = color;
+            slot.color_revision = slot.color_revision.wrapping_add(1);
+        }
+    }
     pub fn start(
         &self,
         path: PathBuf,
@@ -165,6 +175,8 @@ impl Drop for PreviewService {
 }
 
 pub struct Presenter {
+    color_pass: Option<crate::preview_gpu::ColorPass>,
+    color_revision: Option<u64>,
     frames: Arc<Mutex<FrameSlot>>,
     device: Option<DeviceHandle>,
     texture: Option<wgpu_blitz::Texture>,
@@ -175,6 +187,8 @@ pub struct Presenter {
 impl Presenter {
     pub fn new(frames: Arc<Mutex<FrameSlot>>) -> Self {
         Self {
+            color_pass: None,
+            color_revision: None,
             frames,
             device: None,
             texture: None,
@@ -196,6 +210,8 @@ impl CustomPaintSource for Presenter {
         self.texture = None;
         self.device = None;
         self.revision = None;
+        self.color_pass = None;
+        self.color_revision = None;
     }
     fn render(
         &mut self,
@@ -208,6 +224,7 @@ impl CustomPaintSource for Presenter {
         let frame = slot.frame.as_ref()?;
         let device = self.device.as_ref()?;
         if self.texture.is_none() {
+            self.color_pass = Some(crate::preview_gpu::ColorPass::new(&device.device));
             let texture = device
                 .device
                 .create_texture(&wgpu_blitz::TextureDescriptor {
@@ -222,7 +239,7 @@ impl CustomPaintSource for Presenter {
                     dimension: wgpu_blitz::TextureDimension::D2,
                     format: wgpu_blitz::TextureFormat::Rgba8Unorm,
                     usage: wgpu_blitz::TextureUsages::TEXTURE_BINDING
-                    | wgpu_blitz::TextureUsages::COPY_DST
+                    | wgpu_blitz::TextureUsages::RENDER_ATTACHMENT
                     // Vello copies registered images into its GPU atlas.
                     | wgpu_blitz::TextureUsages::COPY_SRC,
                     view_formats: &[],
@@ -233,7 +250,7 @@ impl CustomPaintSource for Presenter {
         if self.revision != Some(slot.revision) {
             device.queue.write_texture(
                 wgpu_blitz::TexelCopyTextureInfo {
-                    texture: self.texture.as_ref()?,
+                    texture: &self.color_pass.as_ref()?.source,
                     mip_level: 0,
                     origin: wgpu_blitz::Origin3d::ZERO,
                     aspect: wgpu_blitz::TextureAspect::All,
@@ -250,7 +267,17 @@ impl CustomPaintSource for Presenter {
                     depth_or_array_layers: 1,
                 },
             );
+        }
+        if self.revision != Some(slot.revision) || self.color_revision != Some(slot.color_revision)
+        {
+            self.color_pass.as_ref()?.render(
+                &device.device,
+                &device.queue,
+                self.texture.as_ref()?,
+                slot.color,
+            );
             self.revision = Some(slot.revision);
+            self.color_revision = Some(slot.color_revision);
         }
         self.handle.clone()
     }
@@ -319,6 +346,17 @@ mod tests {
                 .len(),
             preview::FRAME_BYTES
         );
+        let (frame_revision, frame_pointer) = {
+            let slot = service.frames.lock().unwrap();
+            (slot.revision, slot.frame.as_ref().unwrap().rgba.as_ptr())
+        };
+        for value in 0..60 {
+            service.set_color(media_core::ColorAdjustments::new(value, 150, 0).unwrap());
+            let slot = service.frames.lock().unwrap();
+            assert_eq!(slot.revision, frame_revision);
+            assert_eq!(slot.frame.as_ref().unwrap().rgba.as_ptr(), frame_pointer);
+        }
+        service.set_color(media_core::ColorAdjustments::default());
         service.cancel();
         assert!(service.frames.lock().unwrap().frame.is_none());
         // Rapid replacements are serialized and cannot publish stale frames.

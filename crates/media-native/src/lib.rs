@@ -1,8 +1,13 @@
 #![forbid(unsafe_code)]
 
+pub mod color;
+#[cfg(test)]
+mod color_tests;
+
 use media_core::{
-    BitrateSource, FrameGeometry, FrameRateSpec, OutputProfileId, Rect, ResizeSpec, Rotation, Size,
-    TrackCoverage, VideoBitrate, VideoCodec, VideoSettings, estimate_output_coverage,
+    BitrateSource, ColorAdjustments, FrameGeometry, FrameRateSpec, OutputProfileId, Rect,
+    ResizeSpec, Rotation, Size, TrackCoverage, VideoBitrate, VideoCodec, VideoSettings,
+    estimate_output_coverage,
 };
 use media_gpu::ResizePipeline;
 use serde::{Deserialize, Serialize};
@@ -251,6 +256,7 @@ pub struct NativeJob<'a> {
     /// None retains legacy CRF/CQ20 for existing harnesses.
     pub bitrate: Option<VideoBitrate>,
     pub frame_rate: FrameRateSpec,
+    pub color: ColorAdjustments,
 }
 
 #[derive(Debug, Deserialize)]
@@ -332,6 +338,7 @@ impl SourceInfo {
         Ok(VideoSettings {
             bitrate,
             frame_rate,
+            ..Default::default()
         }
         .resolve_bitrate(
             size,
@@ -442,6 +449,7 @@ impl AdapterDescriptor {
 
 #[derive(Debug, Serialize)]
 pub struct ConversionReport {
+    pub color: ColorAdjustments,
     pub output_frame_count: u64,
     pub frame_rate: FrameRateSpec,
     pub video_bitrate_bps: Option<u32>,
@@ -704,6 +712,7 @@ impl NativeSession {
                 route,
                 bitrate: None,
                 frame_rate: FrameRateSpec::Original,
+                color: ColorAdjustments::default(),
             },
             cancel,
             |_| {},
@@ -752,6 +761,7 @@ impl NativeSession {
             route,
             bitrate,
             frame_rate,
+            color,
         } = job;
         let (generation, adapter_key, token) = self.begin_job(cancel)?;
         let _active_job = ActiveSessionJob { session: self };
@@ -764,6 +774,7 @@ impl NativeSession {
             NativeRunOptions {
                 bitrate,
                 frame_rate,
+                color,
                 adapter_key: adapter_key.as_deref(),
                 inspection: Some(&self.inspection),
                 on_stage: Some(&on_stage),
@@ -1600,6 +1611,7 @@ pub fn convert_with_control(
 
 #[derive(Clone, Copy, Default)]
 struct NativeRunOptions<'a> {
+    color: ColorAdjustments,
     frame_rate: FrameRateSpec,
     cfr_plan: Option<CfrPlan>,
     bitrate: Option<VideoBitrate>,
@@ -1630,6 +1642,12 @@ fn convert_with_control_inner(
 ) -> NativeResult<ConversionReport> {
     let total_started = Instant::now();
     cancel.check()?;
+    if route == ProcessingRoute::NvidiaFfmpeg && !options.color.is_neutral() {
+        return Err("Direct NVIDIA color adjustments are not supported; explicitly choose CPU FFmpeg or a shared-wgpu route. No automatic CPU fallback.".into());
+    }
+    if !options.color.is_neutral() {
+        color::check_filters()?;
+    }
     if !matches!(
         profile,
         OutputProfileId::Mp4H264Aac | OutputProfileId::Mp4H265Main10Aac
@@ -1825,6 +1843,7 @@ fn convert_with_control_inner(
     options.stage(JobStage::Publishing);
     let size = finish_output(&mut partial, output)?;
     Ok(ConversionReport {
+        color: options.color,
         frame_rate: options.frame_rate,
         output_frame_count: verified.frame_count,
         video_bitrate_bps,
@@ -1923,6 +1942,9 @@ fn convert_direct(
             }
         )
     };
+    if !options.color.is_neutral() {
+        filter = color::direct_filter(options.color, output, profile.video_bit_depth());
+    }
     append_fps_filter(&mut filter, options.cfr_plan)?;
     cmd.args([
         "-vf",
@@ -2025,6 +2047,13 @@ fn convert_gpu(
         output,
         options.adapter_key,
     )?;
+    gpu.transform = gpu.pipeline.create_adjustment_buffer(
+        &gpu.device,
+        &gpu.queue,
+        Rotation::Deg0,
+        false,
+        options.color,
+    );
     cancel.check()?;
     let mut decoder = ffmpeg_base();
     if let Some(device) = options.hardware_gpu {
@@ -2044,7 +2073,17 @@ fn convert_gpu(
         ]);
     }
     decoder.arg("-i").arg(input);
-    if options.hardware_gpu.is_some() {
+    if !options.color.is_neutral() {
+        let prefix = if options.hardware_gpu.is_some() {
+            "hwdownload,format=nv12,"
+        } else {
+            ""
+        };
+        decoder.args([
+            "-vf",
+            &format!("{prefix}{},format=gbrp,format=rgba", color::TO_SRGB),
+        ]);
+    } else if options.hardware_gpu.is_some() {
         // Explicit NVDEC download; CPU converts NV12 to RGBA for the wgpu bridge.
         decoder.args(["-vf", "hwdownload,format=nv12,format=rgba"]);
     }
@@ -2086,8 +2125,12 @@ fn convert_gpu(
         // Output tags/setparams alone do not select swscale's conversion matrix:
         // an automatic RGBA -> NV12 conversion can otherwise use BT.601 while
         // NVENC advertises BT.709. Select the pixel conversion before upload.
-        let mut filter = "scale=in_range=full:out_range=limited".to_string();
-        if source.color_space.as_deref() == Some("bt709") {
+        let mut filter = if options.color.is_neutral() {
+            "scale=in_range=full:out_range=limited".to_string()
+        } else {
+            format!("format=gbrp,{},format=yuv420p", color::FROM_SRGB)
+        };
+        if options.color.is_neutral() && source.color_space.as_deref() == Some("bt709") {
             filter.push_str(":out_color_matrix=bt709");
         }
         filter.push_str(",format=nv12,hwupload_cuda");
@@ -2122,7 +2165,11 @@ fn convert_gpu(
             "vbr",
         ]);
     } else {
-        let mut filter = String::new();
+        let mut filter = if options.color.is_neutral() {
+            String::new()
+        } else {
+            format!("format=gbrp,{},format=yuv420p", color::FROM_SRGB)
+        };
         append_fps_filter(&mut filter, options.cfr_plan)?;
         if !filter.is_empty() {
             encoder.args(["-vf", &filter]);
@@ -2631,6 +2678,7 @@ mod tests {
                     route: ProcessingRoute::DirectFfmpeg,
                     bitrate: None,
                     frame_rate: FrameRateSpec::Original,
+                    color: ColorAdjustments::default(),
                 },
                 &token,
                 |stage| stages.borrow_mut().push(stage),

@@ -1,4 +1,4 @@
-use media_core::{FrameRateSpec, OutputProfileId, ResizeSpec, VideoBitrate};
+use media_core::{ColorAdjustments, FrameRateSpec, OutputProfileId, ResizeSpec, VideoBitrate};
 use media_native::{
     CancellationToken, NativeJob, NativeSession, ProcessingRoute, convert_with_control,
     enumerate_adapters, load_adapter_preference, save_adapter_preference,
@@ -9,6 +9,7 @@ fn usage() -> &'static str {
     "native-convert list-gpus\n\
      native-convert save-gpu --adapter-key KEY --preference FILE\n\
      native-convert convert --input FILE --output FILE [--route direct|nvidia|wgpu|wgpu-nvidia] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--bitrate smaller|recommended|higher|MBPS] [--fps original|NUM[/DEN]] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
+     Color: --brightness -100..100 (default 0), --contrast 0..200 (default 100), --saturation 0..200 (default 100). Adjusted direct CPU jobs use 16-bit encoded RGB; shared-wgpu uses RGBA8. Direct NVIDIA non-neutral adjustments are rejected, not CPU-fallback.\n\
      CLI defaults to software direct FFmpeg. NVIDIA uses CUDA decode/resize and NVENC video. wgpu uses software codecs around GPU resize. wgpu-nvidia uses NVDEC/NVENC around the shared wgpu resize, with explicit CPU-staged pixel transfers. NVIDIA routes never silently fall back to CPU. Audio and full inspection/verification still use CPU. Session inspection can be reused for unchanged files; standalone CLI runs start with an empty cache. All routes preserve tested VFR/non-negative A/V origins and require one video and at most one audio track. NVIDIA and wgpu require square pixels and no display transform. Main 10 is available on direct/NVIDIA only. BT.709 limited SDR or unspecified tags only; HDR, wide color, negative origins and multiple audio tracks are unsupported. Output must not already exist."
 }
 
@@ -98,6 +99,9 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .parse::<FrameRateSpec>()?;
             let report = if argument(&args, "--bitrate").is_some()
                 || frame_rate != FrameRateSpec::Original
+                || ["--brightness", "--contrast", "--saturation"]
+                    .iter()
+                    .any(|key| argument(&args, key).is_some())
             {
                 let bitrate = match argument(&args, "--bitrate").as_deref() {
                     None => None,
@@ -117,6 +121,17 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             route,
                             bitrate,
                             frame_rate,
+                            color: ColorAdjustments::new(
+                                argument(&args, "--brightness")
+                                    .unwrap_or_else(|| "0".into())
+                                    .parse()?,
+                                argument(&args, "--contrast")
+                                    .unwrap_or_else(|| "100".into())
+                                    .parse()?,
+                                argument(&args, "--saturation")
+                                    .unwrap_or_else(|| "100".into())
+                                    .parse()?,
+                            )?,
                         },
                         &cancel,
                         |_| {},

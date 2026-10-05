@@ -339,9 +339,7 @@ class MediabunnyInputAdapter {
   }
 }
 
-async function inspect(file) {
-  const opened = await MediabunnyInputAdapter.open(file);
-  try {
+function inspectionMetadata(opened, file) {
     return {
       width: opened.width,
       height: opened.height,
@@ -378,9 +376,48 @@ async function inspect(file) {
       size: file.size,
       name: file.name,
     };
-  } finally {
-    opened.input.dispose();
-  }
+}
+
+async function inspect(file) {
+  const opened = await MediabunnyInputAdapter.open(file);
+  try { return inspectionMetadata(opened, file); }
+  finally { opened.input.dispose(); }
+}
+
+// One context-owned original image. A UI source generation, not file name,
+// separates replacement files across structured-clone worker commands.
+let previewCache = null;
+let previewDecodes = 0;
+let previewRenders = 0;
+function clearPreview() {
+  previewCache?.frame.close();
+  previewCache = null;
+}
+async function previewInfo(file, sourceKey, seconds) {
+  const key = `${sourceKey}@${seconds}:${file.size}:${file.lastModified}`;
+  if (previewCache?.key === key) return previewCache.info;
+  clearPreview();
+  const opened = await MediabunnyInputAdapter.open(file);
+  let sample;
+  try {
+    const position = Math.min(opened.videoStart + seconds, opened.duration - .000001);
+    sample = await new VideoSampleSink(opened.track).getSample(position);
+    if (!sample) fail("No decoded frame at the requested preview position.");
+    const frame = sample.toVideoFrame();
+    previewCache = { key, frame, info: inspectionMetadata(opened, file) };
+    previewDecodes += 1;
+    return previewCache.info;
+  } finally { sample?.close(); opened.input.dispose(); }
+}
+async function previewRender(processFrame) {
+  if (!previewCache) fail("Preview source frame is no longer available.");
+  const frame = previewCache.frame.clone();
+  let output;
+  try {
+    output = await processFrame(frame, null, frame.timestamp, frame.duration ?? 0);
+    previewRenders += 1;
+    return { summary: `Paused source preview: cache loads=${previewDecodes}; renders=${previewRenders}; cached frames=1; explicit pixel readbacks=0.` };
+  } finally { output?.close(); frame.close(); }
 }
 
 const OUTPUT_PROFILES = Object.freeze({
@@ -1387,6 +1424,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         : `PASS: ${processed} ${inputCodecLabel} input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0; backend=WebCodecs.`)
         + `\n${verificationSummary}`
         + `\nOutput policy: ${processed} input → ${encoded} output frames; FPS=${fixedFps ? `${options.fpsNumerator}/${options.fpsDenominator} (duplicate/drop resampling, unchanged playback speed)` : "Original (source PTS preserved)"}; target video bitrate=${options[profile.videoCodec] || "legacy quality"} bps (VBR, not a file-size guarantee).`
+        + `\nColor adjustments: ${options.colorAdjustments ?? "neutral"}; snapshot applied once per source frame before FPS resampling.`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; ${ffmpeg ? "browser decoder probed, FFmpeg software encoder selected explicitly" : "exact decoder+encoder probes passed"}${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
         + `\nGeometry/color: input coded ${opened.codedWidth}×${opened.codedHeight}, visible ${opened.visibleRect.width}×${opened.visibleRect.height}+${opened.visibleRect.left},${opened.visibleRect.top}, PAR ${opened.pixelAspectRatio.num}:${opened.pixelAspectRatio.den}, rotation ${opened.rotation}°, flip=${opened.flip}; baked square-pixel output ${outputWidth}×${outputHeight}; SDR ${opened.color.primaries ?? "unspecified"}/${opened.color.transfer ?? "unspecified"}/${opened.color.matrix ?? "unspecified"}, browser-normalized to sRGB processing; HDR rejected.`
         + `\nBounds: input BlobSource cache ≤${INPUT_CACHE_BYTES / 1048576} MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; ${ffmpeg ? "raw RGBA bridge ≤one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded" : "WebCodecs encoder queue ≤4; mux writes are serialized"}.`
@@ -1422,7 +1460,11 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
 }
 
 class WebCodecsMediabunnyBackend {
+  previewInfo(file, key, seconds) { return previewInfo(file, key, seconds); }
+  previewRender(processFrame) { return previewRender(processFrame); }
+  clearPreview() { clearPreview(); }
   cleanupOutput() {
+    clearPreview();
     return cleanupRetainedOutput();
   }
 

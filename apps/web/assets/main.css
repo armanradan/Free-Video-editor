@@ -14,6 +14,11 @@ h2 { margin: 0; font-size: 1rem; }
 .backend-option.is-active { color: #08101e; background: #7dd3fc; }
 .backend-option.is-disabled { opacity: .55; }
 .note { color: #aebbd3; line-height: 1.4; font-size: .85rem; }
+.color-controls { margin-top: .8rem; border: 1px solid #334155; padding: .6rem; border-radius: .5rem; }
+.color-controls summary { color: #b7c9e2; cursor: pointer; margin-bottom: .5rem; }
+.color-controls label { display: block; font-size: .85rem; }
+.color-controls input[type="range"] { padding: .2rem; }
+.color-actions { display: flex; gap: .5rem; margin-top: .4rem; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, 1fr); gap: 20px; align-items: start; }
 .controls-panel, .monitor-panel { min-width: 0; }
 .monitor-panel { padding: 14px; border: 1px solid #293653; border-radius: 12px; background: #0d1628; }

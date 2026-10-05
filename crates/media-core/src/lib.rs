@@ -244,11 +244,84 @@ impl std::str::FromStr for FrameRateSpec {
     }
 }
 
+/// Validated display-oriented SDR controls in integer UI units.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "ColorValues")]
+pub struct ColorAdjustments {
+    brightness: i16,
+    contrast: u16,
+    saturation: u16,
+}
+
+#[derive(Deserialize)]
+struct ColorValues {
+    brightness: i16,
+    contrast: u16,
+    saturation: u16,
+}
+
+impl TryFrom<ColorValues> for ColorAdjustments {
+    type Error = MediaError;
+    fn try_from(value: ColorValues) -> Result<Self, Self::Error> {
+        Self::new(value.brightness, value.contrast, value.saturation)
+    }
+}
+
+impl Default for ColorAdjustments {
+    fn default() -> Self {
+        Self {
+            brightness: 0,
+            contrast: 100,
+            saturation: 100,
+        }
+    }
+}
+
+impl ColorAdjustments {
+    pub fn new(brightness: i16, contrast: u16, saturation: u16) -> Result<Self, MediaError> {
+        if !(-100..=100).contains(&brightness) || contrast > 200 || saturation > 200 {
+            return Err(MediaError::InvalidColorAdjustments);
+        }
+        Ok(Self {
+            brightness,
+            contrast,
+            saturation,
+        })
+    }
+    pub const fn values(self) -> (i16, u16, u16) {
+        (self.brightness, self.contrast, self.saturation)
+    }
+    pub fn is_neutral(self) -> bool {
+        self == Self::default()
+    }
+    pub fn parameters(self) -> [f32; 3] {
+        [
+            f32::from(self.brightness) / 100.0,
+            f32::from(self.contrast) / 100.0,
+            f32::from(self.saturation) / 100.0,
+        ]
+    }
+    /// Scalar reference for tests; not a CPU frame-processing path.
+    pub fn reference_rgb(self, rgb: [f32; 3]) -> [f32; 3] {
+        if self.is_neutral() {
+            return rgb;
+        }
+        let [brightness, contrast, saturation] = self.parameters();
+        let gray = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        rgb.map(|channel| {
+            (((gray + saturation * (channel - gray)) - 0.5) * contrast + 0.5 + brightness)
+                .clamp(0.0, 1.0)
+        })
+    }
+}
+
 /// Shared output policy; legacy native quality mode remains an explicit None outside this type.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct VideoSettings {
     pub bitrate: VideoBitrate,
     pub frame_rate: FrameRateSpec,
+    #[serde(default)]
+    pub color: ColorAdjustments,
 }
 
 impl VideoSettings {
@@ -696,6 +769,7 @@ impl TimeBase {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MediaError {
+    InvalidColorAdjustments,
     InvalidBitrateInput,
     InvalidFrameRate,
     InvalidBitrate(u32),
@@ -715,6 +789,9 @@ pub enum MediaError {
 impl fmt::Display for MediaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidColorAdjustments => {
+                f.write_str("brightness must be -100..100 and contrast/saturation 0..200")
+            }
             Self::InvalidBitrateInput => {
                 f.write_str("Custom bitrate must be between 0.25 and 120 Mbps.")
             }
@@ -761,6 +838,48 @@ impl std::error::Error for MediaError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn color_controls_are_neutral_bounded_and_apply_the_documented_order() {
+        let rgb = [0.15, 0.7, 0.95];
+        assert_eq!(ColorAdjustments::default().reference_rgb(rgb), rgb);
+        let gray = ColorAdjustments::new(0, 100, 0)
+            .unwrap()
+            .reference_rgb([1.0, 0.0, 0.0]);
+        for channel in gray {
+            assert!((channel - 0.2126).abs() < 1e-6);
+        }
+        assert_eq!(
+            ColorAdjustments::new(0, 0, 200).unwrap().reference_rgb(rgb),
+            [0.5; 3]
+        );
+        assert_eq!(
+            ColorAdjustments::new(100, 100, 100)
+                .unwrap()
+                .reference_rgb(rgb),
+            [1.0; 3]
+        );
+        assert_eq!(
+            ColorAdjustments::new(-100, 100, 100)
+                .unwrap()
+                .reference_rgb(rgb),
+            [0.0; 3]
+        );
+        let combined = ColorAdjustments::new(10, 150, 50)
+            .unwrap()
+            .reference_rgb([1.0, 0.0, 0.0]);
+        for (actual, expected) in combined.into_iter().zip([0.75945, 0.00945, 0.00945]) {
+            assert!((actual - expected).abs() < 1e-6);
+        }
+        for values in [
+            (-101, 100, 100),
+            (101, 100, 100),
+            (0, 201, 100),
+            (0, 100, 201),
+        ] {
+            assert!(ColorAdjustments::new(values.0, values.1, values.2).is_err());
+        }
+    }
 
     #[test]
     fn shared_custom_bitrate_and_fps_parsers_reject_invalid_input() {

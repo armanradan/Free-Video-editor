@@ -6,9 +6,10 @@ pub use media_core::VideoSettings;
 mod browser {
     use js_sys::{Function, Promise, Reflect};
     use media_core::{
-        BitrateSource, CodecAcceleration, FrameGeometry, FrameRateGrid, FrameRateSpec, INPUT_SIZE,
-        MediaError, OUTPUT_SIZE, OutputProfileId, Rect, ResizeSpec, Rotation, Size, TrackCoverage,
-        VideoBitrate, VideoCodec, VideoSettings, estimate_output_coverage, validate_input_size,
+        BitrateSource, CodecAcceleration, ColorAdjustments, FrameGeometry, FrameRateGrid,
+        FrameRateSpec, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId, Rect, ResizeSpec,
+        Rotation, Size, TrackCoverage, VideoBitrate, VideoCodec, VideoSettings,
+        estimate_output_coverage, validate_input_size,
     };
     use media_gpu::ResizePipeline;
     use std::{
@@ -153,6 +154,9 @@ mod browser {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
         export function inspectBrowserInput(file) { return globalThis.__DIAXUS_MEDIA_WEB__.inspect(file); }
+        export function previewInfo(file, key, seconds) { return globalThis.__DIAXUS_MEDIA_WEB__.previewInfo(file, key, seconds); }
+        export function previewRender(processFrame) { return globalThis.__DIAXUS_MEDIA_WEB__.previewRender(processFrame); }
+        export function clearPreview() { globalThis.__DIAXUS_MEDIA_WEB__.clearPreview(); }
         export async function copyDecodedFrame(queue, texture, frame, preparedBitmap, width, height) {
             const destination = { texture, colorSpace: 'srgb', premultipliedAlpha: false };
             if (preparedBitmap != null) {
@@ -196,6 +200,12 @@ mod browser {
         }
     "#)]
     extern "C" {
+        #[wasm_bindgen(js_name = previewInfo, catch)]
+        fn preview_info(file: &File, key: &str, seconds: f64) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = previewRender, catch)]
+        fn preview_render(process: &Function) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = clearPreview)]
+        fn clear_preview();
         #[wasm_bindgen(js_name = runtimeModuleUrl)]
         fn runtime_module_url() -> String;
         #[wasm_bindgen(js_name = performanceNow)]
@@ -299,7 +309,10 @@ mod browser {
                     denominator,
                 } => format!("{numerator}/{denominator}"),
             };
-            resize.push_str(&format!("~{bitrate}~{fps}"));
+            let (brightness, contrast, saturation) = settings.color.values();
+            resize.push_str(&format!(
+                "~{bitrate}~{fps}~{brightness}/{contrast}/{saturation}"
+            ));
         }
         let local = Closure::<
             dyn FnMut(JsValue, String, String, String, String, String, Function) -> Promise,
@@ -380,11 +393,49 @@ mod browser {
                 settings_from_command(rate, fps)
                     .map_err(|error| JsValue::from_str(&error.to_string()))?,
             ),
+            (Some(rate), Some(fps), Some(color)) if parts.next().is_none() => {
+                let mut values = color.split('/');
+                let parsed = ColorAdjustments::new(
+                    values
+                        .next()
+                        .unwrap_or("")
+                        .parse()
+                        .map_err(|_| JsValue::from_str("invalid brightness"))?,
+                    values
+                        .next()
+                        .unwrap_or("")
+                        .parse()
+                        .map_err(|_| JsValue::from_str("invalid contrast"))?,
+                    values
+                        .next()
+                        .unwrap_or("")
+                        .parse()
+                        .map_err(|_| JsValue::from_str("invalid saturation"))?,
+                )
+                .map_err(|error| JsValue::from_str(&error.to_string()))?;
+                if values.next().is_some() {
+                    return Err(JsValue::from_str("invalid color settings"));
+                }
+                let mut settings = settings_from_command(rate, fps)
+                    .map_err(|error| JsValue::from_str(&error.to_string()))?;
+                settings.color = parsed;
+                Some(settings)
+            }
             _ => return Err(JsValue::from_str("invalid video settings")),
         };
         let execution_options = execution_options_from_command(&execution_options)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let result = match operation.as_str() {
+            "preview" => match file {
+                Some(file) => {
+                    preview_file(file, &profile, resize, settings.unwrap_or_default().color).await
+                }
+                None => Err(platform("no source file")),
+            },
+            "clear-preview" => {
+                clear_preview();
+                Ok(js_sys::Object::new().into())
+            }
             "m1" => run_m1_local(status).await,
             "probe" => match file {
                 Some(file) => probe_file(file, resize, settings).await,
@@ -536,10 +587,91 @@ mod browser {
         string_property(&result, "summary", "probe returned no summary")
     }
 
+    pub async fn preview_source(
+        source_key: u64,
+        seconds: f64,
+        resize: ResizeSpec,
+        color: ColorAdjustments,
+    ) -> Result<String, MediaError> {
+        if !seconds.is_finite() || seconds < 0.0 {
+            return Err(platform("invalid preview position"));
+        }
+        let result = dispatch(
+            Some(selected_file("source-file")?),
+            "preview",
+            &format!("{source_key}@{seconds}"),
+            "",
+            resize,
+            Some(VideoSettings {
+                color,
+                ..Default::default()
+            }),
+            js_sys::Function::new_no_args(""),
+        )
+        .await?;
+        string_property(&result, "summary", "preview returned no status")
+    }
+
+    pub async fn clear_source_preview() -> Result<(), MediaError> {
+        dispatch(
+            None,
+            "clear-preview",
+            "",
+            "",
+            ResizeSpec::DEFAULT,
+            None,
+            js_sys::Function::new_no_args(""),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn preview_file(
+        file: File,
+        key: &str,
+        resize: ResizeSpec,
+        color: ColorAdjustments,
+    ) -> Result<JsValue, MediaError> {
+        let (source_key, seconds) = key
+            .split_once('@')
+            .ok_or_else(|| platform("invalid preview key"))?;
+        let seconds: f64 = seconds
+            .parse()
+            .map_err(|_| platform("invalid preview position"))?;
+        if !seconds.is_finite() || seconds < 0.0 {
+            return Err(platform("invalid preview position"));
+        }
+        let inspection =
+            JsFuture::from(preview_info(&file, source_key, seconds).map_err(js_error)?)
+                .await
+                .map_err(js_error)?;
+        let geometry = frame_geometry(&inspection)?;
+        let selected = resize.output_size(geometry.display_size())?;
+        let output = ResizeSpec::Exact {
+            width: selected.width.min(640),
+            height: selected.height.min(360),
+            preserve_aspect_ratio: true,
+        }
+        .output_size(selected)?;
+        let gpu = configured_gpu(
+            geometry.square_pixel,
+            output,
+            geometry.rotation,
+            geometry.flip_horizontal,
+        )
+        .await?;
+        let process = process_callback(Rc::clone(&gpu), false, color);
+        let result =
+            JsFuture::from(preview_render(process.as_ref().unchecked_ref()).map_err(js_error)?)
+                .await;
+        settle_gpu_job(&gpu, result).await
+    }
+
     async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
+        clear_preview();
         let generation = begin_generation();
         let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false).await?;
-        let process = process_callback(Rc::clone(&gpu), false);
+        let process = process_callback(Rc::clone(&gpu), false, ColorAdjustments::default());
         let cancelled = cancellation_callback(generation);
         let fixture =
             js_sys::Uint8Array::from(include_bytes!("../../../fixtures/m1-vp8.ivf").as_slice());
@@ -608,6 +740,7 @@ mod browser {
         execution_options: ExecutionOptions,
         status: Function,
     ) -> Result<JsValue, MediaError> {
+        clear_preview();
         let generation = begin_generation();
         validate_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
@@ -634,7 +767,11 @@ mod browser {
                     true
                 }
             });
-        let process = process_callback(Rc::clone(&gpu), inject_device_loss);
+        let process = process_callback(
+            Rc::clone(&gpu),
+            inject_device_loss,
+            settings.unwrap_or_default().color,
+        );
         let bitmap_ingress_required = bitmap_ingress_callback();
         let cancelled = cancellation_callback(generation);
         let job_result = JsFuture::from(
@@ -766,6 +903,7 @@ mod browser {
         Ok(VideoSettings {
             bitrate,
             frame_rate,
+            ..Default::default()
         })
     }
 
@@ -776,6 +914,10 @@ mod browser {
     ) -> Result<JsValue, MediaError> {
         let source = source_metadata(inspection)?;
         let options = js_sys::Object::new();
+        let (brightness, contrast, saturation) = settings.unwrap_or_default().color.values();
+        Reflect::set(&options, &"colorAdjustments".into(),
+            &format!("brightness={brightness}, contrast={contrast}%, saturation={saturation}% (encoded RGB)").into())
+            .map_err(js_error)?;
         for (name, profile) in [
             ("avc", OutputProfileId::Mp4H264Aac),
             ("hevc", OutputProfileId::Mp4H265Aac),
@@ -948,6 +1090,7 @@ mod browser {
     fn process_callback(
         gpu: Rc<GpuSession>,
         inject_device_loss: bool,
+        color: ColorAdjustments,
     ) -> Closure<dyn FnMut(JsValue, JsValue, f64, f64) -> Promise> {
         let processed = Rc::new(Cell::new(0_u32));
         Closure::new(
@@ -977,8 +1120,14 @@ mod browser {
                             "INJECTED: WebGPU device loss after 4 completed frames",
                         ));
                     }
-                    gpu.process(frame, prepared_bitmap, timestamp as i64, duration as i64)
-                        .await
+                    gpu.process(
+                        frame,
+                        prepared_bitmap,
+                        timestamp as i64,
+                        duration as i64,
+                        color,
+                    )
+                    .await
                 })
             },
         )
@@ -1344,6 +1493,7 @@ mod browser {
             prepared_bitmap: OwnedBitmap,
             timestamp: i64,
             duration: i64,
+            color: ColorAdjustments,
         ) -> Result<JsValue, JsValue> {
             let slot_index = {
                 let configured = self.configured.borrow();
@@ -1458,11 +1608,20 @@ mod browser {
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                             label: Some("video resize commands"),
                         });
+                let adjusted_transform = (!color.is_neutral()).then(|| {
+                    self.pipeline.create_adjustment_buffer(
+                        &self.device,
+                        &self.queue,
+                        configured.rotation,
+                        configured.flip_horizontal,
+                        color,
+                    )
+                });
                 self.pipeline.record_resize(
                     &self.device,
                     &mut encoder,
                     &source,
-                    &configured.transform,
+                    adjusted_transform.as_ref().unwrap_or(&configured.transform),
                     &target,
                     configured.output_size,
                 );
@@ -1776,8 +1935,9 @@ mod browser {
 
 #[cfg(target_arch = "wasm32")]
 pub use browser::{
-    ConversionResult, OutputProfileCapabilities, SourceMetadata, cancel, convert_m3,
-    probe_output_profiles, run_m1, selected_gpu, setup_ffmpeg_assets, setup_runtime,
+    ConversionResult, OutputProfileCapabilities, SourceMetadata, cancel, clear_source_preview,
+    convert_m3, preview_source, probe_output_profiles, run_m1, selected_gpu, setup_ffmpeg_assets,
+    setup_runtime,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}

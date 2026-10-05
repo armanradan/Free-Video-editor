@@ -1,7 +1,51 @@
 #![forbid(unsafe_code)]
 
 use dioxus::prelude::*;
-use media_core::{CodecAcceleration, FrameRateSpec, OutputProfileId, VideoBitrate};
+use media_core::{
+    CodecAcceleration, ColorAdjustments, FrameRateSpec, OutputProfileId, VideoBitrate,
+};
+
+#[component]
+pub fn ColorControls(
+    color: ColorAdjustments,
+    disabled: bool,
+    before: bool,
+    on_change: EventHandler<ColorAdjustments>,
+    on_compare: EventHandler<MouseEvent>,
+) -> Element {
+    let (brightness, contrast, saturation) = color.values();
+    rsx! {
+        details { class: "color-controls", open: true,
+            summary { "Color adjustments" }
+            for (id, name, value, min, max) in [
+                ("brightness", "Brightness", brightness, -100, 100),
+                ("contrast", "Contrast %", contrast as i16, 0, 200),
+                ("saturation", "Saturation %", saturation as i16, 0, 200),
+            ] {
+                label { r#for: "color-{id}", "{name}: {value}" }
+                input { id: "color-{id}", r#type: "range", min, max, step: "1", value, disabled,
+                    oninput: move |event| {
+                        if let Ok(value) = event.value().parse::<i16>() {
+                            let candidate = match id {
+                                "brightness" => ColorAdjustments::new(value, contrast, saturation),
+                                "contrast" => ColorAdjustments::new(brightness, value as u16, saturation),
+                                _ => ColorAdjustments::new(brightness, contrast, value as u16),
+                            };
+                            if let Ok(candidate) = candidate { on_change.call(candidate); }
+                        }
+                    }
+                }
+            }
+            div { class: "color-actions",
+                button { id: "color-reset", disabled, onclick: move |_| on_change.call(ColorAdjustments::default()), "Reset color" }
+                button { id: "color-compare", disabled, onclick: move |event| on_compare.call(event),
+                    if before { "Before — show After" } else { "After — show Before" }
+                }
+            }
+            p { class: "note", "Before/After compares the source preview only; conversion uses the saved sliders. CLAHE is not implemented yet." }
+        }
+    }
+}
 
 const fn fps(numerator: u32, denominator: u32) -> FrameRateSpec {
     FrameRateSpec::Constant {

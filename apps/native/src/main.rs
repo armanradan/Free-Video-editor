@@ -3,7 +3,9 @@
 use dioxus::prelude::*;
 use futures_channel::{mpsc, oneshot};
 use futures_util::StreamExt;
-use media_core::{FrameRateSpec, OutputProfileId, ResizeSpec, Size, VideoBitrate};
+use media_core::{
+    ColorAdjustments, FrameRateSpec, OutputProfileId, ResizeSpec, Size, VideoBitrate,
+};
 use media_native::{
     CancellationToken, JobStage, NativeJob, NativeSession, ProcessingRoute,
     SessionConversionReport, enumerate_adapters, enumerate_nvidia_gpus,
@@ -15,6 +17,7 @@ use std::{
 use ui::{ResizePresetButtons, frame_rate_label};
 mod preferences;
 mod preview;
+mod preview_gpu;
 mod window;
 use preferences::GpuPreferences;
 
@@ -125,6 +128,22 @@ mod bitrate_tests {
     use super::*;
 
     #[test]
+    fn color_keyboard_changes_only_selected_channel_and_clamps() {
+        let initial = ColorAdjustments::new(20, 50, 100).unwrap();
+        let gray = color_from_key(initial, 2, window::ColorKey::Min);
+        assert_eq!(gray.values(), (20, 50, 0));
+        assert_eq!(color_from_key(gray, 2, window::ColorKey::Step(-1)), gray);
+        let bright = color_from_key(gray, 0, window::ColorKey::Max);
+        assert_eq!(bright.values(), (100, 50, 0));
+        assert_eq!(color_from_key(bright, 0, window::ColorKey::Step(1)), bright);
+        assert_eq!(
+            color_from_key(bright, 1, window::ColorKey::Step(1)).values(),
+            (100, 51, 0)
+        );
+        assert_eq!(color_from_key(initial, 3, window::ColorKey::Min), initial);
+    }
+
+    #[test]
     fn custom_mbps_accepts_decimals_without_silently_replacing_invalid_values() {
         let policy = VideoBitrate::BitsPerSecond(4_000_000);
         assert_eq!(
@@ -157,11 +176,24 @@ fn app() -> Element {
     let mut dark_mode = use_signal(|| true);
     let mut choosing_gpu = use_signal(|| false);
     let mut choosing_fps = use_signal(|| false);
+    let mut color_expanded = use_signal(|| false);
+    let mut color = use_signal(ColorAdjustments::default);
+    let mut before = use_signal(|| false);
+    let mut preview_is_source = use_signal(|| true);
     let mut showing_preview = use_signal(|| false);
     let mut preview_path = use_signal(String::new);
     let mut pointer_released = use_signal(|| 0_u64);
     use_effect(move || {
         window::set_player_open(showing_preview() && !choosing_gpu() && !choosing_fps())
+    });
+    use_effect(move || {
+        app_state()
+            .preview
+            .set_color(if before() || !preview_is_source() {
+                ColorAdjustments::default()
+            } else {
+                color()
+            });
     });
     use_drop(|| window::set_player_open(false));
     use_future(move || async move {
@@ -219,6 +251,12 @@ fn app() -> Element {
     });
     let mut verified_output = use_signal(String::new);
     let mut input = use_signal(String::new);
+    use_effect(move || {
+        if showing_preview() && preview_is_source() && preview_path() != input() {
+            app_state().preview.cancel();
+            showing_preview.set(false);
+        }
+    });
     let mut output = use_signal(String::new);
     let mut resize = use_signal(|| "original".to_string());
     let mut profile = use_signal(|| OutputProfileId::Mp4H264Aac);
@@ -239,6 +277,24 @@ fn app() -> Element {
     let mut job_stage = use_signal(|| JobStage::Inspecting);
     let mut running = use_signal(|| false);
     let mut switching = use_signal(|| false);
+    use_effect(move || {
+        if running() || switching() || !color_expanded() {
+            window::set_color_focus(None);
+        }
+    });
+    use_drop(|| window::set_color_focus(None));
+    use_future(move || async move {
+        loop {
+            while let Some((index, key)) = window::take_color_key() {
+                if !color_expanded() || running() || switching() {
+                    continue;
+                }
+                color.set(color_from_key(color(), index, key));
+                before.set(false);
+            }
+            futures_timer::Delay::new(std::time::Duration::from_millis(50)).await;
+        }
+    });
     let mut status = use_signal(|| app_state().startup_status.clone());
     let mut source_metadata = use_signal(String::new);
     let mut gpu_limitation = use_signal(|| None::<String>);
@@ -360,6 +416,11 @@ fn app() -> Element {
         };
         let selected_fps = frame_rate();
         let selected_route = route();
+        let selected_color = color();
+        if selected_route == ProcessingRoute::NvidiaFfmpeg && !selected_color.is_neutral() {
+            status.set("Color adjustments need CPU FFmpeg or shared GPU. Select that route explicitly; direct NVIDIA will not fall back to CPU.".into());
+            return;
+        }
         if selected_route.uses_wgpu()
             && let Some(reason) = gpu_limitation()
         {
@@ -391,6 +452,7 @@ fn app() -> Element {
                             route: selected_route,
                             bitrate: Some(selected_bitrate),
                             frame_rate: selected_fps,
+                            color: selected_color,
                         },
                         &cancel,
                         |stage| {
@@ -494,7 +556,7 @@ fn app() -> Element {
     rsx! {
         style { {include_str!("../assets/native.css")} }
         div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" },
-        onmousedown: move |_| window::set_player_open(false),
+        onmousedown: move |_| { window::set_player_open(false); window::set_color_focus(None); },
         onmouseup: move |_| pointer_released.set(pointer_released().wrapping_add(1)),
         main { class: "app-shell",
             header { class: "app-header",
@@ -519,7 +581,7 @@ fn app() -> Element {
                     button { disabled: (busy || input().trim().is_empty()).then_some("true"), onclick: inspect, "Inspect" }
                     button { disabled: (busy || input().trim().is_empty()).then_some("true"),
                         onclick: move |_| {
-                            preview_path.set(input()); showing_preview.set(true);
+                            preview_is_source.set(true); preview_path.set(input()); showing_preview.set(true);
                         }, "Preview" }
                 }
                 }
@@ -530,12 +592,11 @@ fn app() -> Element {
                 label { r#for: "native-output", "Output" }
                 div { class: "path-row",
                     input { id: "native-output", r#type: "text", value: output,
-                        placeholder: "Choose a new .mp4 file", disabled: busy.then_some("true"),
+                        placeholder: "Choose a new .mp4 file", title: "Existing files are never overwritten", disabled: busy.then_some("true"),
                         oninput: move |event| output.set(event.value()) }
                     button { disabled: busy.then_some("true"), onclick: pick_output, "Browse…" }
                 }
                 }
-                p { class: "note", "Existing files are never overwritten." }
             }
             div { class: "settings-grid",
                 section { class: "panel",
@@ -609,12 +670,10 @@ fn app() -> Element {
                 }
                 if let Some(reason) = gpu_limitation() {
                     p { class: "note", "{reason}" }
-                } else if source_metadata().is_empty() {
-                    p { class: "note", "Inspect once to reuse input checks. Shared GPU stages pixels through CPU memory." }
                 }
                 if route() != ProcessingRoute::DirectFfmpeg {
                     div { class: "gpu-summary",
-                        span { "GPU: {gpu_label}" }
+                        span { title: "GPU: {gpu_label}", "GPU: {gpu_label}" }
                         button { disabled: busy.then_some("true"), onclick: move |_| choosing_gpu.set(true), "Change GPU…" }
                     }
                     if choosing_gpu() {
@@ -664,6 +723,32 @@ fn app() -> Element {
                     p { class: "note", "Direct FFmpeg does not use the processing GPU preference." }
                 }
             }
+            section { class: "panel color-panel", aria_label: "Color adjustments",
+                button { class: "color-toggle", aria_label: "Expand or collapse color adjustments", aria_expanded: color_expanded(), aria_controls: "native-color-controls",
+                    onclick: move |_| {
+                        let opening = !color_expanded(); color_expanded.set(opening); window::set_color_focus(None);
+                        if opening {
+                            app_state().preview.pause(true);
+                            if !input().trim().is_empty() { preview_is_source.set(true); preview_path.set(input()); showing_preview.set(true); }
+                        }
+                    },
+                    span { if color_expanded() { "- Color adjustments" } else { "+ Color adjustments" } }
+                    span { class: "note", if color().is_neutral() { "Neutral" } else if route() == ProcessingRoute::NvidiaFfmpeg { "Select CPU / Shared GPU" } else { "Adjusted" } }
+                }
+                if color_expanded() {
+                    div { id: "native-color-controls",
+                        for (index, name, min, max) in [(0, "Brightness", -100, 100), (1, "Contrast %", 0, 200), (2, "Saturation %", 0, 200)] {
+                            NativeColorSlider { index, name, min, max, color, before, pointer_released, disabled: busy }
+                        }
+                        div { class: "color-actions",
+                            button { disabled: busy.then_some("true"), aria_label: "Reset brightness contrast and saturation", onclick: move |_| { color.set(ColorAdjustments::default()); before.set(false); }, "Reset color" }
+                            button { disabled: (busy || !showing_preview() || !preview_is_source()).then_some("true"), aria_pressed: before(), aria_label: "Compare original source with adjusted preview",
+                                onclick: move |_| { app_state().preview.pause(true); before.set(!before()); }, if before() { "Before · show After" } else { "After · show Before" } }
+                            span { class: "note", title: "8-bit display approximation, not exact selected-output geometry. Before affects preview only; saved settings are exported. Output preview bypasses adjustments.", "Preview only comparison" }
+                        }
+                    }
+                }
+            }
             section { class: "panel job-panel",
                 div { class: "actions",
                     button { class: "primary", disabled: (busy || input().trim().is_empty() || output().trim().is_empty()).then_some("true"),
@@ -679,11 +764,11 @@ fn app() -> Element {
                     }, "Cancel" }
                     button { disabled: (busy || verified_output().is_empty()).then_some("true"),
                         onclick: move |_| {
-                            preview_path.set(verified_output()); showing_preview.set(true);
+                            preview_is_source.set(false); preview_path.set(verified_output()); showing_preview.set(true);
                         }, "Preview last output" }
                 }
                 p { id: "native-status", class: "job-status", role: "status", aria_live: "polite", "{status}" }
-                p { class: "note", "Last conversion: {active_gpu}" }
+                p { class: "note", title: "Last conversion: {active_gpu}", "Last conversion: {active_gpu}" }
             }
             }
             if showing_preview() {
@@ -697,10 +782,90 @@ fn app() -> Element {
                 }
             }
             }
-            footer { "Hardware failures never silently fall back to CPU · Preview playback is independent of conversion" }
+            footer { "No automatic CPU fallback · Shared GPU uses CPU staging · Preview is independent" }
         }
         }
     }
+}
+
+#[component]
+fn NativeColorSlider(
+    index: usize,
+    name: &'static str,
+    min: i16,
+    max: i16,
+    mut color: Signal<ColorAdjustments>,
+    mut before: Signal<bool>,
+    pointer_released: Signal<u64>,
+    disabled: bool,
+) -> Element {
+    let mut dragging = use_signal(|| false);
+    use_effect(move || {
+        let _ = pointer_released();
+        dragging.set(false);
+    });
+    let (b, c, s) = color().values();
+    let value = [b, c as i16, s as i16][index];
+    let percent = f64::from(value - min) * 100.0 / f64::from(max - min);
+    let mut change = move |value: i16| {
+        let (b, c, s) = color().values();
+        let next = match index {
+            0 => ColorAdjustments::new(value, c, s),
+            1 => ColorAdjustments::new(b, value as u16, s),
+            _ => ColorAdjustments::new(b, c, value as u16),
+        };
+        if let Ok(next) = next {
+            color.set(next);
+            before.set(false);
+        }
+    };
+    let mut pointer = move |x: f64| {
+        let value =
+            (f64::from(min) + window::color_fraction(x) * f64::from(max - min)).round() as i16;
+        change(value);
+    };
+    rsx! {
+        div { class: "color-row",
+        label { r#for: "native-color-{index}", "{name}: {value}" }
+        button { id: "native-color-{index}", class: "native-color-track", role: "slider", disabled: disabled.then_some("true"), aria_label: name,
+            aria_valuemin: min, aria_valuemax: max, aria_valuenow: value, aria_valuetext: "{name}: {value}", aria_disabled: disabled,
+            onfocus: move |_| { if !disabled { window::set_color_focus(Some(index)); window::set_player_open(false); } },
+            onblur: move |_| window::set_color_focus(None),
+            onmousedown: move |event| { event.stop_propagation(); if !disabled { window::set_color_focus(Some(index)); window::set_player_open(false); dragging.set(true);pointer(event.client_coordinates().x); } },
+            onmousemove: move |event| { if !disabled && dragging() { pointer(event.client_coordinates().x); } },
+            onmouseup: move |_| dragging.set(false),
+            div { class: "timeline-track",
+                div { class: "timeline-fill", style: "width: {percent}%" }
+                div { class: "timeline-thumb", style: "left: {percent}%" }
+            }
+        }
+        }
+    }
+}
+
+fn color_from_key(
+    color: ColorAdjustments,
+    index: usize,
+    key: window::ColorKey,
+) -> ColorAdjustments {
+    let (b, c, s) = color.values();
+    let (value, min, max) = match index {
+        0 => (b, -100, 100),
+        1 => (c as i16, 0, 200),
+        2 => (s as i16, 0, 200),
+        _ => return color,
+    };
+    let next = match key {
+        window::ColorKey::Step(step) => value.saturating_add(step).clamp(min, max),
+        window::ColorKey::Min => min,
+        window::ColorKey::Max => max,
+    };
+    match index {
+        0 => ColorAdjustments::new(next, c, s),
+        1 => ColorAdjustments::new(b, next as u16, s),
+        _ => ColorAdjustments::new(b, c, next as u16),
+    }
+    .unwrap_or(color)
 }
 
 #[component]

@@ -43,6 +43,46 @@ static PLAYER_KEYS: Mutex<PlayerKeys> = Mutex::new(PlayerKeys {
     pending: VecDeque::new(),
 });
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColorKey {
+    Step(i16),
+    Min,
+    Max,
+}
+#[derive(Default)]
+struct ColorKeys {
+    focused: Option<usize>,
+    pending: VecDeque<(usize, ColorKey)>,
+}
+static COLOR_KEYS: Mutex<ColorKeys> = Mutex::new(ColorKeys {
+    focused: None,
+    pending: VecDeque::new(),
+});
+
+pub fn set_color_focus(index: Option<usize>) {
+    if let Ok(mut keys) = COLOR_KEYS.lock() {
+        if keys.focused != index {
+            keys.pending.clear();
+        }
+        keys.focused = index;
+    }
+}
+pub fn take_color_key() -> Option<(usize, ColorKey)> {
+    COLOR_KEYS.lock().ok()?.pending.pop_front()
+}
+fn color_key(key: &Key, modifiers: ModifiersState) -> Option<ColorKey> {
+    if modifiers.intersects(ModifiersState::CONTROL | ModifiersState::ALT | ModifiersState::SUPER) {
+        return None;
+    }
+    Some(match key {
+        Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowDown) => ColorKey::Step(-1),
+        Key::Named(NamedKey::ArrowRight | NamedKey::ArrowUp) => ColorKey::Step(1),
+        Key::Named(NamedKey::Home) => ColorKey::Min,
+        Key::Named(NamedKey::End) => ColorKey::Max,
+        _ => return None,
+    })
+}
+
 impl PlayerKeys {
     fn set_open(&mut self, open: bool) {
         if self.open != open {
@@ -94,6 +134,21 @@ fn player_key(key: &Key, modifiers: ModifiersState) -> Option<PlayerKey> {
 pub fn timeline_fraction(client_x: f64) -> f64 {
     let width = f64::from_bits(LOGICAL_WIDTH.load(Ordering::Acquire));
     fraction_in_viewport(client_x, width)
+}
+
+// Inline left-column panel: shell 16 + panel 13 + label 112 + gap 8.
+// Remaining column width follows the fixed 346px preview and 8px gutter.
+pub fn color_fraction(client_x: f64) -> f64 {
+    color_fraction_in_viewport(
+        client_x,
+        f64::from_bits(LOGICAL_WIDTH.load(Ordering::Acquire)),
+    )
+}
+
+fn color_fraction_in_viewport(client_x: f64, width: f64) -> f64 {
+    let shell = width.min(1100.0);
+    let left = ((width - 1100.0) / 2.0).max(0.0) + 149.0;
+    ((client_x - left) / (shell - 532.0).max(1.0)).clamp(0.0, 1.0)
 }
 
 fn fraction_in_viewport(client_x: f64, width: f64) -> f64 {
@@ -155,6 +210,7 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => self.scale = *scale_factor,
             WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
             WindowEvent::Focused(false) => {
+                set_color_focus(None);
                 self.modifiers = ModifiersState::empty();
                 if let Ok(mut keys) = PLAYER_KEYS.lock() {
                     keys.pending.clear();
@@ -165,6 +221,16 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
                 // clicking the inline player, never intercept path-field typing.
                 if event.logical_key == Key::Named(NamedKey::Tab) {
                     set_player_open(false);
+                    set_color_focus(None);
+                }
+                if let Some(key) = color_key(&event.logical_key, self.modifiers)
+                    && let Ok(mut keys) = COLOR_KEYS.lock()
+                    && let Some(index) = keys.focused
+                {
+                    if keys.pending.len() < 16 {
+                        keys.pending.push_back((index, key));
+                    }
+                    return;
                 }
                 if let Some(key) = player_key(&event.logical_key, self.modifiers)
                     && let Ok(mut keys) = PLAYER_KEYS.lock()
@@ -189,6 +255,23 @@ mod tests {
     use super::*;
     #[test]
     fn timeline_coordinates_match_centered_layout() {
+        for (width, left, track_width) in [
+            (900.0, 149.0, 368.0),
+            (960.0, 149.0, 428.0),
+            (1280.0, 239.0, 568.0),
+        ] {
+            assert_eq!(color_fraction_in_viewport(left - 20.0, width), 0.0);
+            assert_eq!(color_fraction_in_viewport(left, width), 0.0);
+            assert_eq!(
+                color_fraction_in_viewport(left + track_width / 2.0, width),
+                0.5
+            );
+            assert_eq!(color_fraction_in_viewport(left + track_width, width), 1.0);
+            assert_eq!(
+                color_fraction_in_viewport(left + track_width + 20.0, width),
+                1.0
+            );
+        }
         assert_eq!(timeline_fraction(611.0), 0.0);
         assert_eq!(timeline_fraction(771.0), 0.5);
         assert_eq!(timeline_fraction(931.0), 1.0);
