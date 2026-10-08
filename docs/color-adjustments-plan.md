@@ -4,6 +4,12 @@ Status: **implementation in progress**, 2026-10-08. Browser and native controls/
 
 ## Scope and controls
 
+Correction (2026-10-08): the non-aligned GPU-backed export artifact is fixed with padded backing plus explicit exact capture crop, leaving the shader and preview dimensions unchanged. Recommended bitrate now retains more source detail during downscaling through shared core policy. Lossy tests keep raw RGB errors and separately account for declared 4:2:0 sampling where supported; they do not claim saturated 90×210 raw RGB p95 passes the original pre-sampling limit. Chromium main/worker, FFmpeg WASM, M1 and controlled recovery evidence is recorded in the interop report. CLAHE and broader platform coverage remain separate work.
+
+Acceptance continuation (2026-10-08): adjusted 50% resize and the crop/PAR/rotation-plus-flip fixture now pass independent pre-encoder numeric checks in Chromium main/worker contexts (maximum error ≤2). Resized 8 Mbps H.264/AAC and VP8/Opus exports, plus FFmpeg WASM H.264/AAC, pass the existing lossy limits. Recommended 250 kbps VP8 and high-detail 90×210 oriented exports exceed the lossy p95 gate; a direct encoder diagnostic reproduces the latter without the converter/shader. These remain open, not a reason to loosen shader tolerance. Remaining Firefox checks are skipped at Arman's request and stay unverified. CLAHE remains deferred; see the interop report for exact evidence.
+
+Browser playback continuation (2026-10-08): the formerly paused-only preview now also supports Play/Pause, image click and focused Space/Enter, seeking and Mute. Live playback uses the same shared shader/settings with bounded sampling and the source's native MP4 audio clock; paused edits still reuse one original image. Chromium worker/fallback playback, decoded-frame seek timestamps, EOF/restart and conversion handoff pass. This does not close Firefox color/playback, physical A/V synchronization or the broader acceptance gates below. See the architecture and interop report for ownership and tested results.
+
 Add one compact Color section to both versions:
 
 | Control | UI range | Neutral | Processing value |

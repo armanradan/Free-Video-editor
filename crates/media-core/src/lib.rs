@@ -183,20 +183,27 @@ impl VideoBitrate {
             .bitrate_bps
             .filter(|rate| *rate > 0)
             .and_then(|rate| {
+                // Downscaling does not reduce detail/codec overhead in direct
+                // proportion to pixel count. Scale by the geometric mean of
+                // width/height ratios (sqrt of area ratio), retaining source
+                // complexity instead of capping it at the fallback heuristic.
+                // Fixed-point integer arithmetic keeps both hosts identical.
+                let area_scale_ppm =
+                    (u128::from(size.width) * u128::from(size.height) * 1_000_000_000_000
+                        / (u128::from(source.size.width) * u128::from(source.size.height)))
+                    .isqrt();
                 let numerator = u128::from(rate)
-                    .checked_mul(u128::from(size.width))?
-                    .checked_mul(u128::from(size.height))?
+                    .checked_mul(area_scale_ppm)?
                     .checked_mul(u128::from(fps_num))?
                     .checked_mul(u128::from(source.fps_den))?
                     .checked_mul(factor(codec))?;
-                let denominator = u128::from(source.size.width)
-                    .checked_mul(u128::from(source.size.height))?
+                let denominator = 1_000_000_u128
                     .checked_mul(u128::from(source.fps_num))?
                     .checked_mul(u128::from(fps_den))?
                     .checked_mul(factor(source.codec))?;
                 Some(numerator.div_ceil(denominator).clamp(250_000, 120_000_000) as u32)
             });
-        let base = scaled_source.map_or(heuristic, |rate| rate.min(heuristic));
+        let base = scaled_source.unwrap_or(heuristic);
         let (num, den) = match self {
             Self::Smaller => (3_u64, 5),
             Self::Higher => (3, 2),
@@ -1004,7 +1011,7 @@ mod tests {
             settings
                 .resolve_bitrate(source.size, source.codec, source)
                 .unwrap(),
-            691_200
+            2_000_000
         );
         assert_eq!(
             VideoSettings {
@@ -1013,7 +1020,7 @@ mod tests {
             }
             .resolve_bitrate(source.size, source.codec, source)
             .unwrap(),
-            345_600
+            1_000_000
         );
         assert_eq!(
             VideoSettings {
@@ -1074,7 +1081,7 @@ mod tests {
         let half = Size::new(960, 540).unwrap();
         assert_eq!(
             rate(VideoBitrate::Recommended, half, 30, VideoCodec::H264),
-            1_000_000
+            2_000_000
         );
         assert_eq!(
             rate(VideoBitrate::Recommended, size, 15, VideoCodec::H264),
@@ -1102,6 +1109,45 @@ mod tests {
                 .resolve_with_source(size, 30, 1, VideoCodec::H264, unknown)
                 .unwrap(),
             6_220_800
+        );
+    }
+
+    #[test]
+    fn recommended_bitrate_retains_detail_budget_when_downscaling_complex_sources() {
+        let source = BitrateSource {
+            size: Size::new(640, 360).unwrap(),
+            fps_num: 30,
+            fps_den: 1,
+            codec: VideoCodec::H264,
+            bitrate_bps: Some(1_000_000),
+        };
+        let half = Size::new(320, 180).unwrap();
+        let resolve = |policy: VideoBitrate, size, fps| {
+            policy
+                .resolve_with_source(size, fps, 1, VideoCodec::Vp8, source)
+                .unwrap()
+        };
+        assert_eq!(resolve(VideoBitrate::Recommended, half, 30), 500_000);
+        assert_eq!(resolve(VideoBitrate::Recommended, half, 15), 250_000);
+        assert_eq!(
+            resolve(VideoBitrate::Recommended, source.size, 30),
+            1_000_000
+        );
+        assert_eq!(resolve(VideoBitrate::Smaller, half, 30), 300_000);
+        assert_eq!(resolve(VideoBitrate::Higher, half, 30), 750_000);
+        assert_eq!(
+            resolve(VideoBitrate::BitsPerSecond(800_000), half, 30),
+            800_000
+        );
+        let complex = BitrateSource {
+            bitrate_bps: Some(40_000_000),
+            ..source
+        };
+        assert_eq!(
+            VideoBitrate::Recommended
+                .resolve_with_source(half, 30, 1, VideoCodec::H264, complex)
+                .unwrap(),
+            20_000_000
         );
     }
 

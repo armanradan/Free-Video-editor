@@ -55,6 +55,11 @@ fn App() -> Element {
     let mut source_key = use_signal(|| 0_u64);
     let mut preview_revision = use_signal(|| 0_u64);
     let mut preview_busy = use_signal(|| false);
+    let mut preview_playing = use_signal(|| false);
+    let mut playback_busy = use_signal(|| false);
+    let mut preview_muted = use_signal(|| false);
+    let mut playback_token = use_signal(|| 0_u64);
+    let mut playback_error = use_signal(String::new);
     let mut preview_status =
         use_signal(|| "Select an input for paused source preview.".to_string());
     let mut status = use_signal(|| "Ready. Select an MP4 with H.264 or H.265 video.".to_string());
@@ -124,6 +129,13 @@ fn App() -> Element {
         let next_revision = preview_revision.peek().wrapping_add(1);
         preview_revision.set(next_revision);
         if running() || !profile_ready() || !has_source() {
+            media_web::pause_preview_playback();
+            if *preview_playing.peek() {
+                preview_playing.set(false);
+            }
+            return;
+        }
+        if preview_playing() || playback_busy() {
             return;
         }
         if *preview_busy.peek() {
@@ -133,7 +145,7 @@ fn App() -> Element {
         spawn(async move {
             loop {
                 let _ = wasm_bindgen_futures::JsFuture::from(preview_delay()).await;
-                if *running.peek() || !*profile_ready.peek() {
+                if *running.peek() || !*profile_ready.peek() || *preview_playing.peek() {
                     break;
                 }
                 let revision = *preview_revision.peek();
@@ -172,6 +184,136 @@ fn App() -> Element {
         });
     });
 
+    use_drop(move || {
+        media_web::release_preview_playback();
+    });
+
+    let mut toggle_preview = move || {
+        if running() || !profile_ready() || !has_source() {
+            return;
+        }
+        let next_token = playback_token.peek().wrapping_add(1);
+        playback_token.set(next_token);
+        if preview_playing() {
+            media_web::pause_preview_playback();
+            preview_seconds.set(media_web::preview_playback_position());
+            preview_playing.set(false);
+            return;
+        }
+        let Some(source) = inspected_source() else {
+            return;
+        };
+        let token = *playback_token.peek();
+        playback_error.set(String::new());
+        let start = source.video_start_us.max(0) as f64 / 1_000_000.0;
+        let duration = (source.video_end_us as f64 / 1_000_000.0 - start).max(0.001);
+        // Invoke play inside the gesture, rather than after an async codec probe.
+        let play =
+            media_web::start_preview_playback(preview_seconds(), start, duration, preview_muted());
+        preview_playing.set(true);
+        spawn(async move {
+            let result = match play {
+                Ok(play) => wasm_bindgen_futures::JsFuture::from(play)
+                    .await
+                    .map(|_| ())
+                    .map_err(|error| format!("{error:?}")),
+                Err(error) => Err(error.to_string()),
+            };
+            if token != *playback_token.peek() {
+                return;
+            }
+            if let Err(error) = result {
+                playback_error.set(format!("Preview playback unavailable: {error}"));
+                preview_playing.set(false);
+                return;
+            }
+            while *playback_busy.peek() && token == *playback_token.peek() {
+                let _ = wasm_bindgen_futures::JsFuture::from(preview_delay()).await;
+            }
+            if token != *playback_token.peek() || !*preview_playing.peek() || *running.peek() {
+                return;
+            }
+            playback_busy.set(true);
+            let key = *source_key.peek();
+            let mut last_position = -1.0_f64;
+            let mut last_revision = 0;
+            while *preview_playing.peek() && !*running.peek() && key == *source_key.peek() {
+                let _ = wasm_bindgen_futures::JsFuture::from(preview_delay()).await;
+                if !*preview_playing.peek() || *running.peek() || key != *source_key.peek() {
+                    break;
+                }
+                if *preview_busy.peek() {
+                    continue;
+                }
+                let error = media_web::preview_playback_error();
+                if !error.is_empty() {
+                    playback_error.set(error);
+                    break;
+                }
+                if !media_web::preview_playback_playing() {
+                    preview_seconds.set(media_web::preview_playback_position());
+                    break;
+                }
+                if !media_web::preview_playback_ready() {
+                    continue;
+                }
+                let seconds = media_web::preview_playback_position();
+                let revision = *preview_revision.peek();
+                if seconds == last_position && revision == last_revision {
+                    continue;
+                }
+                let resize = requested_resize(
+                    &resize_mode.peek(),
+                    &exact_width.peek(),
+                    &exact_height.peek(),
+                    *preserve_aspect_ratio.peek(),
+                );
+                let selected_color = if *before.peek() {
+                    ColorAdjustments::default()
+                } else {
+                    *color.peek()
+                };
+                let result = match resize {
+                    Ok(resize) => {
+                        media_web::preview_playback_source(key, seconds, resize, selected_color)
+                            .await
+                    }
+                    Err(error) => {
+                        playback_error.set(error);
+                        break;
+                    }
+                };
+                if key != *source_key.peek() || *running.peek() {
+                    break;
+                }
+                match result {
+                    Ok(summary) => {
+                        if revision == *preview_revision.peek() {
+                            preview_seconds.set(seconds);
+                            preview_status.set(summary);
+                            update_gpu(selected_gpu);
+                        }
+                    }
+                    Err(error) => {
+                        playback_error.set(format!("Preview playback failed: {error}"));
+                        break;
+                    }
+                }
+                last_position = seconds;
+                last_revision = *preview_revision.peek();
+            }
+            if key == *source_key.peek() {
+                media_web::pause_preview_playback();
+                preview_playing.set(false);
+            }
+            playback_busy.set(false);
+            // Retire decoder lookahead on pause/EOF; keep one original image.
+            // The ordinary paused-preview producer performs this serialized job.
+            let revision = preview_revision.peek().wrapping_add(1);
+            preview_revision.set(revision);
+        });
+    };
+
     let convert = move |_| {
         if !profile_ready() {
             status.set("Select an input and wait for its output profile checks.".to_string());
@@ -197,6 +339,8 @@ fn App() -> Element {
             }
         };
         settings.color = color();
+        preview_playing.set(false);
+        media_web::pause_preview_playback();
         running.set(true);
         download_url.set(String::new());
         status.set("Inspecting MP4 container and exact video codec configuration…".to_string());
@@ -250,6 +394,11 @@ fn App() -> Element {
         });
     };
     let file_changed = move |_| {
+        playback_error.set(String::new());
+        let next_token = playback_token.peek().wrapping_add(1);
+        playback_token.set(next_token);
+        preview_playing.set(false);
+        media_web::release_preview_playback();
         let next_source_key = source_key.peek().wrapping_add(1);
         source_key.set(next_source_key);
         preview_seconds.set(0.0);
@@ -361,6 +510,8 @@ fn App() -> Element {
         );
     };
     let run_m1 = move |_| {
+        preview_playing.set(false);
+        media_web::pause_preview_playback();
         running.set(true);
         status.set("Running the deterministic M1 regression probe…".to_string());
         spawn(async move {
@@ -433,8 +584,8 @@ fn App() -> Element {
     };
     rsx! {
         document::Stylesheet { href: MAIN_CSS }
-        document::Script { src: M1_SCRIPT }
-        document::Script { src: MEDIA_PIPELINE_SCRIPT }
+        document::Script { src: M1_SCRIPT, r#type: "module" }
+        document::Script { src: MEDIA_PIPELINE_SCRIPT, r#type: "module" }
         main { class: "shell",
             header { class: "page-header",
                 div {
@@ -502,15 +653,35 @@ fn App() -> Element {
                 section { class: "monitor-panel", aria_label: "Preview and progress",
                     div { class: "preview-panel", style: if !running() && (preview_status().starts_with("Loading") || preview_status().starts_with("Source preview unavailable")) { "visibility:hidden" } else { "visibility:visible" },
                         h2 { "GPU preview" }
-                        div { id: "worker-preview" }
-                        canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
+                        div { class: "preview-viewport", role: "button", tabindex: "0",
+                            aria_label: if preview_playing() { "Pause source preview" } else { "Play source preview" },
+                            onclick: move |_| toggle_preview(),
+                            onkeydown: move |event| { if event.key() == Key::Enter || event.key() == Key::Character(" ".into()) { event.prevent_default(); toggle_preview(); } },
+                            div { id: "worker-preview" }
+                            canvas { id: "export-canvas", width: "160", height: "90", aria_label: "wgpu output" }
+                        }
                     }
                     JobStatus { status: status(), selected_gpu: selected_gpu() }
                     p { id: "source-preview-status", class: "note", "{preview_status}" }
+                    if !playback_error().is_empty() {
+                        p { id: "source-preview-error", class: "note", role: "alert", "{playback_error}" }
+                    }
                     if let Some(source) = inspected_source() {
+                        div { class: "preview-playback-controls",
+                        div { class: "preview-transport",
+                            button { id: "source-preview-play", disabled: running() || !profile_ready(), onclick: move |_| toggle_preview(),
+                                if preview_playing() { "Pause" } else { "Play" }
+                            }
+                            span { class: "note", "{preview_seconds():.2} / {source.duration_seconds:.2} s" }
+                            label { class: "inline-check note",
+                                input { id: "source-preview-mute", r#type: "checkbox", checked: preview_muted(), oninput: move |event| { preview_muted.set(event.checked()); media_web::mute_preview_playback(event.checked()); } }
+                                "Mute"
+                            }
+                        }
                         label { r#for: "source-preview-position", class: "note", "Source preview position: {preview_seconds():.2} s" }
                         input { id: "source-preview-position", r#type: "range", min: "0", max: "{source.duration_seconds.max(0.001)}", step: "0.01", value: "{preview_seconds()}", disabled: running(),
-                            oninput: move |event| { if let Ok(value) = event.value().parse::<f64>() && value.is_finite() && value >= 0.0 { preview_seconds.set(value); } }
+                            oninput: move |event| { if let Ok(value) = event.value().parse::<f64>() && value.is_finite() && value >= 0.0 { media_web::seek_preview_playback(value); preview_seconds.set(value); } }
+                        }
                         }
                     }
                     p { id: "execution-context", class: "note", "Execution: checking worker support." }

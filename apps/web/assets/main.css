@@ -43,6 +43,12 @@ button, .button-link { border: 0; border-radius: 8px; padding: .6rem .9rem; font
 button:disabled { opacity: .45; cursor: not-allowed; }
 .button-link { display: inline-flex; color: #082f49; background: #7dd3fc; text-decoration: none; }
 .preview-panel { display: grid; gap: .6rem; }
+.preview-viewport { cursor: pointer; align-self: start; }
+.preview-playback-controls { display: grid; gap: .35rem; grid-column: 1 / -1; }
+#source-preview-status { max-height: 4.5rem; overflow: auto; margin: .6rem 0; }
+.preview-viewport:focus-visible { outline: 2px solid #70dcff; outline-offset: 3px; border-radius: 5px; }
+.preview-transport { display: flex; gap: .6rem; align-items: center; justify-content: space-between; }
+.preview-transport button { padding: .4rem .8rem; min-width: 65px; }
 .preview-panel canvas, #worker-preview canvas { display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 16 / 9; image-rendering: pixelated; background: #000; border: 1px solid #3a496b; border-radius: 5px; }
 #worker-preview:empty { display: none; }
 #worker-preview:not(:empty) + #export-canvas { display: none; }

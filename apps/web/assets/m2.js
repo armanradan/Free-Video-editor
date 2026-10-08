@@ -389,15 +389,60 @@ async function inspect(file) {
 let previewCache = null;
 let previewDecodes = 0;
 let previewRenders = 0;
+let previewStream = null;
+let previewStreamOpens = 0;
+function closePreviewStream() {
+  const stream = previewStream;
+  previewStream = null;
+  if (!stream) return;
+  stream.next?.close();
+  // Commands are serialized: no iterator.next() is outstanding here.
+  void stream.iterator.return().catch(() => {}).finally(() => stream.opened.input.dispose());
+}
 function clearPreview() {
+  closePreviewStream();
   previewCache?.frame.close();
   previewCache = null;
   globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC__ = null;
   globalThis.__DIAXUS_PREVIEW_INGRESS__ = null;
 }
-async function previewInfo(file, sourceKey, seconds) {
+async function previewInfo(file, sourceKey, seconds, streaming = false) {
   const key = `${sourceKey}@${seconds}:${file.size}:${file.lastModified}`;
+  if (!streaming) closePreviewStream();
   if (previewCache?.key === key) return previewCache.info;
+  if (streaming) {
+    const streamKey = `${sourceKey}:${file.size}:${file.lastModified}`;
+    if (previewStream && (previewStream.key !== streamKey || seconds < previewStream.seconds
+      || seconds - previewStream.seconds > .5)) closePreviewStream();
+    if (!previewStream) {
+      const opened = await MediabunnyInputAdapter.open(file);
+      const position = Math.min(opened.videoStart + seconds, opened.duration - .000001);
+      previewStream = { key: streamKey, opened, seconds, next: null,
+        iterator: new VideoSampleSink(opened.track).samples(position) };
+      previewStreamOpens++;
+    }
+    const stream = previewStream;
+    const position = Math.min(stream.opened.videoStart + seconds, stream.opened.duration - .000001);
+    try {
+      for (;;) {
+        if (!stream.next) stream.next = (await stream.iterator.next()).value ?? null;
+        if (!stream.next) break;
+        if (stream.next.timestamp > position && previewCache) break;
+        const sample = stream.next;
+        stream.next = null;
+        try {
+          const frame = sample.toVideoFrame();
+          previewCache?.frame.close();
+          previewCache = { key, frame, info: inspectionMetadata(stream.opened, file) };
+          previewDecodes++;
+        } finally { sample.close(); }
+      }
+      if (!previewCache) fail("No decoded frame at the requested playback position.");
+      previewCache.key = key;
+      stream.seconds = seconds;
+      return previewCache.info;
+    } catch (error) { clearPreview(); throw error; }
+  }
   clearPreview();
   const opened = await MediabunnyInputAdapter.open(file);
   let sample;
@@ -430,7 +475,8 @@ async function previewRender(processFrame) {
       globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC__ = { width: output.displayWidth, height: output.displayHeight, pixels,
         ingress: globalThis.__DIAXUS_PREVIEW_INGRESS__ };
     }
-    return { summary: `Paused source preview: cache loads=${previewDecodes}; renders=${previewRenders}; cached frames=1; explicit pixel readbacks=${diagnostic ? 2 : 0}.` };
+    const frameSeconds = (frame.timestamp - previewCache.info.videoStartUs) / 1_000_000;
+    return { summary: `${previewStream ? "Playing" : "Paused"} source preview: cache loads=${previewDecodes}; renders=${previewRenders}; frame time=${frameSeconds.toFixed(6)} s; cached frames=1; playback lookahead=${previewStream?.next ? 1 : 0}; stream opens=${previewStreamOpens}; explicit pixel readbacks=${diagnostic ? 2 : 0}.` };
   } finally { globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__ = false; output?.close(); frame.close(); }
 }
 
@@ -1477,7 +1523,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
 }
 
 class WebCodecsMediabunnyBackend {
-  previewInfo(file, key, seconds) { return previewInfo(file, key, seconds); }
+  previewInfo(file, key, seconds, streaming) { return previewInfo(file, key, seconds, streaming); }
   previewRender(processFrame) { return previewRender(processFrame); }
   clearPreview() { clearPreview(); }
   cleanupOutput() {

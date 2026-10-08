@@ -150,11 +150,17 @@ mod browser {
     #[wasm_bindgen(inline_js = r#"
         export function runtimeModuleUrl() { return new URL('../../converter-web.js', import.meta.url).href; }
         export function performanceNow() { return performance.now(); }
+        export function setCaptureGeometry(init, width, height) {
+            init.visibleRect = {x: 0, y: 0, width, height};
+            init.displayWidth = width;
+            init.displayHeight = height;
+            init.alpha = 'discard';
+        }
         export function invokeM1(fixture, manifest, processFrame, status, cancelled) {
             return globalThis.__DIAXUS_M1__.run(fixture, manifest, processFrame, status, cancelled);
         }
         export function inspectBrowserInput(file) { return globalThis.__DIAXUS_MEDIA_WEB__.inspect(file); }
-        export function previewInfo(file, key, seconds) { return globalThis.__DIAXUS_MEDIA_WEB__.previewInfo(file, key, seconds); }
+        export function previewInfo(file, key, seconds, streaming) { return globalThis.__DIAXUS_MEDIA_WEB__.previewInfo(file, key, seconds, streaming); }
         export function previewRender(processFrame) { return globalThis.__DIAXUS_MEDIA_WEB__.previewRender(processFrame); }
         export function clearPreview() { globalThis.__DIAXUS_MEDIA_WEB__.clearPreview(); }
         export function previewDiagnosticsEnabled() {
@@ -227,7 +233,12 @@ mod browser {
     "#)]
     extern "C" {
         #[wasm_bindgen(js_name = previewInfo, catch)]
-        fn preview_info(file: &File, key: &str, seconds: f64) -> Result<Promise, JsValue>;
+        fn preview_info(
+            file: &File,
+            key: &str,
+            seconds: f64,
+            streaming: bool,
+        ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = previewRender, catch)]
         fn preview_render(process: &Function) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = clearPreview)]
@@ -236,6 +247,8 @@ mod browser {
         fn runtime_module_url() -> String;
         #[wasm_bindgen(js_name = performanceNow)]
         fn performance_now() -> f64;
+        #[wasm_bindgen(js_name = setCaptureGeometry)]
+        fn set_capture_geometry(init: &VideoFrameInit, width: u32, height: u32);
         #[wasm_bindgen(js_name = copyDecodedFrame, catch)]
         fn copy_decoded_frame(
             queue: &JsValue,
@@ -312,6 +325,50 @@ mod browser {
 
     pub fn setup_ffmpeg_assets(core: &str, wasm: &str, worker: &str) {
         set_ffmpeg_assets_js(core, wasm, worker);
+    }
+
+    #[wasm_bindgen(module = "/src/preview-clock.js")]
+    extern "C" {
+        #[wasm_bindgen(js_name = startPreviewClock, catch)]
+        fn start_preview_clock(
+            file: &File,
+            seconds: f64,
+            start: f64,
+            duration: f64,
+            muted: bool,
+        ) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = pausePreviewClock)]
+        pub fn pause_preview_playback();
+        #[wasm_bindgen(js_name = releasePreviewClock)]
+        pub fn release_preview_playback();
+        #[wasm_bindgen(js_name = seekPreviewClock)]
+        pub fn seek_preview_playback(seconds: f64);
+        #[wasm_bindgen(js_name = mutePreviewClock)]
+        pub fn mute_preview_playback(muted: bool);
+        #[wasm_bindgen(js_name = previewClockPosition)]
+        pub fn preview_playback_position() -> f64;
+        #[wasm_bindgen(js_name = previewClockPlaying)]
+        pub fn preview_playback_playing() -> bool;
+        #[wasm_bindgen(js_name = previewClockReady)]
+        pub fn preview_playback_ready() -> bool;
+        #[wasm_bindgen(js_name = previewClockError)]
+        pub fn preview_playback_error() -> String;
+    }
+
+    pub fn start_preview_playback(
+        seconds: f64,
+        start: f64,
+        duration: f64,
+        muted: bool,
+    ) -> Result<Promise, MediaError> {
+        start_preview_clock(
+            &selected_file("source-file")?,
+            seconds,
+            start,
+            duration,
+            muted,
+        )
+        .map_err(js_error)
     }
 
     async fn dispatch(
@@ -394,7 +451,7 @@ mod browser {
                 .await
                 .map_err(|e| JsValue::from_str(&e.to_string()))?,
         );
-        gpu.configure(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false)
+        gpu.configure(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false, false)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let init = VideoFrameInit::new();
         init.set_timestamp_f64(0.0);
@@ -622,13 +679,32 @@ mod browser {
         resize: ResizeSpec,
         color: ColorAdjustments,
     ) -> Result<String, MediaError> {
+        preview_source_mode(source_key, seconds, resize, color, false).await
+    }
+
+    pub async fn preview_playback_source(
+        source_key: u64,
+        seconds: f64,
+        resize: ResizeSpec,
+        color: ColorAdjustments,
+    ) -> Result<String, MediaError> {
+        preview_source_mode(source_key, seconds, resize, color, true).await
+    }
+
+    async fn preview_source_mode(
+        source_key: u64,
+        seconds: f64,
+        resize: ResizeSpec,
+        color: ColorAdjustments,
+        streaming: bool,
+    ) -> Result<String, MediaError> {
         if !seconds.is_finite() || seconds < 0.0 {
             return Err(platform("invalid preview position"));
         }
         let result = dispatch(
             Some(selected_file("source-file")?),
             "preview",
-            &format!("{source_key}@{seconds}"),
+            &format!("{source_key}@{seconds}@{}", u8::from(streaming)),
             "",
             resize,
             Some(VideoSettings {
@@ -661,17 +737,34 @@ mod browser {
         resize: ResizeSpec,
         color: ColorAdjustments,
     ) -> Result<JsValue, MediaError> {
-        let (source_key, seconds) = key
-            .split_once('@')
+        let result = preview_file_inner(file, key, resize, color).await;
+        if result.is_err() {
+            clear_preview();
+        }
+        result
+    }
+
+    async fn preview_file_inner(
+        file: File,
+        key: &str,
+        resize: ResizeSpec,
+        color: ColorAdjustments,
+    ) -> Result<JsValue, MediaError> {
+        let mut parts = key.split('@');
+        let source_key = parts
+            .next()
             .ok_or_else(|| platform("invalid preview key"))?;
-        let seconds: f64 = seconds
+        let seconds: f64 = parts
+            .next()
+            .unwrap_or("")
             .parse()
             .map_err(|_| platform("invalid preview position"))?;
         if !seconds.is_finite() || seconds < 0.0 {
             return Err(platform("invalid preview position"));
         }
+        let streaming = parts.next() == Some("1");
         let inspection =
-            JsFuture::from(preview_info(&file, source_key, seconds).map_err(js_error)?)
+            JsFuture::from(preview_info(&file, source_key, seconds, streaming).map_err(js_error)?)
                 .await
                 .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
@@ -687,6 +780,7 @@ mod browser {
             output,
             geometry.rotation,
             geometry.flip_horizontal,
+            false,
         )
         .await?;
         let process = process_callback(Rc::clone(&gpu), false, color);
@@ -699,7 +793,7 @@ mod browser {
     async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
         clear_preview();
         let generation = begin_generation();
-        let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false).await?;
+        let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false, true).await?;
         let process = process_callback(Rc::clone(&gpu), false, ColorAdjustments::default());
         let cancelled = cancellation_callback(generation);
         let fixture =
@@ -785,6 +879,7 @@ mod browser {
             output,
             geometry.rotation,
             geometry.flip_horizontal,
+            true,
         )
         .await?;
         let inject_device_loss = execution_options.failure_mode == "device-loss-once"
@@ -1167,6 +1262,7 @@ mod browser {
         output: Size,
         rotation: Rotation,
         flip_horizontal: bool,
+        align_for_encoding: bool,
     ) -> Result<Rc<GpuSession>, MediaError> {
         let existing = GPU_SESSION.with(|slot| slot.borrow().clone());
         let gpu = if let Some(existing) = existing {
@@ -1191,7 +1287,7 @@ mod browser {
             GPU_SESSION.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&created)));
             created
         };
-        gpu.configure(input, output, rotation, flip_horizontal)?;
+        gpu.configure(input, output, rotation, flip_horizontal, align_for_encoding)?;
         Ok(gpu)
     }
 
@@ -1215,6 +1311,7 @@ mod browser {
         next_slot: Cell<usize>,
         input_size: Size,
         output_size: Size,
+        capture_size: Size,
         rotation: Rotation,
         flip_horizontal: bool,
         transform: wgpu::Buffer,
@@ -1426,8 +1523,33 @@ mod browser {
             output_size: Size,
             rotation: Rotation,
             flip_horizontal: bool,
+            align_for_encoding: bool,
         ) -> Result<(), MediaError> {
-            for (label, size) in [("input", input_size), ("output", output_size)] {
+            // GPU-backed RGB→YUV codec bridges can scale non-aligned backing
+            // dimensions. Render only the exact visible viewport into padded
+            // backing and crop at VideoFrame capture; never resize the content.
+            // Preview stays exact-size. No second pass or CPU readback is added.
+            let capture_size = if align_for_encoding {
+                Size::new(
+                    output_size
+                        .width
+                        .checked_add(15)
+                        .ok_or_else(|| platform("capture width overflow"))?
+                        & !15,
+                    output_size
+                        .height
+                        .checked_add(15)
+                        .ok_or_else(|| platform("capture height overflow"))?
+                        & !15,
+                )?
+            } else {
+                output_size
+            };
+            for (label, size) in [
+                ("input", input_size),
+                ("output", output_size),
+                ("capture backing", capture_size),
+            ] {
                 if size.width > self.max_texture_dimension_2d
                     || size.height > self.max_texture_dimension_2d
                 {
@@ -1443,6 +1565,7 @@ mod browser {
             if self.configured.borrow().as_ref().is_some_and(|c| {
                 c.input_size == input_size
                     && c.output_size == output_size
+                    && c.capture_size == capture_size
                     && c.rotation == rotation
                     && c.flip_horizontal == flip_horizontal
             }) {
@@ -1458,15 +1581,15 @@ mod browser {
                     "cannot reconfigure GPU textures while submissions are in flight",
                 ));
             }
-            self.canvas.resize(output_size);
+            self.canvas.resize(capture_size);
             self.surface.configure(
                 &self.device,
                 &wgpu::SurfaceConfiguration {
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                     format: self.surface_format,
                     color_space: wgpu::SurfaceColorSpace::Srgb,
-                    width: output_size.width,
-                    height: output_size.height,
+                    width: capture_size.width,
+                    height: capture_size.height,
                     present_mode: wgpu::PresentMode::Fifo,
                     alpha_mode: wgpu::CompositeAlphaMode::Opaque,
                     view_formats: vec![],
@@ -1513,6 +1636,7 @@ mod browser {
                 next_slot: Cell::new(0),
                 input_size,
                 output_size,
+                capture_size,
                 rotation,
                 flip_horizontal,
                 transform,
@@ -1668,6 +1792,11 @@ mod browser {
                 let init = VideoFrameInit::new();
                 init.set_timestamp_f64(timestamp as f64);
                 init.set_duration_f64(duration as f64);
+                set_capture_geometry(
+                    &init,
+                    configured.output_size.width,
+                    configured.output_size.height,
+                );
                 let frame = self.canvas.capture(&init);
                 if frame.is_ok() {
                     PROCESSING_METRICS.with(|metrics| {
@@ -1791,6 +1920,21 @@ mod browser {
 
     fn gpu_telemetry() -> String {
         let metrics = PROCESSING_METRICS.with(Cell::get);
+        let capture_geometry = GPU_SESSION
+            .with(|slot| {
+                slot.borrow().as_ref().and_then(|gpu| {
+                    gpu.configured.borrow().as_ref().map(|configured| {
+                        format!(
+                            "{}×{} / {}×{}",
+                            configured.output_size.width,
+                            configured.output_size.height,
+                            configured.capture_size.width,
+                            configured.capture_size.height
+                        )
+                    })
+                })
+            })
+            .unwrap_or_else(|| "not configured".to_string());
         let session = GPU_SESSION.with(|slot| {
             slot.borrow().as_ref().map(|gpu| {
                 (
@@ -1805,7 +1949,7 @@ mod browser {
         });
         let (generation, allocations, pool_slots) = session.unwrap_or((0, 0, 0));
         format!(
-            "GPU telemetry: device generation {generation}; bounded input texture pool slots={pool_slots}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; CPU submission/bridge={:.1} ms; cumulative submitted-work completion latency={:.1} ms; slot-reuse wait={:.1} ms; final-drain wait={:.1} ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+            "GPU telemetry: device generation {generation}; bounded input texture pool slots={pool_slots}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; capture visible/backing={capture_geometry}; CPU submission/bridge={:.1} ms; cumulative submitted-work completion latency={:.1} ms; slot-reuse wait={:.1} ms; final-drain wait={:.1} ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
             metrics.texture_reuses,
             metrics.live_leases,
             metrics.peak_leases,
@@ -1974,8 +2118,11 @@ mod browser {
 #[cfg(target_arch = "wasm32")]
 pub use browser::{
     ConversionResult, OutputProfileCapabilities, SourceMetadata, cancel, clear_source_preview,
-    convert_m3, preview_source, probe_output_profiles, run_m1, selected_gpu, setup_ffmpeg_assets,
-    setup_runtime,
+    convert_m3, mute_preview_playback, pause_preview_playback, preview_playback_error,
+    preview_playback_playing, preview_playback_position, preview_playback_ready,
+    preview_playback_source, preview_source, probe_output_profiles, release_preview_playback,
+    run_m1, seek_preview_playback, selected_gpu, setup_ffmpeg_assets, setup_runtime,
+    start_preview_playback,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}
