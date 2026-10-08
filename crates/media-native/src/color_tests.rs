@@ -99,6 +99,220 @@ fn color_settings_deserialization_validates_and_defaults_legacy_payloads() {
 }
 
 #[test]
+fn decoded_preview_and_cpu_preencoder_pixels_share_the_color_contract() {
+    use std::process::Command;
+    let input =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/m2-h264-aac.mp4");
+    for position in [0, 500_000] {
+        let original =
+            crate::preview::decode_frame(&input, position, &crate::CancellationToken::default())
+                .unwrap();
+        for color in [
+            ColorAdjustments::default(),
+            ColorAdjustments::new(10, 150, 50).unwrap(),
+            ColorAdjustments::new(-15, 70, 130).unwrap(),
+            ColorAdjustments::new(0, 100, 0).unwrap(),
+        ] {
+            // Match position/geometry exactly. RGB16 is the direct route's
+            // pre-encoder stage, before YUV subsampling or lossy compression.
+            let filter = format!(
+                "{},format=gbrp16le,{},format=rgba",
+                crate::color::TO_SRGB,
+                crate::color::expression_filter(color)
+            );
+            let output = Command::new("ffmpeg")
+                .args([
+                    "-v",
+                    "error",
+                    "-ss",
+                    &format!("{:.6}", position as f64 / 1_000_000.0),
+                    "-i",
+                ])
+                .arg(&input)
+                .args([
+                    "-an",
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    &filter,
+                    "-f",
+                    "rawvideo",
+                    "pipe:1",
+                ])
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert_eq!(output.stdout.len(), original.rgba.len());
+            let mut max_error = 0;
+            let mut sum = 0_u64;
+            for (source, actual) in original
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .zip(output.stdout.as_chunks::<4>().0)
+            {
+                let expected = color.reference_rgb([
+                    source[0] as f32 / 255.0,
+                    source[1] as f32 / 255.0,
+                    source[2] as f32 / 255.0,
+                ]);
+                for (actual, expected) in actual[..3].iter().zip(expected) {
+                    let error =
+                        (i32::from(*actual) - (expected * 255.0).round() as i32).unsigned_abs();
+                    max_error = max_error.max(error);
+                    sum += u64::from(error);
+                }
+                assert_eq!(actual[3], 255);
+            }
+            println!(
+                "Decoded CPU/preview position={position} color={color:?} max={max_error} MAE={:.4}",
+                sum as f64 / (640.0 * 360.0 * 3.0)
+            );
+            assert!(
+                max_error <= 2,
+                "preencoder {color:?} at {position}: max {max_error}"
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "real FFmpeg/wgpu cancellation and device destruction with color enabled"]
+fn adjusted_jobs_cancel_lose_device_and_retry_without_partial_output() {
+    use crate::{
+        CancellationToken, NativeRunOptions, OutputProfileId, ProcessingRoute,
+        convert_with_control_inner, partial_path, probe_source,
+    };
+    use media_core::ResizeSpec;
+    use std::{
+        fs,
+        process::Command,
+        thread,
+        time::{Duration, Instant},
+    };
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../");
+    let directory = root.join(format!("tmp/color-lifecycle-{}", std::process::id()));
+    fs::create_dir_all(&directory).unwrap();
+    let source = root.join("fixtures/m2-h264-aac.mp4");
+    let long = directory.join("input.mp4");
+    assert!(
+        Command::new("ffmpeg")
+            .args(["-v", "error", "-n", "-stream_loop", "39", "-i"])
+            .arg(&source)
+            .args(["-c", "copy"])
+            .arg(&long)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let color = ColorAdjustments::new(10, 150, 50).unwrap();
+    let nvidia = crate::enumerate_adapters()
+        .into_iter()
+        .find(|adapter| adapter.vendor == 0x10de);
+    let mut routes = vec![ProcessingRoute::DirectFfmpeg, ProcessingRoute::SharedWgpu];
+    if let Some(adapter) = &nvidia {
+        println!("Adjusted staged NVIDIA lifecycle adapter: {adapter:?}");
+        routes.push(ProcessingRoute::SharedWgpuNvidia);
+    } else {
+        println!("Staged NVIDIA lifecycle UNTESTED: no NVIDIA adapter");
+    }
+    for route in routes {
+        let cancelled = directory.join(format!("{route:?}-cancelled.mp4"));
+        let partial = partial_path(&cancelled).unwrap();
+        let token = CancellationToken::default();
+        let signal = token.clone();
+        let watch = thread::spawn(move || {
+            let start = Instant::now();
+            while !partial.exists() && start.elapsed() < Duration::from_secs(30) {
+                thread::sleep(Duration::from_millis(5));
+            }
+            let opened = partial.exists();
+            signal.cancel();
+            opened
+        });
+        let result = convert_with_control_inner(
+            &long,
+            &cancelled,
+            ResizeSpec::Percent(50),
+            OutputProfileId::Mp4H264Aac,
+            route,
+            NativeRunOptions {
+                color,
+                adapter_key: nvidia.as_ref().map(|adapter| adapter.key.as_str()),
+                ..Default::default()
+            },
+            &token,
+        );
+        assert!(watch.join().unwrap(), "no active partial output observed");
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
+        assert!(!cancelled.exists());
+        assert!(!partial_path(&cancelled).unwrap().exists());
+        let retry = directory.join(format!("{route:?}-retry.mp4"));
+        let report = convert_with_control_inner(
+            &source,
+            &retry,
+            ResizeSpec::Percent(50),
+            OutputProfileId::Mp4H264Aac,
+            route,
+            NativeRunOptions {
+                color,
+                adapter_key: nvidia.as_ref().map(|adapter| adapter.key.as_str()),
+                ..Default::default()
+            },
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert_eq!(report.color, color);
+        assert_eq!(report.frames_processed, 60);
+        assert_eq!(probe_source(&retry).unwrap().frame_count, 60);
+        println!("Adjusted {route:?}: active cancel/cleanup/retry PASS");
+    }
+    let lost = directory.join("lost.mp4");
+    let failure = convert_with_control_inner(
+        &source,
+        &lost,
+        ResizeSpec::Percent(50),
+        OutputProfileId::Mp4H264Aac,
+        ProcessingRoute::SharedWgpu,
+        NativeRunOptions {
+            color,
+            inject_device_loss_after_frames: Some(2),
+            ..Default::default()
+        },
+        &CancellationToken::default(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(failure.contains("GPU device lost (Destroyed)"), "{failure}");
+    assert!(!lost.exists());
+    assert!(!partial_path(&lost).unwrap().exists());
+    let retry = directory.join("loss-retry.mp4");
+    let report = convert_with_control_inner(
+        &source,
+        &retry,
+        ResizeSpec::Percent(50),
+        OutputProfileId::Mp4H264Aac,
+        ProcessingRoute::SharedWgpu,
+        NativeRunOptions {
+            color,
+            ..Default::default()
+        },
+        &CancellationToken::default(),
+    )
+    .unwrap();
+    assert_eq!(report.frames_processed, 60);
+    println!(
+        "Adjusted device destruction/cleanup/fresh-device retry PASS; evidence {}",
+        directory.display()
+    );
+}
+
+#[test]
 #[ignore = "requires a real native wgpu adapter; diagnostic readback is test-only"]
 fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
     let instance = wgpu::Instance::default();
@@ -108,12 +322,24 @@ fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
     println!("Color reference adapter: {:?}", adapter.get_info());
     let (device, queue) =
         pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
-    let source_bytes: [u8; 16] = [
-        20, 80, 220, 255, 128, 128, 128, 255, 255, 0, 0, 255, 0, 255, 64, 255,
+    // Non-power-of-two raster dimensions plus sharp boundaries reproduce the
+    // browser's extreme-control sampler error; four texels alone missed it.
+    let palette = [
+        [95, 11, 0, 255],
+        [244, 135, 41, 255],
+        [96, 17, 0, 255],
+        [245, 138, 39, 255],
+        [20, 80, 220, 255],
+        [128, 128, 128, 255],
+        [255, 0, 0, 255],
+        [0, 255, 64, 255],
     ];
+    let source_bytes: Vec<u8> = (0..640 * 360)
+        .flat_map(|pixel| palette[pixel % palette.len()])
+        .collect();
     let extent = wgpu::Extent3d {
-        width: 4,
-        height: 1,
+        width: 640,
+        height: 360,
         depth_or_array_layers: 1,
     };
     let texture = |format, usage| {
@@ -142,8 +368,8 @@ fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
         &source_bytes,
         wgpu::TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(16),
-            rows_per_image: Some(1),
+            bytes_per_row: Some(640 * 4),
+            rows_per_image: Some(360),
         },
         extent,
     );
@@ -160,6 +386,7 @@ fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
             ColorAdjustments::default(),
             ColorAdjustments::new(0, 100, 0).unwrap(),
             ColorAdjustments::new(10, 150, 50).unwrap(),
+            ColorAdjustments::new(-20, 200, 200).unwrap(),
             ColorAdjustments::new(-100, 200, 200).unwrap(),
             ColorAdjustments::new(100, 200, 0).unwrap(),
             ColorAdjustments::new(0, 0, 100).unwrap(),
@@ -168,7 +395,7 @@ fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
                 pipeline.create_adjustment_buffer(&device, &queue, Rotation::Deg0, false, color);
             let readback = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("diagnostic pixels"),
-                size: 256,
+                size: 640 * 360 * 4,
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
                 mapped_at_creation: false,
             });
@@ -179,7 +406,7 @@ fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
                 &source.create_view(&Default::default()),
                 &transform,
                 &target.create_view(&Default::default()),
-                Size::new(4, 1).unwrap(),
+                Size::new(640, 360).unwrap(),
             );
             encoder.copy_texture_to_buffer(
                 wgpu::TexelCopyTextureInfo {
@@ -192,8 +419,8 @@ fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
                     buffer: &readback,
                     layout: wgpu::TexelCopyBufferLayout {
                         offset: 0,
-                        bytes_per_row: Some(256),
-                        rows_per_image: Some(1),
+                        bytes_per_row: Some(640 * 4),
+                        rows_per_image: Some(360),
                     },
                 },
                 extent,
@@ -217,7 +444,7 @@ fn gpu_color_pixels_match_reference_on_unorm_and_srgb_targets() {
                 .as_chunks::<4>()
                 .0
                 .iter()
-                .zip(bytes[..16].as_chunks::<4>().0.iter())
+                .zip(bytes[..source_bytes.len()].as_chunks::<4>().0.iter())
             {
                 let expected = color.reference_rgb([
                     f32::from(input[0]) / 255.0,

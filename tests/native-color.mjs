@@ -41,6 +41,40 @@ try {
     evidence.cases.push({route,source,profile,resize,fps,output,report,video,frames:frames.length,graySpread:spread});
     console.log(`${route} ${source} ${profile}: ${frames.length} frames PASS`);
   }
+  // Lossy acceptance limits are deliberately separate from the <=2-code-value
+  // pre-encoder shader/CPU gate. Compare identical 640x360 geometry and seeks.
+  const normalized='zscale=matrixin=709:transferin=709:primariesin=709:rangein=limited:matrix=gbr:transfer=iec61966-2-1:primaries=709:range=full,format=gbrp,format=rgba';
+  const decode=(input,position)=>run('ffmpeg',['-v','error','-ss',String(position),'-i',input,'-vf',normalized,'-frames:v','1','-f','rawvideo','-pix_fmt','rgba','-'],null);
+  const source=path.resolve('fixtures/m2-h264-aac.mp4');
+  for(const route of ['direct','wgpu','wgpu-nvidia']) {
+    const output=path.join(directory,`${++index}-${route}-combined.mp4`);
+    const report=JSON.parse(run(exe,['convert','--input',source,'--output',output,'--route',route,'--resize','original','--fps','original','--brightness','10','--contrast','150','--saturation','50','--adapter-key',adapter.key]));
+    const comparisons=[];
+    for(const position of [0,.5]) {
+      const original=decode(source,position),actual=decode(output,position);
+      assert.equal(original.length,640*360*4);assert.equal(actual.length,original.length);
+      const errors=[];let total=0;
+      for(let i=0;i<original.length;i+=4) {
+        const rgb=[original[i]/255,original[i+1]/255,original[i+2]/255];
+        const y=.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];
+        for(let channel=0;channel<3;channel++) {
+          const expected=Math.round(255*Math.max(0,Math.min(1,((y+.5*(rgb[channel]-y))-.5)*1.5+.5+.1)));
+          const error=Math.abs(actual[i+channel]-expected);errors.push(error);total+=error;
+        }
+        assert.equal(actual[i+3],255);
+      }
+      errors.sort((a,b)=>a-b);
+      const metric={position,mean:total/errors.length,p95:errors[Math.floor(errors.length*.95)],p99:errors[Math.floor(errors.length*.99)],max:errors.at(-1),limits:{mean:6,p95:15}};
+      comparisons.push(metric);
+      console.log(`${route} same-position ${position}s: ${JSON.stringify(metric)}`);
+      assert.ok(metric.mean<=6&&metric.p95<=15,'lossy preview/export difference exceeds declared bounds');
+    }
+    const frames=JSON.parse(run('ffprobe',['-v','error','-select_streams','v:0','-show_frames','-show_entries','frame=best_effort_timestamp_time','-of','json',output])).frames;
+    assert.equal(frames.length,60);
+    frames.forEach((frame,i)=>assert.ok(Math.abs(Number(frame.best_effort_timestamp_time)-i/30)<.00002));
+    run('ffmpeg',['-v','error','-i',output,'-f','null','-']);
+    evidence.cases.push({route,output,report,comparisons,frames:frames.length});
+  }
   for(const [route,args,pattern] of [
     ['nvidia',['--saturation','0'],/Direct NVIDIA color adjustments are not supported/],
     ['direct',['--brightness','101'],/brightness must be/],

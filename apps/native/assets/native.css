@@ -88,9 +88,13 @@ button[data-selected="true"] { background: var(--selected); border-color: var(--
 .conversion-column { flex: 1; min-width: 0; }
 .processing-panel { flex: 1; min-width: 0; }
 .preview-panel { width: 346px; flex-shrink: 0; }
+/* Separate preview document uses normal flow; never hide the main window UI. */
+.fullscreen-preview { width: 100%; height: 100vh; border-radius: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+.fullscreen-preview .picker-heading { width: 100%; max-width: 1000px; }
+.fullscreen-preview .preview-path { max-width: 1000px; }
 .preview-panel .picker-heading { margin-bottom: 6px; }
 .preview-path { margin: 0 0 6px; height: 14px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.preview-viewport { width: 320px; height: 180px; overflow: hidden; background: #000000; }
+.preview-viewport { width: 320px; height: 180px; overflow: hidden; background: #000000; cursor: pointer; }
 /* Blitz custom paint samples at the registered texture's intrinsic dimensions.
    Scale its whole scene, not the canvas bounds (which only crop the image). */
 .preview-canvas { display: block; width: 640px; height: 360px; transform: scale(0.5); transform-origin: top left; }

@@ -1,15 +1,13 @@
 //! Thin native event-loop adapter for logical viewport measurements.
 //! Dioxus Native 0.7.10's element_coordinates/get_client_rect are unimplemented.
-use blitz_shell::{BlitzShellEvent, WindowConfig};
-use dioxus::native::{
-    DioxusDocument, DioxusNativeApplication, DioxusNativeWindowRenderer, DocumentConfig,
-};
+use blitz_shell::{BlitzApplication, BlitzShellEvent, View, WindowConfig};
+use dioxus::native::{DioxusDocument, DioxusNativeWindowRenderer, DocumentConfig};
 use dioxus::prelude::*;
 use std::{
     collections::VecDeque,
     sync::{
-        Mutex,
-        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 use winit::{
@@ -17,10 +15,61 @@ use winit::{
     event::{ElementState, StartCause, WindowEvent},
     event_loop::ActiveEventLoop,
     keyboard::{Key, ModifiersState, NamedKey},
-    window::{WindowAttributes, WindowId},
+    window::{Window, WindowAttributes, WindowId},
 };
 
 static LOGICAL_WIDTH: AtomicU64 = AtomicU64::new(960.0_f64.to_bits());
+static LOGICAL_HEIGHT: AtomicU64 = AtomicU64::new(760.0_f64.to_bits());
+static PREVIEW_FULLSCREEN: AtomicBool = AtomicBool::new(false);
+static APP_WINDOW: Mutex<Option<Arc<Window>>> = Mutex::new(None);
+static PREVIEW_WIDTH: AtomicU64 = AtomicU64::new(960.0_f64.to_bits());
+static PREVIEW_HEIGHT: AtomicU64 = AtomicU64::new(760.0_f64.to_bits());
+
+#[derive(Clone, Default, PartialEq)]
+pub struct PreviewWindowState {
+    pub path: String,
+    pub dark: bool,
+    pub before: bool,
+    pub source: bool,
+    pub busy: bool,
+}
+static PREVIEW_SETTINGS: Mutex<Option<PreviewWindowState>> = Mutex::new(None);
+static BEFORE_REQUEST: Mutex<Option<(String, bool)>> = Mutex::new(None);
+pub fn set_preview_settings(settings: PreviewWindowState) {
+    *PREVIEW_SETTINGS.lock().unwrap() = Some(settings);
+}
+pub fn preview_settings() -> PreviewWindowState {
+    PREVIEW_SETTINGS.lock().unwrap().clone().unwrap_or_default()
+}
+pub fn request_before(value: bool) {
+    *BEFORE_REQUEST.lock().unwrap() = Some((preview_settings().path, value));
+}
+pub fn take_before_request() -> Option<(String, bool)> {
+    BEFORE_REQUEST.lock().unwrap().take()
+}
+pub fn preview_window_open() -> bool {
+    PREVIEW_FULLSCREEN.load(Ordering::Acquire)
+}
+
+pub fn set_preview_fullscreen(enabled: bool) {
+    PREVIEW_FULLSCREEN.store(enabled, Ordering::Release);
+    if let Ok(window) = APP_WINDOW.lock()
+        && let Some(window) = window.as_ref()
+    {
+        // Wake the event loop; only it may create/drop native windows.
+        window.request_redraw();
+    }
+}
+
+pub fn preview_extent() -> (f64, f64) {
+    let width = f64::from_bits(PREVIEW_WIDTH.load(Ordering::Acquire));
+    let height = f64::from_bits(PREVIEW_HEIGHT.load(Ordering::Acquire));
+    fit_preview(width, height)
+}
+fn fit_preview(width: f64, height: f64) -> (f64, f64) {
+    let scale = ((width - 48.0).max(1.0) / 640.0).min((height - 210.0).max(1.0) / 360.0);
+    (640.0 * scale, 360.0 * scale)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerKey {
@@ -135,6 +184,18 @@ pub fn timeline_fraction(client_x: f64) -> f64 {
     let width = f64::from_bits(LOGICAL_WIDTH.load(Ordering::Acquire));
     fraction_in_viewport(client_x, width)
 }
+pub fn detached_timeline_fraction(client_x: f64) -> f64 {
+    fullscreen_fraction(
+        client_x,
+        f64::from_bits(PREVIEW_WIDTH.load(Ordering::Acquire)),
+        f64::from_bits(PREVIEW_HEIGHT.load(Ordering::Acquire)),
+    )
+}
+
+fn fullscreen_fraction(client_x: f64, width: f64, height: f64) -> f64 {
+    let (track, _) = fit_preview(width, height);
+    (client_x - (width - track) / 2.0) / track
+}
 
 // Inline left-column panel: shell 16 + panel 13 + label 112 + gap 8.
 // Remaining column width follows the fixed 346px preview and 8px gutter.
@@ -166,23 +227,84 @@ pub fn launch(app: fn() -> Element, attributes: WindowAttributes) {
         DioxusNativeWindowRenderer::new(),
         attributes,
     );
-    let inner = DioxusNativeApplication::new(event_loop.create_proxy(), config);
+    let inner = BlitzApplication::new(event_loop.create_proxy());
     let mut application = ViewportApplication {
         inner,
         physical_width: 960,
+        physical_height: 760,
         scale: 1.0,
         initialized: false,
         modifiers: ModifiersState::empty(),
+        pending: Some(config),
+        main_id: None,
+        preview_id: None,
     };
     event_loop.run_app(&mut application).unwrap();
 }
 
 struct ViewportApplication {
-    inner: DioxusNativeApplication,
+    inner: BlitzApplication<DioxusNativeWindowRenderer>,
+    pending: Option<WindowConfig<DioxusNativeWindowRenderer>>,
     physical_width: u32,
+    physical_height: u32,
     scale: f64,
     initialized: bool,
     modifiers: ModifiersState,
+    main_id: Option<WindowId>,
+    preview_id: Option<WindowId>,
+}
+
+impl ViewportApplication {
+    fn insert_document(
+        &mut self,
+        config: WindowConfig<DioxusNativeWindowRenderer>,
+        event_loop: &ActiveEventLoop,
+    ) -> WindowId {
+        let mut view = View::init(config, event_loop, &self.inner.proxy);
+        let renderer = view.renderer.clone();
+        let doc = view.downcast_doc_mut::<DioxusDocument>();
+        doc.vdom
+            .in_scope(ScopeId::ROOT, || provide_context(renderer));
+        doc.initial_build();
+        view.request_redraw();
+        let id = view.window_id();
+        self.inner.windows.insert(id, view);
+        id
+    }
+    fn reconcile_preview(&mut self, event_loop: &ActiveEventLoop) {
+        match (preview_window_open(), self.preview_id) {
+            (true, None) => {
+                let document = DioxusDocument::new(
+                    VirtualDom::new(crate::preview_window),
+                    DocumentConfig::default(),
+                );
+                let attributes = WindowAttributes::default()
+                    .with_title("Diaxus · Video Preview")
+                    .with_inner_size(winit::dpi::LogicalSize::new(960.0, 760.0))
+                    .with_min_inner_size(winit::dpi::LogicalSize::new(640.0, 480.0))
+                    .with_maximized(true);
+                let config = WindowConfig::with_attributes(
+                    Box::new(document),
+                    DioxusNativeWindowRenderer::new(),
+                    attributes,
+                );
+                let id = self.insert_document(config, event_loop);
+                self.preview_id = Some(id);
+                self.inner.windows.get_mut(&id).unwrap().resume();
+            }
+            (false, Some(id)) => {
+                self.inner.windows.remove(&id);
+                self.preview_id = None;
+                if let Some(id) = self.main_id
+                    && let Some(view) = self.inner.windows.get(&id)
+                {
+                    view.window.focus_window();
+                    view.request_redraw();
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
@@ -193,6 +315,15 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
             self.scale = monitor.scale_factor();
         }
         self.initialized = true;
+        // The pinned Dioxus application hides its window handle. Use Blitz's
+        // public bootstrap with the same document/renderer and renderer context
+        // so expanded preview can use winit, without an OS-specific handle workaround.
+        // This app uses inline styles and no document/history provider calls.
+        if let Some(config) = self.pending.take() {
+            let id = self.insert_document(config, event_loop);
+            self.main_id = Some(id);
+            *APP_WINDOW.lock().unwrap() = Some(self.inner.windows[&id].window.clone());
+        }
         self.inner.resumed(event_loop);
     }
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
@@ -203,10 +334,68 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
     }
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: BlitzShellEvent) {
         self.inner.user_event(event_loop, event);
+        self.reconcile_preview(event_loop);
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        let detached = self.preview_id == Some(id);
+        // Late events from a dropped preview must never close the main window
+        // or overwrite its viewport measurements.
+        if !detached && self.main_id != Some(id) {
+            return;
+        }
+        if matches!(event, WindowEvent::CloseRequested) {
+            if detached {
+                set_preview_fullscreen(false);
+                self.reconcile_preview(event_loop);
+                return;
+            }
+            // Main-window close ends the application, even with preview open.
+            PREVIEW_FULLSCREEN.store(false, Ordering::Release);
+            self.inner.windows.clear();
+            *APP_WINDOW.lock().unwrap() = None;
+            event_loop.exit();
+            return;
+        }
+        if detached {
+            if let Some(view) = self.inner.windows.get(&id) {
+                let size = view
+                    .window
+                    .inner_size()
+                    .to_logical::<f64>(view.window.scale_factor());
+                PREVIEW_WIDTH.store(size.width.to_bits(), Ordering::Release);
+                PREVIEW_HEIGHT.store(size.height.to_bits(), Ordering::Release);
+            }
+            if let WindowEvent::KeyboardInput { event, .. } = &event
+                && event.state == ElementState::Pressed
+            {
+                if event.logical_key == Key::Named(NamedKey::Escape) {
+                    set_preview_fullscreen(false);
+                    self.reconcile_preview(event_loop);
+                    return;
+                }
+                if let Some(key) = player_key(&event.logical_key, self.modifiers)
+                    && let Ok(mut keys) = PLAYER_KEYS.lock()
+                {
+                    keys.set_open(true);
+                    keys.push(key, event.repeat);
+                    return;
+                }
+            }
+            if let WindowEvent::ModifiersChanged(modifiers) = &event {
+                self.modifiers = modifiers.state();
+            }
+            if matches!(event, WindowEvent::Focused(false)) {
+                self.modifiers = ModifiersState::empty();
+            }
+            self.inner.window_event(event_loop, id, event);
+            self.reconcile_preview(event_loop);
+            return;
+        }
         match &event {
-            WindowEvent::Resized(size) => self.physical_width = size.width,
+            WindowEvent::Resized(size) => {
+                self.physical_width = size.width;
+                self.physical_height = size.height;
+            }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => self.scale = *scale_factor,
             WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
             WindowEvent::Focused(false) => {
@@ -217,6 +406,15 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+                if event.logical_key == Key::Named(NamedKey::Escape)
+                    && PREVIEW_FULLSCREEN.load(Ordering::Acquire)
+                {
+                    if let Ok(mut keys) = PLAYER_KEYS.lock() {
+                        keys.set_open(true);
+                        keys.push(PlayerKey::Close, false);
+                    }
+                    return;
+                }
                 // Tab moves focus to ordinary controls. Re-enable shortcuts by
                 // clicking the inline player, never intercept path-field typing.
                 if event.logical_key == Key::Named(NamedKey::Tab) {
@@ -246,13 +444,32 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
             (f64::from(self.physical_width) / self.scale).to_bits(),
             Ordering::Release,
         );
+        LOGICAL_HEIGHT.store(
+            (f64::from(self.physical_height) / self.scale).to_bits(),
+            Ordering::Release,
+        );
         self.inner.window_event(event_loop, id, event);
+        self.reconcile_preview(event_loop);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn fullscreen_preview_fits_image_and_controls_without_distorting_aspect() {
+        for (width, height) in [(960.0, 760.0), (1920.0, 1080.0), (1280.0, 720.0)] {
+            let (image_width, image_height) = fit_preview(width, height);
+            assert!(image_width <= width - 48.0);
+            assert!(image_height <= height - 210.0);
+            assert!((image_width / image_height - 16.0 / 9.0).abs() < 0.0001);
+            let left = (width - image_width) / 2.0;
+            assert!(fullscreen_fraction(left, width, height).abs() < 0.0001);
+            assert!((fullscreen_fraction(width / 2.0, width, height) - 0.5).abs() < 0.0001);
+            assert!((fullscreen_fraction(left + image_width, width, height) - 1.0).abs() < 0.0001);
+        }
+    }
+
     #[test]
     fn timeline_coordinates_match_centered_layout() {
         for (width, left, track_width) in [

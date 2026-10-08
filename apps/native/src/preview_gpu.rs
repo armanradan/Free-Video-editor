@@ -178,7 +178,15 @@ mod tests {
         let (device, queue) =
             pollster::block_on(adapter.request_device(&Default::default())).unwrap();
         let pass = ColorPass::new(&device);
-        let source: Vec<u8> = (0..640 * 360).flat_map(|_| [20, 80, 220, 255]).collect();
+        let input = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/m2-h264-aac.mp4");
+        let source = media_native::preview::decode_frame(
+            &input,
+            0,
+            &media_native::CancellationToken::default(),
+        )
+        .unwrap()
+        .rgba;
         queue.write_texture(
             w::TexelCopyTextureInfo {
                 texture: &pass.source,
@@ -215,12 +223,14 @@ mod tests {
         for color in [
             ColorAdjustments::default(),
             ColorAdjustments::new(10, 150, 0).unwrap(),
+            ColorAdjustments::new(10, 150, 50).unwrap(),
+            ColorAdjustments::new(-15, 70, 130).unwrap(),
             ColorAdjustments::new(-100, 200, 200).unwrap(),
         ] {
             pass.render(&device, &queue, &target, color);
             let buffer = device.create_buffer(&w::BufferDescriptor {
                 label: None,
-                size: 256,
+                size: (640 * 360 * 4) as u64,
                 usage: w::BufferUsages::COPY_DST | w::BufferUsages::MAP_READ,
                 mapped_at_creation: false,
             });
@@ -236,13 +246,13 @@ mod tests {
                     buffer: &buffer,
                     layout: w::TexelCopyBufferLayout {
                         offset: 0,
-                        bytes_per_row: Some(256),
-                        rows_per_image: Some(1),
+                        bytes_per_row: Some(640 * 4),
+                        rows_per_image: Some(360),
                     },
                 },
                 w::Extent3d {
-                    width: 1,
-                    height: 1,
+                    width: 640,
+                    height: 360,
                     depth_or_array_layers: 1,
                 },
             );
@@ -254,14 +264,26 @@ mod tests {
             device.poll(w::PollType::Wait).unwrap();
             receive.recv().unwrap().unwrap();
             let bytes = buffer.slice(..).get_mapped_range();
-            for (actual, expected) in bytes[..3].iter().zip(color.reference_rgb([
-                20.0 / 255.0,
-                80.0 / 255.0,
-                220.0 / 255.0,
-            ])) {
-                assert!((i32::from(*actual) - (expected * 255.0).round() as i32).abs() <= 2);
+            let mut max_error = 0;
+            for (input, pixel) in source
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .zip(bytes.as_chunks::<4>().0)
+            {
+                for (actual, expected) in pixel[..3].iter().zip(color.reference_rgb([
+                    input[0] as f32 / 255.0,
+                    input[1] as f32 / 255.0,
+                    input[2] as f32 / 255.0,
+                ])) {
+                    let error =
+                        (i32::from(*actual) - (expected * 255.0).round() as i32).unsigned_abs();
+                    max_error = max_error.max(error);
+                }
+                assert_eq!(pixel[3], 255);
             }
-            assert_eq!(bytes[3], 255);
+            println!("Actual decoded-frame Blitz color {color:?}: max={max_error}");
+            assert!(max_error <= 2, "{color:?}: {max_error}");
             drop(bytes);
             buffer.unmap();
         }

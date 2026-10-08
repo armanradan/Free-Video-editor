@@ -48,7 +48,21 @@ fn source_uv(output_uv: vec2<f32>) -> vec2<f32> {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    var rgb = textureSample(source_texture, source_sampler, source_uv(input.uv)).rgb;
+    let uv = source_uv(input.uv);
+    let dimensions = vec2<f32>(textureDimensions(source_texture));
+    let pixel = uv * dimensions - 0.5;
+    let center = round(pixel);
+    var rgb: vec3<f32>;
+    // At a texel center bilinear filtering is exactly that texel. Some hardware
+    // samplers quantize a tiny floating-coordinate error into a nonzero neighbor
+    // weight, amplified by strong color controls. Preserve the exact center;
+    // retain ordinary bilinear sampling everywhere else (single mip level).
+    if all(abs(pixel - center) < vec2<f32>(0.0001)) {
+        let coordinate = vec2<i32>(clamp(center, vec2<f32>(0.0), dimensions - 1.0));
+        rgb = textureLoad(source_texture, coordinate, 0).rgb;
+    } else {
+        rgb = textureSampleLevel(source_texture, source_sampler, uv, 0.0).rgb;
+    }
     if orientation.color.w != 0.0 {
         let gray = dot(rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
         rgb = clamp((vec3<f32>(gray) + orientation.color.z * (rgb - gray) - 0.5)

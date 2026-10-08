@@ -157,12 +157,36 @@ mod browser {
         export function previewInfo(file, key, seconds) { return globalThis.__DIAXUS_MEDIA_WEB__.previewInfo(file, key, seconds); }
         export function previewRender(processFrame) { return globalThis.__DIAXUS_MEDIA_WEB__.previewRender(processFrame); }
         export function clearPreview() { globalThis.__DIAXUS_MEDIA_WEB__.clearPreview(); }
-        export async function copyDecodedFrame(queue, texture, frame, preparedBitmap, width, height) {
+        export function previewDiagnosticsEnabled() {
+            return new URL(globalThis.location.href).searchParams.get('diagnostic-preview') === '1';
+        }
+        async function diagnosticIngress(device, texture, width, height, bitmap) {
+            if (!globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__) return bitmap;
+            const bytesPerRow = Math.ceil(width * 4 / 256) * 256;
+            const buffer = device.createBuffer({size: bytesPerRow * height,
+                usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ});
+            try {
+                const encoder = device.createCommandEncoder();
+                encoder.copyTextureToBuffer({texture}, {buffer, bytesPerRow}, [width, height]);
+                device.queue.submit([encoder.finish()]);
+                await buffer.mapAsync(GPUMapMode.READ);
+                const mapped = new Uint8Array(buffer.getMappedRange());
+                const pixels = new Uint8Array(width * height * 4);
+                for (let y = 0; y < height; y++) pixels.set(mapped.subarray(y * bytesPerRow, y * bytesPerRow + width * 4), y * width * 4);
+                globalThis.__DIAXUS_PREVIEW_INGRESS__ = {width, height, pixels};
+                return bitmap;
+            } catch (error) {
+                bitmap?.close();
+                throw error;
+            } finally { buffer.unmap(); buffer.destroy(); }
+        }
+        export async function copyDecodedFrame(queue, device, texture, frame, preparedBitmap, width, height) {
             const destination = { texture, colorSpace: 'srgb', premultipliedAlpha: false };
             if (preparedBitmap != null) {
                 try {
                     queue.copyExternalImageToTexture({ source: preparedBitmap }, destination, [width, height]);
-                    return preparedBitmap;
+                    return globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__
+                        ? diagnosticIngress(device, texture, width, height, preparedBitmap) : preparedBitmap;
                 } catch (error) {
                     preparedBitmap.close();
                     throw new Error(`Prepared ImageBitmap GPU ingress failed: ${error.message}`);
@@ -170,13 +194,15 @@ mod browser {
             }
             try {
                 queue.copyExternalImageToTexture({ source: frame }, destination, [width, height]);
-                return null;
+                return globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__
+                    ? diagnosticIngress(device, texture, width, height, null) : null;
             } catch (directError) {
                 if (!(directError instanceof TypeError)) throw directError;
                 const bitmap = await createImageBitmap(frame);
                 try {
                     queue.copyExternalImageToTexture({ source: bitmap }, destination, [width, height]);
-                    return bitmap;
+                    return globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__
+                        ? diagnosticIngress(device, texture, width, height, bitmap) : bitmap;
                 } catch (error) {
                     bitmap.close();
                     throw new Error(`VideoFrame and ImageBitmap GPU ingress failed: ${error.message}`);
@@ -213,12 +239,15 @@ mod browser {
         #[wasm_bindgen(js_name = copyDecodedFrame, catch)]
         fn copy_decoded_frame(
             queue: &JsValue,
+            device: &JsValue,
             texture: &JsValue,
             frame: &VideoFrame,
             prepared_bitmap: &JsValue,
             width: u32,
             height: u32,
         ) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = previewDiagnosticsEnabled)]
+        fn preview_diagnostics_enabled() -> bool;
         #[wasm_bindgen(js_name = invokeM1, catch)]
         fn invoke_m1(
             fixture: js_sys::Uint8Array,
@@ -1459,7 +1488,12 @@ mod browser {
                         format: wgpu::TextureFormat::Rgba8Unorm,
                         usage: wgpu::TextureUsages::COPY_DST
                             | wgpu::TextureUsages::TEXTURE_BINDING
-                            | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                            | wgpu::TextureUsages::RENDER_ATTACHMENT
+                            | if preview_diagnostics_enabled() {
+                                wgpu::TextureUsages::COPY_SRC
+                            } else {
+                                wgpu::TextureUsages::empty()
+                            },
                         view_formats: &[],
                     }),
                     uses: Cell::new(0),
@@ -1557,6 +1591,10 @@ mod browser {
                     self.queue
                         .as_webgpu()
                         .ok_or_else(|| JsValue::from_str("WebGPU queue unavailable"))?
+                        .as_ref(),
+                    self.device
+                        .as_webgpu()
+                        .ok_or_else(|| JsValue::from_str("WebGPU device unavailable"))?
                         .as_ref(),
                     configured.slots[slot_index]
                         .input

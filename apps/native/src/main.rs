@@ -178,9 +178,11 @@ fn app() -> Element {
     let mut choosing_fps = use_signal(|| false);
     let mut color_expanded = use_signal(|| false);
     let mut color = use_signal(ColorAdjustments::default);
+    let mut color_preview_revision = use_signal(|| 0_u64);
     let mut before = use_signal(|| false);
     let mut preview_is_source = use_signal(|| true);
     let mut showing_preview = use_signal(|| false);
+    let mut preview_fullscreen = use_signal(|| false);
     let mut preview_path = use_signal(String::new);
     let mut pointer_released = use_signal(|| 0_u64);
     use_effect(move || {
@@ -198,11 +200,19 @@ fn app() -> Element {
     use_drop(|| window::set_player_open(false));
     use_future(move || async move {
         loop {
+            if *preview_fullscreen.peek() != window::preview_window_open() {
+                preview_fullscreen.set(window::preview_window_open());
+            }
             while let Some(key) = window::take_player_key() {
                 if !showing_preview() {
                     continue;
                 }
                 if key == window::PlayerKey::Close {
+                    if preview_fullscreen() {
+                        window::set_preview_fullscreen(false);
+                        preview_fullscreen.set(false);
+                        continue;
+                    }
                     app_state().preview.cancel();
                     showing_preview.set(false);
                     window::set_player_open(false);
@@ -252,9 +262,11 @@ fn app() -> Element {
     let mut verified_output = use_signal(String::new);
     let mut input = use_signal(String::new);
     use_effect(move || {
-        if showing_preview() && preview_is_source() && preview_path() != input() {
+        if showing_preview() && preview_is_source() && preview_path() != input().trim() {
             app_state().preview.cancel();
             showing_preview.set(false);
+            preview_fullscreen.set(false);
+            window::set_preview_fullscreen(false);
         }
     });
     let mut output = use_signal(String::new);
@@ -278,6 +290,31 @@ fn app() -> Element {
     let mut running = use_signal(|| false);
     let mut switching = use_signal(|| false);
     use_effect(move || {
+        window::set_preview_settings(window::PreviewWindowState {
+            path: preview_path(),
+            dark: dark_mode(),
+            before: before(),
+            source: preview_is_source(),
+            busy: running() || switching(),
+        });
+    });
+    use_future(move || async move {
+        let mut selection = preview::AutoPreviewSelection::new(std::time::Instant::now());
+        loop {
+            if let Some(selected) = selection.poll(
+                &input(),
+                running() || switching(),
+                std::time::Instant::now(),
+            ) && PathBuf::from(&selected).is_file()
+            {
+                preview_is_source.set(true);
+                preview_path.set(selected);
+                showing_preview.set(true);
+            }
+            futures_timer::Delay::new(std::time::Duration::from_millis(100)).await;
+        }
+    });
+    use_effect(move || {
         if running() || switching() || !color_expanded() {
             window::set_color_focus(None);
         }
@@ -285,6 +322,14 @@ fn app() -> Element {
     use_drop(|| window::set_color_focus(None));
     use_future(move || async move {
         loop {
+            if let Some((path, value)) = window::take_before_request()
+                && !running()
+                && !switching()
+                && preview_is_source()
+                && path == preview_path()
+            {
+                before.set(value);
+            }
             while let Some((index, key)) = window::take_color_key() {
                 if !color_expanded() || running() || switching() {
                     continue;
@@ -292,7 +337,10 @@ fn app() -> Element {
                 color.set(color_from_key(color(), index, key));
                 before.set(false);
             }
-            futures_timer::Delay::new(std::time::Duration::from_millis(50)).await;
+            if app_state().preview.publish_color() {
+                color_preview_revision.set(color_preview_revision().wrapping_add(1));
+            }
+            futures_timer::Delay::new(preview::COLOR_INTERVAL).await;
         }
     });
     let mut status = use_signal(|| app_state().startup_status.clone());
@@ -555,7 +603,7 @@ fn app() -> Element {
         .unwrap_or_else(|| "Automatic".to_string());
     rsx! {
         style { {include_str!("../assets/native.css")} }
-        div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" },
+        div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" }, "data-color-preview-revision": color_preview_revision(),
         onmousedown: move |_| { window::set_player_open(false); window::set_color_focus(None); },
         onmouseup: move |_| pointer_released.set(pointer_released().wrapping_add(1)),
         main { class: "app-shell",
@@ -579,10 +627,6 @@ fn app() -> Element {
                         oninput: move |event| { input.set(event.value()); source_metadata.set(String::new()); estimate_source.set(None); gpu_limitation.set(None); } }
                     button { disabled: busy.then_some("true"), onclick: pick_source, "Browse…" }
                     button { disabled: (busy || input().trim().is_empty()).then_some("true"), onclick: inspect, "Inspect" }
-                    button { disabled: (busy || input().trim().is_empty()).then_some("true"),
-                        onclick: move |_| {
-                            preview_is_source.set(true); preview_path.set(input()); showing_preview.set(true);
-                        }, "Preview" }
                 }
                 }
                 if !source_metadata().is_empty() {
@@ -773,11 +817,12 @@ fn app() -> Element {
             }
             if showing_preview() {
                 VideoPlayer { key: "{preview_path}", path: preview_path(), canvas: preview_canvas.to_string(), pointer_released,
-                    on_close: move |_| { showing_preview.set(false); window::set_player_open(false); } }
+                    fullscreen: preview_fullscreen, before, source_preview: preview_is_source(), editing_disabled: busy,
+                    on_close: move |_| { showing_preview.set(false); window::set_player_open(false); preview_fullscreen.set(false); window::set_preview_fullscreen(false); } }
             } else {
                 section { class: "panel preview-panel",
                     h2 { "Video preview" }
-                    div { class: "preview-empty", "Select a source and click Preview, or preview your converted output." }
+                    div { class: "preview-empty", "Select a source to preview it paused, or preview your converted output." }
                     p { class: "note", "Independent player · Original FPS keeps every frame" }
                 }
             }
@@ -873,7 +918,12 @@ fn VideoPlayer(
     path: String,
     canvas: String,
     pointer_released: Signal<u64>,
+    mut fullscreen: Signal<bool>,
+    mut before: Signal<bool>,
+    source_preview: bool,
+    editing_disabled: bool,
     on_close: EventHandler,
+    #[props(default = false)] detached: bool,
 ) -> Element {
     let mut player = use_signal(preview::PlayerState::default);
     let mut muted = use_signal(|| false);
@@ -881,8 +931,12 @@ fn VideoPlayer(
     let mut drag_position = use_signal(|| 0_u64);
     let mut resume_after_seek = use_signal(|| false);
     let mut command_error = use_signal(|| None::<String>);
+    let mut extent = use_signal(|| (320.0_f64, 180.0_f64));
     let initial_path = path.clone();
     use_effect(move || {
+        if detached {
+            return;
+        }
         if let Err(error) = app_state()
             .preview
             .start(PathBuf::from(&initial_path), 0, false, false)
@@ -890,10 +944,25 @@ fn VideoPlayer(
             command_error.set(Some(error));
         }
     });
-    use_drop(|| app_state().preview.cancel());
+    use_drop(move || {
+        if !detached {
+            app_state().preview.cancel();
+        }
+    });
     use_future(move || async move {
         loop {
+            let next_extent = if detached {
+                window::preview_extent()
+            } else {
+                (320.0, 180.0)
+            };
+            if *extent.peek() != next_extent {
+                extent.set(next_extent);
+            }
             let next = app_state().preview.state();
+            if *muted.peek() != next.muted {
+                muted.set(next.muted);
+            }
             if *player.peek() != next {
                 player.set(next);
             }
@@ -939,8 +1008,8 @@ fn VideoPlayer(
         let mut restart = restart.clone();
         move || {
             if dragging() {
-                dragging.set(false);
                 restart(drag_position(), resume_after_seek(), muted());
+                dragging.set(false);
             }
         }
     };
@@ -953,7 +1022,6 @@ fn VideoPlayer(
             let position = *drag_position.peek();
             let playing = *resume_after_seek.peek();
             let mute = *muted.peek();
-            dragging.set(false);
             command_error.set(
                 app_state()
                     .preview
@@ -961,33 +1029,52 @@ fn VideoPlayer(
                     .err(),
             );
             player.set(app_state().preview.state());
+            dragging.set(false);
         }
     });
     let error = command_error().or(state.error.clone());
+    let mut toggle_video = toggle_play.clone();
     rsx! {
-            section { class: "panel preview-panel", aria_label: "Video preview",
+            section { class: if detached { "panel preview-panel fullscreen-preview" } else { "panel preview-panel" }, aria_label: "Video preview",
                 onmousedown: move |event| { event.stop_propagation(); window::set_player_open(true); },
                 onmouseup: move |_| finish_seek(),
                 div { class: "picker-heading",
                     h2 { "Video preview" }
-                    button { onclick: move |_| { app_state().preview.cancel(); on_close.call(()); }, "Close" }
+                    button { aria_label: "Toggle separate preview window", aria_pressed: fullscreen(), onclick: move |_| {
+                        let next = !fullscreen();
+                        window::set_preview_fullscreen(next); fullscreen.set(next);
+                    }, if fullscreen() { "Return inline" } else { "Expand preview" } }
+                    button { onclick: move |_| { if !detached { app_state().preview.cancel(); } on_close.call(()); }, "Close" }
                 }
                 p { class: "preview-path", "{path}" }
-                div { class: "preview-viewport",
-                    canvas { class: "preview-canvas", "src": "{canvas}", width: "640", height: "360" }
+                div { class: "preview-viewport", style: "width: {extent().0}px; height: {extent().1}px",
+                    title: "Click video to play or pause",
+                    onclick: move |event| {
+                        event.stop_propagation();
+                        if app_state().preview.state().ready && !dragging() {
+                            window::set_player_open(true);
+                            toggle_video();
+                        }
+                    },
+                    canvas { class: "preview-canvas", style: "transform: scale({extent().0 / 640.0})", "src": "{canvas}", width: "640", height: "360" }
                 }
                 div { class: "player-timeline", role: "slider", tabindex: "0", aria_label: "Playback position",
+                    style: "width: {extent().0}px",
                     aria_valuemin: "0", aria_valuemax: state.duration_us / 1_000,
                     aria_valuenow: position / 1_000, aria_valuetext: preview::format_time(position),
                     aria_disabled: !state.ready,
                     onmousedown: move |event| {
                         if player().ready {
                             resume_after_seek.set(!player().paused); dragging.set(true); app_state().preview.pause(true);
-                            drag_position.set(preview::seek_from_fraction(window::timeline_fraction(event.client_coordinates().x), player().duration_us));
+                            let fraction = if detached { window::detached_timeline_fraction(event.client_coordinates().x) } else { window::timeline_fraction(event.client_coordinates().x) };
+                            drag_position.set(preview::seek_from_fraction(fraction, player().duration_us));
                         }
                     },
                     onmousemove: move |event| {
-                        if dragging() { drag_position.set(preview::seek_from_fraction(window::timeline_fraction(event.client_coordinates().x), player().duration_us)); }
+                        if dragging() {
+                            let fraction = if detached { window::detached_timeline_fraction(event.client_coordinates().x) } else { window::timeline_fraction(event.client_coordinates().x) };
+                            drag_position.set(preview::seek_from_fraction(fraction, player().duration_us));
+                        }
                     },
                     div { class: "timeline-track",
                         div { class: "timeline-fill", style: "width: {percent}%" }
@@ -995,6 +1082,7 @@ fn VideoPlayer(
                     }
                 }
                 div { class: "preview-controls",
+                    style: "width: {extent().0}px",
                     button { class: "primary", disabled: (!state.ready).then_some("true"), onclick: move |_| toggle_play(),
                         if !state.ready { "Loading…" } else if state.paused { "Play" } else { "Pause" }
                     }
@@ -1002,10 +1090,55 @@ fn VideoPlayer(
                     button { disabled: (!state.ready).then_some("true"), aria_pressed: muted(), onclick: move |_| {
                         muted.set(!muted()); restart(player().position_us, !player().paused, muted());
                     }, if muted() { "Unmute" } else { "Mute" } }
+                    if detached && source_preview {
+                        button { disabled: editing_disabled.then_some("true"), aria_pressed: before(), onclick: move |_| {
+                            app_state().preview.pause(true); before.set(!before()); window::request_before(before());
+                        }, if before() { "Before · show After" } else { "After · show Before" } }
+                    }
                 }
                 p { class: "note", if !state.ready { "Preparing preview…" } else if state.ended { "Ended" } else if state.audio_active { "Audio enabled" } else { "Video only" } }
                 if let Some(error) = error { p { class: "job-status", role: "alert", "Preview failed: {error}" } }
-                p { class: "note", "Drag to seek · ←/→ 5 s · Space play/pause" }
+                p { class: "note", "Click video / Space play/pause · Drag to seek · ←/→ 5 s" }
             }
+    }
+}
+
+// A second document/presenter, not a second decoder or playback owner. Only
+// bounded metadata crosses between UI roots; textures stay renderer-local.
+fn preview_window() -> Element {
+    let canvas =
+        dioxus::native::use_wgpu(|| preview::Presenter::new(app_state().preview.frames.clone()));
+    let mut settings = use_signal(window::preview_settings);
+    let fullscreen = use_signal(|| true);
+    let mut before = use_signal(|| window::preview_settings().before);
+    let mut pointer_released = use_signal(|| 0_u64);
+    let mut revision = use_signal(|| app_state().preview.presentation_revision());
+    use_future(move || async move {
+        loop {
+            let next = window::preview_settings();
+            if *before.peek() != next.before {
+                before.set(next.before);
+            }
+            if *settings.peek() != next {
+                settings.set(next);
+            }
+            // Request paints only for changed shared pixels/color, including
+            // the final paused adjustment. No independent decode or busy redraw.
+            let next_revision = app_state().preview.presentation_revision();
+            if *revision.peek() != next_revision {
+                revision.set(next_revision);
+            }
+            futures_timer::Delay::new(std::time::Duration::from_millis(50)).await;
+        }
+    });
+    let state = settings();
+    rsx! {
+        style { {include_str!("../assets/native.css")} }
+        div { class: "native-root", "data-theme": if state.dark { "dark" } else { "light" }, "data-preview-revision": format!("{:?}", revision()),
+            onmouseup: move |_| pointer_released.set(pointer_released().wrapping_add(1)),
+            VideoPlayer { key: "{state.path}", path: state.path, canvas: canvas.to_string(), pointer_released,
+                fullscreen, before, source_preview: state.source, editing_disabled: state.busy, detached: true,
+                on_close: move |_| window::set_preview_fullscreen(false) }
+        }
     }
 }

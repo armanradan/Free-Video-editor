@@ -392,6 +392,8 @@ let previewRenders = 0;
 function clearPreview() {
   previewCache?.frame.close();
   previewCache = null;
+  globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC__ = null;
+  globalThis.__DIAXUS_PREVIEW_INGRESS__ = null;
 }
 async function previewInfo(file, sourceKey, seconds) {
   const key = `${sourceKey}@${seconds}:${file.size}:${file.lastModified}`;
@@ -413,11 +415,23 @@ async function previewRender(processFrame) {
   if (!previewCache) fail("Preview source frame is no longer available.");
   const frame = previewCache.frame.clone();
   let output;
+  const diagnostic = new URL(globalThis.location.href).searchParams.get("diagnostic-preview") === "1";
+  globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__ = diagnostic;
+  globalThis.__DIAXUS_PREVIEW_INGRESS__ = null;
+  if (diagnostic) globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC__ = null;
   try {
     output = await processFrame(frame, null, frame.timestamp, frame.duration ?? 0);
     previewRenders += 1;
-    return { summary: `Paused source preview: cache loads=${previewDecodes}; renders=${previewRenders}; cached frames=1; explicit pixel readbacks=0.` };
-  } finally { output?.close(); frame.close(); }
+    // Explicit developer-only verification, never enabled by normal conversion
+    // or preview. Capture the owned frame, not a canvas discarded after present.
+    if (diagnostic) {
+      const pixels = new Uint8Array(output.allocationSize({ format: "RGBA" }));
+      await output.copyTo(pixels, { format: "RGBA" });
+      globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC__ = { width: output.displayWidth, height: output.displayHeight, pixels,
+        ingress: globalThis.__DIAXUS_PREVIEW_INGRESS__ };
+    }
+    return { summary: `Paused source preview: cache loads=${previewDecodes}; renders=${previewRenders}; cached frames=1; explicit pixel readbacks=${diagnostic ? 2 : 0}.` };
+  } finally { globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__ = false; output?.close(); frame.close(); }
 }
 
 const OUTPUT_PROFILES = Object.freeze({
@@ -905,7 +919,10 @@ class FfmpegWasmOutputAdapter {
     const args = ["-f", "rawvideo", "-pixel_format", "rgba", "-video_size", `${this.width}x${this.height}`,
       "-framerate", `${this.frameRate.num}/${this.frameRate.den}`, "-i", "/dev/diaxus-raw", "-i", "/input/source.mp4",
       "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast",
-      ...(this.bitrate > 0 ? ["-b:v", String(this.bitrate)] : ["-crf", "20"]), "-pix_fmt", "yuv420p", "-vf", `settb=1/1000000,setpts=PTS+${this.firstTimestamp}`,
+      ...(this.bitrate > 0 ? ["-b:v", String(this.bitrate)] : ["-crf", "20"]), "-pix_fmt", "yuv420p", "-vf", `scale=in_range=full:out_range=limited:out_color_matrix=bt709,format=yuv420p,settb=1/1000000,setpts=PTS+${this.firstTimestamp}`,
+      // The ring carries full-range encoded sRGB RGBA, not untagged BT.601.
+      // Keep transfer unchanged and explicitly encode/tag the BT.709 YUV matrix.
+      "-colorspace", "bt709", "-color_trc", "iec61966-2-1", "-color_primaries", "bt709", "-color_range", "tv",
       "-enc_time_base:v", "1:1000000", "-fps_mode", "passthrough", "-c:a", "aac", "-b:a", "192k",
       "-ar", "48000", "-video_track_timescale", "1000000", "-movie_timescale", "1000000",
       "-f", "mp4", "-movflags", "+faststart", "/dev/diaxus-output"];
