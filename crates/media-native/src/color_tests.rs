@@ -2,6 +2,79 @@ use media_core::{ColorAdjustments, Rotation, Size, VideoSettings};
 use media_gpu::ResizePipeline;
 
 #[test]
+fn main10_fixture_adjusted_preencoder_retains_full_rgb16_precision() {
+    use std::process::Command;
+    let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/m4-10bit-sdr.mp4");
+    let color = ColorAdjustments::new(10, 80, 60).unwrap();
+    // Exercise the actual direct route's geometry/RGB16/adjustment prefix.
+    // Stop before the YUV420/codec boundary, whose errors are separate.
+    let full = crate::color::direct_filter(color, Size::new(160, 96).unwrap(), 10);
+    let prefix = full.split(crate::color::FROM_SRGB).next().unwrap();
+    let decode = |filter: &str| {
+        let output = Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(&fixture)
+            .args([
+                "-an",
+                "-frames:v",
+                "1",
+                "-vf",
+                filter,
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb48le",
+                "pipe:1",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.stdout.len(), 160 * 96 * 6);
+        output.stdout
+    };
+    let original = decode(&format!("{},format=gbrp16le", crate::color::TO_SRGB));
+    let adjusted = decode(&format!("{prefix}format=rgb48le"));
+    let mut maximum = 0;
+    let mut quantized_maximum = 0;
+    let mut precision_samples = 0;
+    for (input, output) in original
+        .as_chunks::<6>()
+        .0
+        .iter()
+        .zip(adjusted.as_chunks::<6>().0)
+    {
+        let rgb: [u16; 3] =
+            std::array::from_fn(|i| u16::from_le_bytes([input[i * 2], input[i * 2 + 1]]));
+        let reference = color.reference_rgb(rgb.map(|v| f32::from(v) / 65535.0));
+        let quantized = color.reference_rgb(rgb.map(|v| (f32::from(v) / 257.0).round() / 255.0));
+        for (index, actual) in output.as_chunks::<2>().0.iter().enumerate() {
+            let actual = i32::from(u16::from_le_bytes(*actual));
+            maximum = maximum.max((actual - (reference[index] * 65535.0).round() as i32).abs());
+            quantized_maximum =
+                quantized_maximum.max((actual - (quantized[index] * 65535.0).round() as i32).abs());
+            precision_samples += usize::from(actual % 257 != 0);
+        }
+    }
+    assert!(maximum <= 2, "RGB16 pre-encoder error: {maximum}");
+    assert!(
+        quantized_maximum > 32,
+        "fixture cannot distinguish an 8-bit intermediate"
+    );
+    assert!(
+        precision_samples > 1000,
+        "insufficient sub-8-bit adjusted samples"
+    );
+    eprintln!(
+        "Main 10 RGB16 diagnostic: max={maximum}/65535; 8-bit-intermediate comparison max={quantized_maximum}/65535; sub-8-bit samples={precision_samples}"
+    );
+}
+
+#[test]
 fn actual_ffmpeg_rgb16_formula_matches_reference_without_8bit_quantization() {
     use std::{
         io::Write,

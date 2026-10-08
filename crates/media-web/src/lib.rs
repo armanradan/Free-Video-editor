@@ -221,14 +221,12 @@ mod browser {
         export function invokeBrowserJob(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled, options, grid) {
             return globalThis.__DIAXUS_MEDIA_WEB__.run(file, width, height, profile, acceleration, outputMode, verifyOutput, failureMode, processFrame, bitmapIngressRequired, status, cancelled, options, grid);
         }
-        export async function describeSelectedAdapter() {
-            const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
-            if (!adapter) return "Browser did not return a WebGPU adapter";
-            const info = adapter.info ?? await adapter.requestAdapterInfo?.() ?? {};
+        export function describeSelectedDevice(device) {
+            const info = device.adapterInfo ?? {};
             const values = [info.description, info.vendor, info.architecture, info.device]
                 .filter(value => typeof value === "string" && value.trim().length > 0);
             const unique = [...new Set(values)];
-            return `${unique.length ? unique.join(" / ") : "identity redacted by browser"}${info.isFallbackAdapter ? " (fallback adapter)" : ""}`;
+            return unique.length ? `${unique.join(" / ")}${info.isFallbackAdapter ? " (fallback adapter)" : ""}` : "";
         }
     "#)]
     extern "C" {
@@ -295,8 +293,8 @@ mod browser {
             options: &JsValue,
             grid: &Function,
         ) -> Result<Promise, JsValue>;
-        #[wasm_bindgen(js_name = describeSelectedAdapter, catch)]
-        fn describe_selected_adapter() -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = describeSelectedDevice, catch)]
+        fn describe_selected_device(device: &JsValue) -> Result<String, JsValue>;
     }
 
     #[wasm_bindgen(module = "/src/worker-host.js")]
@@ -443,14 +441,18 @@ mod browser {
 
     // Worker exports use the same concrete implementation as the compatibility path.
     #[wasm_bindgen]
-    pub async fn initialize_worker(canvas: OffscreenCanvas) -> Result<(), JsValue> {
+    pub async fn initialize_worker(
+        canvas: OffscreenCanvas,
+        stage: Function,
+    ) -> Result<(), JsValue> {
         let canvas = ExportCanvas::Offscreen(canvas);
         GPU_CANVAS.with(|slot| *slot.borrow_mut() = Some(canvas.clone()));
         let gpu = Rc::new(
-            GpuSession::new(canvas)
+            GpuSession::new(canvas, Some(&stage))
                 .await
                 .map_err(|e| JsValue::from_str(&e.to_string()))?,
         );
+        startup_stage(Some(&stage), "surface configure/capture");
         gpu.configure(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false, false)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let init = VideoFrameInit::new();
@@ -1283,7 +1285,7 @@ mod browser {
                 GPU_CANVAS.with(|slot| *slot.borrow_mut() = Some(canvas.clone()));
                 canvas
             };
-            let created = Rc::new(GpuSession::new(canvas).await?);
+            let created = Rc::new(GpuSession::new(canvas, None).await?);
             GPU_SESSION.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&created)));
             created
         };
@@ -1445,8 +1447,14 @@ mod browser {
         }
     }
 
+    fn startup_stage(callback: Option<&Function>, stage: &str) {
+        if let Some(callback) = callback {
+            let _ = callback.call1(&JsValue::NULL, &JsValue::from_str(stage));
+        }
+    }
+
     impl GpuSession {
-        async fn new(canvas: ExportCanvas) -> Result<Self, MediaError> {
+        async fn new(canvas: ExportCanvas, stage: Option<&Function>) -> Result<Self, MediaError> {
             let device_generation = NEXT_DEVICE_GENERATION.with(|generation| {
                 let next = generation.get().wrapping_add(1);
                 generation.set(next);
@@ -1458,6 +1466,7 @@ mod browser {
             let surface = instance
                 .create_surface(canvas.surface_target())
                 .map_err(|error| platform(format!("WebGPU canvas surface failed: {error}")))?;
+            startup_stage(stage, "WebGPU adapter request");
             let adapter = instance
                 .request_adapter(&wgpu::RequestAdapterOptions {
                     power_preference: wgpu::PowerPreference::HighPerformance,
@@ -1470,16 +1479,7 @@ mod browser {
                     platform(format!("no WebGPU adapter supports the canvas: {error}"))
                 })?;
             let fallback_label = describe_adapter(&adapter.get_info());
-            let adapter_label = match describe_selected_adapter() {
-                Ok(promise) => JsFuture::from(promise)
-                    .await
-                    .ok()
-                    .and_then(|value| value.as_string())
-                    .filter(|value| !value.trim().is_empty())
-                    .map(|value| format!("{value} ({:?})", adapter.get_info().backend))
-                    .unwrap_or(fallback_label),
-                Err(_) => fallback_label,
-            };
+            startup_stage(stage, "WebGPU device request");
             let (device, queue) = adapter
                 .request_device(&wgpu::DeviceDescriptor {
                     label: Some("browser video processing device"),
@@ -1492,6 +1492,15 @@ mod browser {
                 })
                 .await
                 .map_err(|error| platform(format!("WebGPU device request failed: {error}")))?;
+            // Identity comes from this processing device, never a second adapter
+            // request that could stall or describe a different selected adapter.
+            let adapter_label = device
+                .as_webgpu()
+                .and_then(|device| describe_selected_device(device.as_ref()).ok())
+                .filter(|label| !label.trim().is_empty())
+                .map(|label| format!("{label} ({:?})", adapter.get_info().backend))
+                .unwrap_or(fallback_label);
+            startup_stage(stage, "shared pipeline creation");
             let max_texture_dimension_2d = device.limits().max_texture_dimension_2d;
             let capabilities = surface.get_capabilities(&adapter);
             let surface_format = capabilities

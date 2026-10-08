@@ -201,7 +201,7 @@ export async function createColorAcceptance({ send, selectFile, navigate, direct
       assert.ok(comparison.maximum <= 2, `pre-encode color mismatch: ${JSON.stringify(comparison)}`);
       return comparison;
     }); },
-    async exportCase(name, settings, profile = "webm-vp8-video-only", samplingReference = false) { return guard(async () => {
+    async exportCase(name, settings, profile = "webm-vp8-video-only", samplingReference = false, expectedTimeline = null) { return guard(async () => {
       await set('#output-profile', profile, 'change');
       await wait("!document.querySelector('#convert').disabled");
       await click('#convert');
@@ -258,9 +258,10 @@ export async function createColorAcceptance({ send, selectFile, navigate, direct
         '-show_entries','frame=best_effort_timestamp_time','-of','json',file], {encoding:'utf8'});
       assert.equal(timeline.status, 0, timeline.stderr);
       const frames = JSON.parse(timeline.stdout).frames;
-      assert.equal(frames.length, expectedFrames);
+      assert.equal(frames.length, expectedTimeline?.length ?? expectedFrames);
       const origin = Number(frames[0].best_effort_timestamp_time);
-      frames.forEach((frame, i) => assert.ok(Math.abs(Number(frame.best_effort_timestamp_time)-origin-i/expectedFps) <= .0011));
+      frames.forEach((frame, i) => assert.ok(Math.abs(Number(frame.best_effort_timestamp_time)
+        - (expectedTimeline ? expectedTimeline[i] : origin+i/expectedFps)) <= .0011, `frame ${i} timeline differs`));
       const fullDecode = spawnSync('ffmpeg', ['-v','error','-i',file,'-f','null','-'], {encoding:'utf8',timeout:30000});
       assert.equal(fullDecode.status, 0, fullDecode.stderr);
       record({name:`${mode}-${name}`, profile, settings, ...comparison, sampledComparison,

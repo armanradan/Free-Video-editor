@@ -28,6 +28,8 @@ if (inWorker) {
     active = id;
     try {
       if (operation === "init") {
+        const stage = status => self.postMessage({ id, type: "progress", status });
+        stage("worker capability checks");
         self.__DIAXUS_FFMPEG_ASSETS__ = data.ffmpeg;
         if (!self.isSecureContext) throw Error("worker requires a secure context");
         for (const name of ["VideoDecoder", "VideoEncoder", "VideoFrame", "AudioDecoder", "AudioEncoder", "OffscreenCanvas"]) {
@@ -35,11 +37,15 @@ if (inWorker) {
         }
         if (!navigator.gpu) throw Error("worker WebGPU is unavailable");
         // No extra probe device: Rust initializes the actual processing device/surface.
+        stage("wasm module import");
         runtime = await import(data.wasm);
+        stage("wasm initialization");
         await runtime.default();
+        stage("codec module imports");
         await Promise.all([import(data.m1), import(data.pipeline)]);
         if (!self.__DIAXUS_M1__ || !self.__DIAXUS_MEDIA_WEB__) throw Error("worker codec scripts did not load");
-        await runtime.initialize_worker(data.canvas);
+        await runtime.initialize_worker(data.canvas, stage);
+        stage("ready");
         self.postMessage({ id, type: "result", result: {} });
       } else {
         if (!runtime) throw Error("media worker was not initialized");
@@ -61,6 +67,7 @@ let worker;
 let initialization;
 let fallbackReason;
 let startupDurationMs;
+let startupStages = [];
 let nextId = 0;
 let cancelGeneration = 0;
 let runningId = null;
@@ -128,6 +135,13 @@ async function initialize() {
   if (initialization) return initialization;
   initialization = (async () => {
     const startupStarted = performance.now();
+    startupStages = [];
+    let lastStage = "worker construction/message delivery";
+    const recordStage = stage => {
+      lastStage = String(stage);
+      // Fixed startup phases only, never per-frame records or unbounded logs.
+      if (startupStages.length < 12) startupStages.push({ stage: lastStage, elapsedMs: performance.now() - startupStarted });
+    };
     let timer;
     try {
       if (!assets) throw Error("media runtime asset configuration is unavailable");
@@ -143,6 +157,7 @@ async function initialize() {
       preview.replaceChildren(canvas);
       const offscreen = canvas.transferControlToOffscreen();
       worker = new Worker(new URL(import.meta.url), { type: "module", name: "diaxus-media" });
+      recordStage(lastStage);
       worker.onmessage = ({ data }) => {
         const entry = pending.get(data.id);
         if (!entry) return; // Ignore stale messages from retired jobs.
@@ -158,8 +173,8 @@ async function initialize() {
       };
       worker.onmessageerror = () => stopWorker(Error("Media worker message could not be decoded. Retry the job."));
       await Promise.race([
-        request("init", { ...assets, canvas: offscreen }, undefined, [offscreen]),
-        new Promise((_, reject) => { timer = setTimeout(() => reject(Error("worker startup exceeded 30 seconds")), 30_000); }),
+        request("init", { ...assets, canvas: offscreen }, recordStage, [offscreen]),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(Error(`worker startup exceeded 30 seconds (last stage: ${lastStage})`)), 30_000); }),
       ]);
       displayExecution("worker");
       startupDurationMs = performance.now() - startupStarted;
@@ -223,6 +238,7 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
     if (result.summary) {
       result.summary += `\nExecution: ${useWorker ? "dedicated worker" : `main-thread fallback (${fallbackReason})`}.`;
       result.summary += `\nExecution-context startup probe: ${(startupDurationMs ?? 0).toFixed(1)} ms once; reused for this command=${reusedExecutionContext}.`;
+      if (startupStages.length && operation !== "preview") result.summary += `\nStartup stages (cumulative ms): ${startupStages.map(item => `${item.stage}=${item.elapsedMs.toFixed(1)}`).join("; ")}.`;
     }
     return result;
   });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 let serial = 0;
-async function fixture({ initError, crash = false, hold = false, mode = "worker", verify = false, output = "auto" } = {}) {
+async function fixture({ initError, initStages = [], initHold = false, crash = false, hold = false, mode = "worker", verify = false, output = "auto" } = {}) {
   const nodes = new Map(["execution-context", "export-canvas", "worker-preview"].map(id => [id, {
     hidden: false, textContent: "", replaceChildren() {},
   }]));
@@ -26,7 +26,8 @@ async function fixture({ initError, crash = false, hold = false, mode = "worker"
       sent.push({ message, transfer });
       queueMicrotask(() => {
         if (message.operation === "init") {
-          this.reply(message.id, initError ? "error" : "result", initError ?? {});
+          for (const status of initStages) this.onmessage({ data: { id:message.id, type:'progress', status } });
+          if (!initHold) this.reply(message.id, initError ? "error" : "result", initError ?? {});
         } else if (message.operation === "cancel") {
           this.reply(message.id, "error", "CANCELLED: test job drained");
         } else if (crash) {
@@ -128,4 +129,33 @@ test("explicit main-thread mode bypasses worker creation", async () => {
   const result = await module.dispatchJob(null, "m1", "", "", "percent:50", () => {}, async () => ({ summary: "PASS" }));
   assert.equal(workers.length, 0);
   assert.match(result.summary, /explicitly requested/);
+});
+
+test('startup phases are diagnostic metadata, bounded and not job progress', async () => {
+  const { module } = await fixture({initStages:['wasm initialization','WebGPU device request','ready']});
+  const statuses=[];
+  const result=await module.dispatchJob(null,'m1','','','original',v=>statuses.push(v),()=>assert.fail('fallback'));
+  assert.deepEqual(statuses,['processing']);
+  assert.match(result.summary,/Startup stages.*wasm initialization=.*WebGPU device request=.*ready=/);
+  const preview=await module.dispatchJob(null,'preview','','','original',()=>{},()=>assert.fail('fallback'));
+  assert.doesNotMatch(preview.summary,/Startup stages/,'compact preview status must not repeat full startup trace');
+  const many=await fixture({initStages:Array.from({length:25},(_,i)=>`phase-${i}`)});
+  const bounded=await many.module.dispatchJob(null,'m1','','','original',()=>{},()=>assert.fail('fallback'));
+  assert.match(bounded.summary,/phase-10=/);
+  assert.doesNotMatch(bounded.summary,/phase-11=/,'startup history exceeded its 12-entry bound');
+});
+
+test('startup timeout identifies stalled phase, retires worker and ignores late ready', async () => {
+  const { module, workers, nodes } = await fixture({initStages:['WebGPU device request'],initHold:true});
+  const nativeTimeout=globalThis.setTimeout;
+  // Only accelerate the fixed startup deadline, not job/callback scheduling.
+  globalThis.setTimeout=(callback,ms,...args)=>nativeTimeout(callback,ms===30000?10:ms,...args);
+  try {
+    const result=await module.dispatchJob(null,'m1','','','original',()=>assert.fail('startup is not job progress'),async()=>({summary:'PASS'}));
+    assert.match(result.summary,/startup exceeded 30 seconds \(last stage: WebGPU device request\)/);
+    assert.equal(workers[0].terminated,true);
+    const label=nodes.get('execution-context').textContent;
+    workers[0].reply(1,'result',{});
+    assert.equal(nodes.get('execution-context').textContent,label,'retired worker changed execution mode');
+  } finally {globalThis.setTimeout=nativeTimeout;}
 });
