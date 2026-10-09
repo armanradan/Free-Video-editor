@@ -380,6 +380,13 @@ mod browser {
     ) -> Result<JsValue, MediaError> {
         let mut resize = resize_command(resize);
         if let Some(settings) = settings {
+            // Do not silently drop new shared policy from the old browser
+            // command protocol while compute/history integration is pending.
+            if settings.equalization.active() {
+                return Err(platform(
+                    "CLAHE browser preview/conversion is not integrated yet; enabled equalization cannot be dispatched",
+                ));
+            }
             let bitrate = match settings.bitrate {
                 VideoBitrate::Smaller => "smaller".into(),
                 VideoBitrate::Recommended => "recommended".into(),

@@ -1,3 +1,4 @@
+use media_core::equalization::Equalization;
 use media_core::{ColorAdjustments, FrameRateSpec, OutputProfileId, ResizeSpec, VideoBitrate};
 use media_native::{
     CancellationToken, NativeJob, NativeSession, ProcessingRoute, convert_with_control,
@@ -6,10 +7,12 @@ use media_native::{
 use std::path::PathBuf;
 
 fn usage() -> &'static str {
+    // CLAHE is CLI-only until history-aware preview and controls are integrated.
     "native-convert list-gpus\n\
      native-convert save-gpu --adapter-key KEY --preference FILE\n\
      native-convert convert --input FILE --output FILE [--route direct|nvidia|wgpu|wgpu-nvidia] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--bitrate smaller|recommended|higher|MBPS] [--fps original|NUM[/DEN]] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]\n\
      Color: --brightness -100..100 (default 0), --contrast 0..200 (default 100), --saturation 0..200 (default 100). Adjusted direct CPU jobs use 16-bit encoded RGB; shared-wgpu uses RGBA8. Direct NVIDIA non-neutral adjustments are rejected, not CPU-fallback.\n\
+     Experimental CLAHE: --equalization-strength 0..100, default off. CLI/shared-wgpu routes only; direct routes reject enabled CLAHE. History-aware UI preview is not connected yet. Zero strength bypasses equalization.\n\
      CLI defaults to software direct FFmpeg. NVIDIA uses CUDA decode/resize and NVENC video. wgpu uses software codecs around GPU resize. wgpu-nvidia uses NVDEC/NVENC around the shared wgpu resize, with explicit CPU-staged pixel transfers. NVIDIA routes never silently fall back to CPU. Audio and full inspection/verification still use CPU. Session inspection can be reused for unchanged files; standalone CLI runs start with an empty cache. All routes preserve tested VFR/non-negative A/V origins and require one video and at most one audio track. NVIDIA and wgpu require square pixels and no display transform. Main 10 is available on direct/NVIDIA only. BT.709 limited SDR or unspecified tags only; HDR, wide color, negative origins and multiple audio tracks are unsupported. Output must not already exist."
 }
 
@@ -50,6 +53,11 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             println!("{}", serde_json::to_string_pretty(&saved)?);
         }
         Some("convert") => {
+            if args.iter().any(|arg| arg == "--equalization-strength")
+                && argument(&args, "--equalization-strength").is_none()
+            {
+                return Err("missing value for --equalization-strength".into());
+            }
             let input = PathBuf::from(required(&args, "--input")?);
             let output = PathBuf::from(required(&args, "--output")?);
             let route = match argument(&args, "--route").as_deref().unwrap_or("direct") {
@@ -99,9 +107,14 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .parse::<FrameRateSpec>()?;
             let report = if argument(&args, "--bitrate").is_some()
                 || frame_rate != FrameRateSpec::Original
-                || ["--brightness", "--contrast", "--saturation"]
-                    .iter()
-                    .any(|key| argument(&args, key).is_some())
+                || [
+                    "--brightness",
+                    "--contrast",
+                    "--saturation",
+                    "--equalization-strength",
+                ]
+                .iter()
+                .any(|key| argument(&args, key).is_some())
             {
                 let bitrate = match argument(&args, "--bitrate").as_deref() {
                     None => None,
@@ -121,6 +134,10 @@ fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             route,
                             bitrate,
                             frame_rate,
+                            equalization: match argument(&args, "--equalization-strength") {
+                                Some(value) => Equalization::new(true, value.parse()?)?,
+                                None => Equalization::default(),
+                            },
                             color: ColorAdjustments::new(
                                 argument(&args, "--brightness")
                                     .unwrap_or_else(|| "0".into())

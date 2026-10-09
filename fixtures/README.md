@@ -45,7 +45,13 @@ The geometry fixture deliberately records both source/container intent and obser
 
 `m4-10bit-sdr.mp4` is a one-second, 24-frame, 160×96 HEVC Main 10 (`hvc1`) and AAC MP4. FFmpeg `geq` generates deterministic 10-bit Y, U, and V gradients with values between 8-bit code steps; libx265 encodes the fixture losslessly. BT.709 limited-range SDR tags distinguish bit depth from HDR. It contains no third-party media and is CC0-1.0. Its JSON manifest records the generation command, size, and SHA-256. Regenerate it with `pwsh -File tools/generate-m4-10bit-fixture.ps1` using the recorded FFmpeg build.
 
+## Procedural CLAHE engine fixtures
+
+The images generated in `crates/media-gpu/src/equalization_tests.rs` are original synthetic test data, dedicated to CC0-1.0, with no external media. They are ephemeral normalized encoded-RGB float arrays, not a downloaded video. The checked-in generator is the reproducible manifest: 130×129 dimensions, flat black/white/gray/near-black, modular low-contrast colored/noisy patterns, a +0.4 scene cut, sixteen 1/1023-spaced gray levels and a fixed 100-pixel gray patch with varying histogram noise elsewhere. It records exact VFR and 17 ms timestamp sequences, strengths and comparison metrics. Reproduce with `cargo test --locked -p media-gpu actual_gpu_clahe -- --ignored --nocapture` on an available compute-capable adapter. All readbacks are diagnostic; no source/output media files or large fixtures are persisted. This is an engine numeric/flicker test, not codec/A/V or general scene-cut acceptance.
+
 ## M5 release comparison fixtures
+
+`tests/native-clahe.mjs` reuses the checked-in CC0 `m35-vfr-offset.mp4`, without downloading/generating a new source. It runs native shared software/NVIDIA CLAHE at 50% geometry and Original/15/60 FPS, checks every output timestamp, audio/full decode, copy/scratch telemetry and off/zero/direct/depth rejection. Outputs/evidence stay under ignored `tmp/clahe/native-*`. The Rust CLAHE lifecycle test reuses CC0 `m2-h264-aac.mp4` and keeps outputs under ignored `tmp/clahe/lifecycle-*`.
 
 `tests/browser-output-settings.mjs` reuses the CC0 M2/VFR fixtures, generates a two-frame/no-audio **re-encoded presentation-order** excerpt, and generates a four-second 640×360/30-FPS `testsrc2` + seeded temporal noise (`all_seed=42`) + 523 Hz sine source. These contain no third-party media and are CC0-1.0; exact generation commands live in the harness. Copying only two B-frame packets would create a different presentation timeline and is intentionally avoided. Sources, outputs, screenshots and real-browser/independent FFmpeg evidence remain under ignored `tmp/browser-output-settings`.
 

@@ -9,3 +9,5 @@ rust-version.workspace = true
 media-core.workspace = true
 wgpu.workspace = true
 
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+pollster.workspace = true

@@ -4,12 +4,14 @@ pub mod color;
 #[cfg(test)]
 mod color_tests;
 
+use media_core::equalization::Equalization;
 use media_core::{
     BitrateSource, ColorAdjustments, FrameGeometry, FrameRateSpec, OutputProfileId, Rect,
     ResizeSpec, Rotation, Size, TrackCoverage, VideoBitrate, VideoCodec, VideoSettings,
     estimate_output_coverage,
 };
 use media_gpu::ResizePipeline;
+use media_gpu::equalization::ClaheProcessor;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs;
@@ -257,6 +259,7 @@ pub struct NativeJob<'a> {
     pub bitrate: Option<VideoBitrate>,
     pub frame_rate: FrameRateSpec,
     pub color: ColorAdjustments,
+    pub equalization: Equalization,
 }
 
 #[derive(Debug, Deserialize)]
@@ -450,6 +453,9 @@ impl AdapterDescriptor {
 #[derive(Debug, Serialize)]
 pub struct ConversionReport {
     pub color: ColorAdjustments,
+    pub equalization: Equalization,
+    pub equalization_gpu_scratch_bytes: u64,
+    pub equalization_compute_passes: u64,
     pub output_frame_count: u64,
     pub frame_rate: FrameRateSpec,
     pub video_bitrate_bps: Option<u32>,
@@ -713,6 +719,7 @@ impl NativeSession {
                 bitrate: None,
                 frame_rate: FrameRateSpec::Original,
                 color: ColorAdjustments::default(),
+                equalization: Equalization::default(),
             },
             cancel,
             |_| {},
@@ -762,6 +769,7 @@ impl NativeSession {
             bitrate,
             frame_rate,
             color,
+            equalization,
         } = job;
         let (generation, adapter_key, token) = self.begin_job(cancel)?;
         let _active_job = ActiveSessionJob { session: self };
@@ -775,6 +783,8 @@ impl NativeSession {
                 bitrate,
                 frame_rate,
                 color,
+                equalization,
+                device_generation: generation,
                 adapter_key: adapter_key.as_deref(),
                 inspection: Some(&self.inspection),
                 on_stage: Some(&on_stage),
@@ -1612,18 +1622,25 @@ pub fn convert_with_control(
 #[derive(Clone, Copy, Default)]
 struct NativeRunOptions<'a> {
     color: ColorAdjustments,
+    equalization: Equalization,
+    device_generation: u64,
     frame_rate: FrameRateSpec,
     cfr_plan: Option<CfrPlan>,
     bitrate: Option<VideoBitrate>,
     video_bitrate_bps: Option<u32>,
     adapter_key: Option<&'a str>,
     inject_device_loss_after_frames: Option<u64>,
+    #[cfg(test)]
+    inject_cancel_after_frames: Option<u64>,
     inspection: Option<&'a InspectionCache>,
     on_stage: Option<&'a dyn Fn(JobStage)>,
     hardware_gpu: Option<&'a NvidiaGpu>,
 }
 
 impl NativeRunOptions<'_> {
+    fn color_active(self) -> bool {
+        !self.color.is_neutral() || self.equalization.active()
+    }
     fn stage(self, stage: JobStage) {
         if let Some(callback) = self.on_stage {
             callback(stage);
@@ -1642,10 +1659,13 @@ fn convert_with_control_inner(
 ) -> NativeResult<ConversionReport> {
     let total_started = Instant::now();
     cancel.check()?;
+    if options.equalization.active() && !route.uses_wgpu() {
+        return Err("CLAHE is not supported on direct FFmpeg routes; explicitly choose a shared-wgpu route. No automatic route or CPU fallback.".into());
+    }
     if route == ProcessingRoute::NvidiaFfmpeg && !options.color.is_neutral() {
         return Err("Direct NVIDIA color adjustments are not supported; explicitly choose CPU FFmpeg or a shared-wgpu route. No automatic CPU fallback.".into());
     }
-    if !options.color.is_neutral() {
+    if options.color_active() {
         color::check_filters()?;
     }
     if !matches!(
@@ -1739,7 +1759,7 @@ fn convert_with_control_inner(
             },
             cancel,
         )
-        .map(|()| (None, 0, 0, None)),
+        .map(|()| GpuConversionStats::default()),
         ProcessingRoute::NvidiaFfmpeg => convert_direct(
             input,
             &partial.path,
@@ -1754,7 +1774,7 @@ fn convert_with_control_inner(
             },
             cancel,
         )
-        .map(|()| (None, 0, 0, None)),
+        .map(|()| GpuConversionStats::default()),
         ProcessingRoute::SharedWgpu | ProcessingRoute::SharedWgpuNvidia => convert_gpu(
             input,
             &partial.path,
@@ -1774,7 +1794,13 @@ fn convert_with_control_inner(
             cancel,
         ),
     };
-    let (adapter, uploaded, downloaded, fallback) = result?;
+    let GpuConversionStats {
+        adapter,
+        uploaded,
+        downloaded,
+        fallback,
+        equalization_gpu_scratch_bytes,
+    } = result?;
     let conversion_elapsed = started.elapsed().as_millis();
     let verification_started = Instant::now();
     options.stage(JobStage::Verifying);
@@ -1840,10 +1866,21 @@ fn convert_with_control_inner(
     }
     inspected.check_unchanged(input)?;
     let verification_ms = verification_started.elapsed().as_millis();
+    let equalization_compute_passes = if options.equalization.active() {
+        source
+            .frame_count
+            .checked_mul(4)
+            .ok_or("CLAHE pass count overflow")?
+    } else {
+        0
+    };
     options.stage(JobStage::Publishing);
     let size = finish_output(&mut partial, output)?;
     Ok(ConversionReport {
         color: options.color,
+        equalization: options.equalization,
+        equalization_gpu_scratch_bytes,
+        equalization_compute_passes,
         frame_rate: options.frame_rate,
         output_frame_count: verified.frame_count,
         video_bitrate_bps,
@@ -2032,6 +2069,15 @@ fn convert_direct(
     Ok(())
 }
 
+#[derive(Default)]
+struct GpuConversionStats {
+    adapter: Option<AdapterDescriptor>,
+    uploaded: u64,
+    downloaded: u64,
+    fallback: Option<String>,
+    equalization_gpu_scratch_bytes: u64,
+}
+
 fn convert_gpu(
     input: &Path,
     partial: &Path,
@@ -2040,13 +2086,22 @@ fn convert_gpu(
     timeline: &[i128],
     options: NativeRunOptions<'_>,
     cancel: &CancellationToken,
-) -> NativeResult<(Option<AdapterDescriptor>, u64, u64, Option<String>)> {
+) -> NativeResult<GpuConversionStats> {
     cancel.check()?;
     let mut gpu = GpuProcessor::new(
         Size::new(source.width, source.height)?,
         output,
         options.adapter_key,
     )?;
+    if options.equalization.active() {
+        gpu.equalization = Some(NativeEqualization::new(
+            &gpu.device,
+            &gpu.queue,
+            output,
+            options.equalization,
+            options.device_generation,
+        )?);
+    }
     gpu.transform = gpu.pipeline.create_adjustment_buffer(
         &gpu.device,
         &gpu.queue,
@@ -2073,7 +2128,7 @@ fn convert_gpu(
         ]);
     }
     decoder.arg("-i").arg(input);
-    if !options.color.is_neutral() {
+    if options.color_active() {
         let prefix = if options.hardware_gpu.is_some() {
             "hwdownload,format=nv12,"
         } else {
@@ -2125,12 +2180,12 @@ fn convert_gpu(
         // Output tags/setparams alone do not select swscale's conversion matrix:
         // an automatic RGBA -> NV12 conversion can otherwise use BT.601 while
         // NVENC advertises BT.709. Select the pixel conversion before upload.
-        let mut filter = if options.color.is_neutral() {
+        let mut filter = if !options.color_active() {
             "scale=in_range=full:out_range=limited".to_string()
         } else {
             format!("format=gbrp,{},format=yuv420p", color::FROM_SRGB)
         };
-        if options.color.is_neutral() && source.color_space.as_deref() == Some("bt709") {
+        if !options.color_active() && source.color_space.as_deref() == Some("bt709") {
             filter.push_str(":out_color_matrix=bt709");
         }
         filter.push_str(",format=nv12,hwupload_cuda");
@@ -2165,7 +2220,7 @@ fn convert_gpu(
             "vbr",
         ]);
     } else {
-        let mut filter = if options.color.is_neutral() {
+        let mut filter = if !options.color_active() {
             String::new()
         } else {
             format!("format=gbrp,{},format=yuv420p", color::FROM_SRGB)
@@ -2281,11 +2336,23 @@ fn convert_gpu(
                     .ok_or("invalid frame duration")?,
                 u64::from(output.width) * u64::from(output.height) * 4,
             )?;
-            if let Err(error) = gpu.process(&frame, &mut writer, cancel) {
+            let source_pts = if options.equalization.active() {
+                i64::try_from(
+                    pts.checked_sub(timeline[0])
+                        .ok_or("CLAHE source origin overflow")?,
+                )?
+            } else {
+                0
+            };
+            if let Err(error) = gpu.process(&frame, source_pts, &mut writer, cancel) {
                 cancel.check()?;
                 return Err(error);
             }
             count += 1;
+            #[cfg(test)]
+            if options.inject_cancel_after_frames == Some(count) {
+                cancel.cancel();
+            }
             if options.inject_device_loss_after_frames == Some(count) {
                 gpu.device.destroy();
             }
@@ -2317,15 +2384,77 @@ fn convert_gpu(
         )
         .into());
     }
-    Ok((
-        Some(gpu.adapter),
-        gpu.uploaded,
-        gpu.downloaded,
-        gpu.fallback,
-    ))
+    Ok(GpuConversionStats {
+        adapter: Some(gpu.adapter),
+        uploaded: gpu.uploaded,
+        downloaded: gpu.downloaded,
+        fallback: gpu.fallback,
+        equalization_gpu_scratch_bytes: gpu
+            .equalization
+            .as_ref()
+            .map_or(0, |effect| effect.scratch_bytes),
+    })
+}
+
+/// Per-job state on the processing device. All source frames are processed here
+/// before the downstream FFmpeg FPS filter, including frames later dropped.
+struct NativeEqualization {
+    geometry_pipeline: ResizePipeline,
+    geometry: wgpu::Texture,
+    neutral: wgpu::Buffer,
+    processor: ClaheProcessor,
+    settings: Equalization,
+    generation: u64,
+    scratch_bytes: u64,
+}
+
+impl NativeEqualization {
+    fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        size: Size,
+        settings: Equalization,
+        generation: u64,
+    ) -> NativeResult<Self> {
+        let processor = ClaheProcessor::new(device, size, generation)?;
+        let scratch_bytes = processor
+            .storage_bytes()
+            .checked_add(u64::from(size.width) * u64::from(size.height) * 8)
+            .ok_or("CLAHE geometry scratch overflow")?;
+        if scratch_bytes > 192 * 1024 * 1024 {
+            return Err("CLAHE engine plus geometry scratch exceeds 192 MiB budget".into());
+        }
+        let geometry_pipeline = ResizePipeline::new(device, wgpu::TextureFormat::Rgba16Float);
+        let neutral =
+            geometry_pipeline.create_transform_buffer(device, queue, Rotation::Deg0, false);
+        let geometry = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("CLAHE neutral resized encoded RGB"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        Ok(Self {
+            geometry_pipeline,
+            geometry,
+            neutral,
+            processor,
+            settings,
+            generation,
+            scratch_bytes,
+        })
+    }
 }
 
 struct GpuProcessor {
+    equalization: Option<NativeEqualization>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     pipeline: ResizePipeline,
@@ -2410,6 +2539,7 @@ impl GpuProcessor {
             mapped_at_creation: false,
         });
         Ok(Self {
+            equalization: None,
             device,
             queue,
             pipeline,
@@ -2444,6 +2574,7 @@ impl GpuProcessor {
     fn process(
         &mut self,
         input: &[u8],
+        source_pts: i64,
         output: &mut impl Write,
         cancel: &CancellationToken,
     ) -> NativeResult<()> {
@@ -2482,14 +2613,45 @@ impl GpuProcessor {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("native resize"),
             });
-        self.pipeline.record_resize(
-            &self.device,
-            &mut encoder,
-            &self.source.create_view(&Default::default()),
-            &self.transform,
-            &self.target.create_view(&Default::default()),
-            self.output_size,
-        );
+        let source_view = self.source.create_view(&Default::default());
+        if let Some(effect) = &mut self.equalization {
+            effect.geometry_pipeline.record_resize(
+                &self.device,
+                &mut encoder,
+                &source_view,
+                &effect.neutral,
+                &effect.geometry.create_view(&Default::default()),
+                self.output_size,
+            );
+            let equalized = effect
+                .processor
+                .record(
+                    &self.device,
+                    &mut encoder,
+                    &effect.geometry.create_view(&Default::default()),
+                    source_pts,
+                    effect.settings,
+                    effect.generation,
+                )?
+                .ok_or("enabled CLAHE unexpectedly bypassed")?;
+            self.pipeline.record_resize(
+                &self.device,
+                &mut encoder,
+                equalized,
+                &self.transform,
+                &self.target.create_view(&Default::default()),
+                self.output_size,
+            );
+        } else {
+            self.pipeline.record_resize(
+                &self.device,
+                &mut encoder,
+                &source_view,
+                &self.transform,
+                &self.target.create_view(&Default::default()),
+                self.output_size,
+            );
+        }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.target,
@@ -2679,6 +2841,7 @@ mod tests {
                     bitrate: None,
                     frame_rate: FrameRateSpec::Original,
                     color: ColorAdjustments::default(),
+                    equalization: Equalization::default(),
                 },
                 &token,
                 |stage| stages.borrow_mut().push(stage),

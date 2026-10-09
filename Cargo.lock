@@ -3844,6 +3844,7 @@ name = "media-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3851,6 +3852,7 @@ name = "media-gpu"
 version = "0.1.0"
 dependencies = [
  "media-core",
+ "pollster 1.0.1",
  "wgpu 30.0.1",
 ]
 

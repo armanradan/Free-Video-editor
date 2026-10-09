@@ -501,6 +501,7 @@ fn app() -> Element {
                             bitrate: Some(selected_bitrate),
                             frame_rate: selected_fps,
                             color: selected_color,
+                            equalization: media_core::equalization::Equalization::default(),
                         },
                         &cancel,
                         |stage| {

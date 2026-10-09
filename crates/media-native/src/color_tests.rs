@@ -2,6 +2,106 @@ use media_core::{ColorAdjustments, Rotation, Size, VideoSettings};
 use media_gpu::ResizePipeline;
 
 #[test]
+fn clahe_direct_routes_reject_before_inspection_or_output_creation() {
+    let settings = media_core::equalization::Equalization::new(true, 50).unwrap();
+    let unavailable = std::path::Path::new("nonexistent-clahe-input.mp4");
+    for route in [
+        crate::ProcessingRoute::DirectFfmpeg,
+        crate::ProcessingRoute::NvidiaFfmpeg,
+    ] {
+        let error = crate::convert_with_control_inner(
+            unavailable,
+            unavailable,
+            media_core::ResizeSpec::Original,
+            media_core::OutputProfileId::Mp4H264Aac,
+            route,
+            crate::NativeRunOptions {
+                equalization: settings,
+                ..Default::default()
+            },
+            &crate::CancellationToken::default(),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("CLAHE is not supported"), "{error}");
+    }
+}
+
+#[test]
+#[ignore = "real CLAHE/FFmpeg/wgpu device destruction, cancellation and clean retry"]
+fn clahe_jobs_clean_up_after_cancel_and_device_loss() {
+    use crate::{
+        CancellationToken, NativeRunOptions, ProcessingRoute, convert_with_control_inner,
+        partial_path,
+    };
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../");
+    let directory = root.join(format!("tmp/clahe/lifecycle-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let input = root.join("fixtures/m2-h264-aac.mp4");
+    let options = NativeRunOptions {
+        equalization: media_core::equalization::Equalization::new(true, 50).unwrap(),
+        color: ColorAdjustments::new(10, 80, 60).unwrap(),
+        ..Default::default()
+    };
+    let lost = directory.join("lost.mp4");
+    let error = convert_with_control_inner(
+        &input,
+        &lost,
+        media_core::ResizeSpec::Percent(50),
+        media_core::OutputProfileId::Mp4H264Aac,
+        ProcessingRoute::SharedWgpu,
+        NativeRunOptions {
+            inject_device_loss_after_frames: Some(2),
+            ..options
+        },
+        &CancellationToken::default(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("GPU device lost (Destroyed)"), "{error}");
+    assert!(!lost.exists());
+    assert!(!partial_path(&lost).unwrap().exists());
+    let cancelled = directory.join("cancelled.mp4");
+    let token = CancellationToken::default();
+    let error = convert_with_control_inner(
+        &input,
+        &cancelled,
+        media_core::ResizeSpec::Percent(50),
+        media_core::OutputProfileId::Mp4H264Aac,
+        ProcessingRoute::SharedWgpu,
+        NativeRunOptions {
+            inject_cancel_after_frames: Some(2),
+            ..options
+        },
+        &token,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("cancelled"), "{error}");
+    assert!(!cancelled.exists());
+    assert!(!partial_path(&cancelled).unwrap().exists());
+    let retry = directory.join("retry.mp4");
+    let report = convert_with_control_inner(
+        &input,
+        &retry,
+        media_core::ResizeSpec::Percent(50),
+        media_core::OutputProfileId::Mp4H264Aac,
+        ProcessingRoute::SharedWgpu,
+        options,
+        &CancellationToken::default(),
+    )
+    .unwrap();
+    assert_eq!(report.frames_processed, 60);
+    assert_eq!(report.equalization_compute_passes, 240);
+    assert_eq!(report.equalization, options.equalization);
+    assert_eq!(crate::probe_source(&retry).unwrap().frame_count, 60);
+    println!(
+        "CLAHE cancellation and actual device destruction after two source frames, cleanup and fresh retry PASS; {}",
+        directory.display()
+    );
+}
+
+#[test]
 fn main10_fixture_adjusted_preencoder_retains_full_rgb16_precision() {
     use std::process::Command;
     let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

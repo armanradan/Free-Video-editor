@@ -329,6 +329,8 @@ pub struct VideoSettings {
     pub frame_rate: FrameRateSpec,
     #[serde(default)]
     pub color: ColorAdjustments,
+    #[serde(default)]
+    pub equalization: equalization::Equalization,
 }
 
 impl VideoSettings {
@@ -774,8 +776,11 @@ impl TimeBase {
     }
 }
 
+pub mod equalization;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MediaError {
+    InvalidEqualization,
     InvalidColorAdjustments,
     InvalidBitrateInput,
     InvalidFrameRate,
@@ -796,6 +801,7 @@ pub enum MediaError {
 impl fmt::Display for MediaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidEqualization => f.write_str("equalization strength must be 0..100"),
             Self::InvalidColorAdjustments => {
                 f.write_str("brightness must be -100..100 and contrast/saturation 0..200")
             }

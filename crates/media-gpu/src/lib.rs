@@ -3,6 +3,7 @@
 use media_core::{ColorAdjustments, Rotation, Size};
 
 pub const RESIZE_SHADER: &str = include_str!("resize.wgsl");
+pub mod equalization;
 
 pub struct ResizePipeline {
     pipeline: wgpu::RenderPipeline,
