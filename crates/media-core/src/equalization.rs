@@ -33,6 +33,9 @@ impl Default for Equalization {
     }
 }
 impl Equalization {
+    pub fn command(self) -> String {
+        format!("{}/{}", u8::from(self.enabled), self.strength)
+    }
     pub fn new(enabled: bool, strength: u16) -> Result<Self, MediaError> {
         if strength > 100 {
             return Err(MediaError::InvalidEqualization);
@@ -51,6 +54,26 @@ impl Equalization {
         } else {
             0.0
         }
+    }
+}
+
+impl std::str::FromStr for Equalization {
+    type Err = MediaError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let (enabled, strength) = value
+            .split_once('/')
+            .ok_or(MediaError::InvalidEqualization)?;
+        let enabled = match enabled {
+            "0" => false,
+            "1" => true,
+            _ => return Err(MediaError::InvalidEqualization),
+        };
+        Self::new(
+            enabled,
+            strength
+                .parse()
+                .map_err(|_| MediaError::InvalidEqualization)?,
+        )
     }
 }
 
@@ -114,6 +137,21 @@ impl MappingHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn command_policy_round_trips_and_rejects_malformed_values() {
+        for policy in [
+            Equalization::default(),
+            Equalization::new(true, 0).unwrap(),
+            Equalization::new(true, 73).unwrap(),
+        ] {
+            assert_eq!(policy.command().parse::<Equalization>().unwrap(), policy);
+        }
+        for command in [
+            "2/50", "1/101", "0/101", "1/-1", "1/50.5", "1/NaN", "1", "1/50/0",
+        ] {
+            assert!(command.parse::<Equalization>().is_err(), "{command}");
+        }
+    }
     #[test]
     fn finite_causal_history_handles_vfr_duplicates_seek_and_gap() {
         let mut history = MappingHistory::default();

@@ -5,6 +5,7 @@ pub use media_core::VideoSettings;
 #[cfg(target_arch = "wasm32")]
 mod browser {
     use js_sys::{Function, Promise, Reflect};
+    use media_core::equalization::Equalization;
     use media_core::{
         BitrateSource, CodecAcceleration, ColorAdjustments, FrameGeometry, FrameRateGrid,
         FrameRateSpec, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId, Rect, ResizeSpec,
@@ -12,6 +13,7 @@ mod browser {
         estimate_output_coverage, validate_input_size,
     };
     use media_gpu::ResizePipeline;
+    use media_gpu::equalization::EqualizationStage;
     use std::{
         cell::{Cell, RefCell},
         future::Future,
@@ -380,11 +382,9 @@ mod browser {
     ) -> Result<JsValue, MediaError> {
         let mut resize = resize_command(resize);
         if let Some(settings) = settings {
-            // Do not silently drop new shared policy from the old browser
-            // command protocol while compute/history integration is pending.
-            if settings.equalization.active() {
+            if operation == "preview" && settings.equalization.active() {
                 return Err(platform(
-                    "CLAHE browser preview/conversion is not integrated yet; enabled equalization cannot be dispatched",
+                    "CLAHE history-aware preview is not integrated yet",
                 ));
             }
             let bitrate = match settings.bitrate {
@@ -402,7 +402,8 @@ mod browser {
             };
             let (brightness, contrast, saturation) = settings.color.values();
             resize.push_str(&format!(
-                "~{bitrate}~{fps}~{brightness}/{contrast}/{saturation}"
+                "~{bitrate}~{fps}~{brightness}/{contrast}/{saturation}~{}",
+                settings.equalization.command()
             ));
         }
         let local = Closure::<
@@ -488,7 +489,16 @@ mod browser {
                 settings_from_command(rate, fps)
                     .map_err(|error| JsValue::from_str(&error.to_string()))?,
             ),
-            (Some(rate), Some(fps), Some(color)) if parts.next().is_none() => {
+            (Some(rate), Some(fps), Some(color)) => {
+                let equalization = parts
+                    .next()
+                    .map(str::parse::<Equalization>)
+                    .transpose()
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?
+                    .unwrap_or_default();
+                if parts.next().is_some() {
+                    return Err(JsValue::from_str("invalid video settings"));
+                }
                 let mut values = color.split('/');
                 let parsed = ColorAdjustments::new(
                     values
@@ -514,12 +524,18 @@ mod browser {
                 let mut settings = settings_from_command(rate, fps)
                     .map_err(|error| JsValue::from_str(&error.to_string()))?;
                 settings.color = parsed;
+                settings.equalization = equalization;
                 Some(settings)
             }
             _ => return Err(JsValue::from_str("invalid video settings")),
         };
         let execution_options = execution_options_from_command(&execution_options)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        if operation == "preview" && settings.unwrap_or_default().equalization.active() {
+            return Err(JsValue::from_str(
+                "CLAHE history-aware preview is not integrated yet",
+            ));
+        }
         let result = match operation.as_str() {
             "preview" => match file {
                 Some(file) => {
@@ -905,6 +921,7 @@ mod browser {
             inject_device_loss,
             settings.unwrap_or_default().color,
         );
+        gpu.start_equalization(settings.unwrap_or_default().equalization)?;
         let bitmap_ingress_required = bitmap_ingress_callback();
         let cancelled = cancellation_callback(generation);
         let job_result = JsFuture::from(
@@ -1339,6 +1356,7 @@ mod browser {
         _bitmap: OwnedBitmap,
     }
     struct GpuSession {
+        equalization: RefCell<Option<BrowserEqualization>>,
         device_generation: u32,
         texture_allocations: Cell<u64>,
         adapter_label: String,
@@ -1352,8 +1370,15 @@ mod browser {
         configured: RefCell<Option<ConfiguredResources>>,
     }
     struct OwnedVideoFrame(VideoFrame);
+    struct BrowserEqualization {
+        stage: EqualizationStage,
+        settings: Equalization,
+        origin: Option<i64>,
+    }
     #[derive(Clone, Copy)]
     struct ProcessingMetrics {
+        equalization_frames: u64,
+        equalization_bytes: u64,
         ingress_copies: u64,
         canvas_captures: u64,
         live_leases: u32,
@@ -1366,6 +1391,8 @@ mod browser {
     }
     impl ProcessingMetrics {
         const ZERO: Self = Self {
+            equalization_frames: 0,
+            equalization_bytes: 0,
             ingress_copies: 0,
             canvas_captures: 0,
             live_leases: 0,
@@ -1486,13 +1513,18 @@ mod browser {
                     platform(format!("no WebGPU adapter supports the canvas: {error}"))
                 })?;
             let fallback_label = describe_adapter(&adapter.get_info());
+            let compute_limits = wgpu::Limits::default().using_resolution(adapter.limits());
+            let required_limits = if compute_limits.check_limits(&adapter.limits()) {
+                compute_limits
+            } else {
+                wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits())
+            };
             startup_stage(stage, "WebGPU device request");
             let (device, queue) = adapter
                 .request_device(&wgpu::DeviceDescriptor {
                     label: Some("browser video processing device"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_webgl2_defaults()
-                        .using_resolution(adapter.limits()),
+                    required_limits,
                     experimental_features: wgpu::ExperimentalFeatures::disabled(),
                     memory_hints: Default::default(),
                     trace: wgpu::Trace::Off,
@@ -1520,6 +1552,7 @@ mod browser {
             let pipeline = ResizePipeline::new(&device, surface_format);
             Ok(Self {
                 device_generation,
+                equalization: RefCell::new(None),
                 texture_allocations: Cell::new(0),
                 adapter_label,
                 canvas,
@@ -1661,6 +1694,35 @@ mod browser {
             Ok(())
         }
 
+        fn start_equalization(&self, settings: Equalization) -> Result<(), MediaError> {
+            *self.equalization.borrow_mut() = None;
+            if settings.active() {
+                let configured = self.configured.borrow();
+                let c = configured
+                    .as_ref()
+                    .ok_or_else(|| platform("GPU processor is not configured"))?;
+                let stage = EqualizationStage::new(
+                    &self.device,
+                    &self.queue,
+                    c.output_size,
+                    c.rotation,
+                    c.flip_horizontal,
+                    u64::from(self.device_generation),
+                )?;
+                PROCESSING_METRICS.with(|metrics| {
+                    let mut m = metrics.get();
+                    m.equalization_bytes = stage.scratch_bytes();
+                    metrics.set(m);
+                });
+                *self.equalization.borrow_mut() = Some(BrowserEqualization {
+                    stage,
+                    settings,
+                    origin: None,
+                });
+            }
+            Ok(())
+        }
+
         async fn process(
             &self,
             decoded: VideoFrame,
@@ -1786,19 +1848,49 @@ mod browser {
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                             label: Some("video resize commands"),
                         });
-                let adjusted_transform = (!color.is_neutral()).then(|| {
+                let mut effect = self.equalization.borrow_mut();
+                let adjusted_transform = (!color.is_neutral() || effect.is_some()).then(|| {
                     self.pipeline.create_adjustment_buffer(
                         &self.device,
                         &self.queue,
-                        configured.rotation,
-                        configured.flip_horizontal,
+                        if effect.is_some() {
+                            Rotation::Deg0
+                        } else {
+                            configured.rotation
+                        },
+                        effect.is_none() && configured.flip_horizontal,
                         color,
                     )
                 });
+                let rendered_source = if let Some(effect) = effect.as_mut() {
+                    let origin = *effect.origin.get_or_insert(timestamp);
+                    let pts = timestamp
+                        .checked_sub(origin)
+                        .ok_or_else(|| JsValue::from_str("CLAHE timestamp overflow"))?;
+                    let view = effect
+                        .stage
+                        .record(
+                            &self.device,
+                            &mut encoder,
+                            &source,
+                            pts,
+                            effect.settings,
+                            u64::from(self.device_generation),
+                        )
+                        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                    PROCESSING_METRICS.with(|metrics| {
+                        let mut m = metrics.get();
+                        m.equalization_frames += 1;
+                        metrics.set(m);
+                    });
+                    view
+                } else {
+                    &source
+                };
                 self.pipeline.record_resize(
                     &self.device,
                     &mut encoder,
-                    &source,
+                    rendered_source,
                     adjusted_transform.as_ref().unwrap_or(&configured.transform),
                     &target,
                     configured.output_size,
@@ -1922,6 +2014,7 @@ mod browser {
         job_result: Result<JsValue, JsValue>,
     ) -> Result<JsValue, MediaError> {
         let drain_result = gpu.drain_pending().await;
+        *gpu.equalization.borrow_mut() = None;
         match (job_result, drain_result) {
             (Ok(result), Ok(())) => Ok(result),
             (Err(job), Ok(())) => Err(js_error(job)),
@@ -1964,8 +2057,18 @@ mod browser {
             })
         });
         let (generation, allocations, pool_slots) = session.unwrap_or((0, 0, 0));
+        let equalization = if metrics.equalization_bytes > 0 {
+            format!(
+                "\nCLAHE: {} recorded source frames; {} nominal compute passes plus geometry/final renders; {} scratch bytes; history reset/drained at job boundary.",
+                metrics.equalization_frames,
+                metrics.equalization_frames * 4,
+                metrics.equalization_bytes
+            )
+        } else {
+            String::new()
+        };
         format!(
-            "GPU telemetry: device generation {generation}; bounded input texture pool slots={pool_slots}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; capture visible/backing={capture_geometry}; CPU submission/bridge={:.1} ms; cumulative submitted-work completion latency={:.1} ms; slot-reuse wait={:.1} ms; final-drain wait={:.1} ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+            "GPU telemetry: device generation {generation}; bounded input texture pool slots={pool_slots}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; capture visible/backing={capture_geometry}; CPU submission/bridge={:.1} ms; cumulative submitted-work completion latency={:.1} ms; slot-reuse wait={:.1} ms; final-drain wait={:.1} ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).{equalization}",
             metrics.texture_reuses,
             metrics.live_leases,
             metrics.peak_leases,

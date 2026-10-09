@@ -11,7 +11,7 @@ use media_core::{
     estimate_output_coverage,
 };
 use media_gpu::ResizePipeline;
-use media_gpu::equalization::ClaheProcessor;
+use media_gpu::equalization::EqualizationStage;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs;
@@ -2392,20 +2392,16 @@ fn convert_gpu(
         equalization_gpu_scratch_bytes: gpu
             .equalization
             .as_ref()
-            .map_or(0, |effect| effect.scratch_bytes),
+            .map_or(0, |effect| effect.stage.scratch_bytes()),
     })
 }
 
 /// Per-job state on the processing device. All source frames are processed here
 /// before the downstream FFmpeg FPS filter, including frames later dropped.
 struct NativeEqualization {
-    geometry_pipeline: ResizePipeline,
-    geometry: wgpu::Texture,
-    neutral: wgpu::Buffer,
-    processor: ClaheProcessor,
+    stage: EqualizationStage,
     settings: Equalization,
     generation: u64,
-    scratch_bytes: u64,
 }
 
 impl NativeEqualization {
@@ -2416,39 +2412,11 @@ impl NativeEqualization {
         settings: Equalization,
         generation: u64,
     ) -> NativeResult<Self> {
-        let processor = ClaheProcessor::new(device, size, generation)?;
-        let scratch_bytes = processor
-            .storage_bytes()
-            .checked_add(u64::from(size.width) * u64::from(size.height) * 8)
-            .ok_or("CLAHE geometry scratch overflow")?;
-        if scratch_bytes > 192 * 1024 * 1024 {
-            return Err("CLAHE engine plus geometry scratch exceeds 192 MiB budget".into());
-        }
-        let geometry_pipeline = ResizePipeline::new(device, wgpu::TextureFormat::Rgba16Float);
-        let neutral =
-            geometry_pipeline.create_transform_buffer(device, queue, Rotation::Deg0, false);
-        let geometry = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("CLAHE neutral resized encoded RGB"),
-            size: wgpu::Extent3d {
-                width: size.width,
-                height: size.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
+        let stage = EqualizationStage::new(device, queue, size, Rotation::Deg0, false, generation)?;
         Ok(Self {
-            geometry_pipeline,
-            geometry,
-            neutral,
-            processor,
+            stage,
             settings,
             generation,
-            scratch_bytes,
         })
     }
 }
@@ -2615,25 +2583,14 @@ impl GpuProcessor {
             });
         let source_view = self.source.create_view(&Default::default());
         if let Some(effect) = &mut self.equalization {
-            effect.geometry_pipeline.record_resize(
+            let equalized = effect.stage.record(
                 &self.device,
                 &mut encoder,
                 &source_view,
-                &effect.neutral,
-                &effect.geometry.create_view(&Default::default()),
-                self.output_size,
-            );
-            let equalized = effect
-                .processor
-                .record(
-                    &self.device,
-                    &mut encoder,
-                    &effect.geometry.create_view(&Default::default()),
-                    source_pts,
-                    effect.settings,
-                    effect.generation,
-                )?
-                .ok_or("enabled CLAHE unexpectedly bypassed")?;
+                source_pts,
+                effect.settings,
+                effect.generation,
+            )?;
             self.pipeline.record_resize(
                 &self.device,
                 &mut encoder,

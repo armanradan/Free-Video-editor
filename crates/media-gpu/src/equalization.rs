@@ -8,6 +8,94 @@ use wgpu::util::DeviceExt;
 pub const SHADER: &str = include_str!("equalization.wgsl");
 const MAX_BYTES: u64 = 128 * 1024 * 1024;
 
+/// Shared neutral geometry stage used by browser and native conversion. The
+/// caller consumes its encoded output through the existing manual-slider pass.
+pub struct EqualizationStage {
+    pipeline: crate::ResizePipeline,
+    geometry: wgpu::Texture,
+    neutral: wgpu::Buffer,
+    processor: ClaheProcessor,
+    size: Size,
+    scratch_bytes: u64,
+}
+impl EqualizationStage {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        size: Size,
+        rotation: media_core::Rotation,
+        flip: bool,
+        generation: u64,
+    ) -> Result<Self, MediaError> {
+        let processor = ClaheProcessor::new(device, size, generation)?;
+        let scratch_bytes = processor
+            .storage_bytes()
+            .checked_add(u64::from(size.width) * u64::from(size.height) * 8)
+            .ok_or_else(|| MediaError::Platform("CLAHE geometry scratch overflow".into()))?;
+        if scratch_bytes > 192 * 1024 * 1024 {
+            return Err(MediaError::Platform(
+                "CLAHE engine plus geometry scratch exceeds 192 MiB budget".into(),
+            ));
+        }
+        let pipeline = crate::ResizePipeline::new(device, wgpu::TextureFormat::Rgba16Float);
+        let neutral = pipeline.create_transform_buffer(device, queue, rotation, flip);
+        let geometry = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("CLAHE neutral resized encoded RGB"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        Ok(Self {
+            pipeline,
+            geometry,
+            neutral,
+            processor,
+            size,
+            scratch_bytes,
+        })
+    }
+    pub fn scratch_bytes(&self) -> u64 {
+        self.scratch_bytes
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn record<'a>(
+        &'a mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        source: &wgpu::TextureView,
+        pts: i64,
+        settings: Equalization,
+        generation: u64,
+    ) -> Result<&'a wgpu::TextureView, MediaError> {
+        self.pipeline.record_resize(
+            device,
+            encoder,
+            source,
+            &self.neutral,
+            &self.geometry.create_view(&Default::default()),
+            self.size,
+        );
+        self.processor
+            .record(
+                device,
+                encoder,
+                &self.geometry.create_view(&Default::default()),
+                pts,
+                settings,
+                generation,
+            )?
+            .ok_or_else(|| MediaError::Platform("enabled CLAHE unexpectedly bypassed".into()))
+    }
+}
+
 pub struct ClaheProcessor {
     size: Size,
     grid: [u32; 2],
