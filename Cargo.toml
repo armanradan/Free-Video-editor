@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/web", "apps/native", "crates/media-core", "crates/media-gpu", "crates/media-native", "crates/media-web", "crates/ui"]
+members = ["apps/web", "apps/native", "crates/media-core", "crates/media-gpu", "crates/media-gpu-blitz", "crates/media-native", "crates/media-web", "crates/ui"]
 resolver = "2"
 
 [workspace.package]
@@ -15,6 +15,7 @@ futures-util = "=0.3.34"
 js-sys = "=0.3.105"
 media-core = { path = "crates/media-core" }
 media-gpu = { path = "crates/media-gpu" }
+media-gpu-blitz = { path = "crates/media-gpu-blitz" }
 media-web = { path = "crates/media-web" }
 ui = { path = "crates/ui" }
 serde = { version = "=1.0.229", features = ["derive"] }

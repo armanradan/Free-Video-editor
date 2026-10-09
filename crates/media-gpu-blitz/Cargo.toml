@@ -1,0 +1,26 @@
+[package]
+name = "media-gpu-blitz"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+# Compile the same processor/math against the pinned renderer ABI. Never pass
+# processing-wgpu-30 handles into this renderer-wgpu-26 library.
+[lib]
+path = "../media-gpu/src/lib.rs"
+
+[features]
+default = ["renderer-abi-26"]
+renderer-abi-26 = []
+
+[dependencies]
+media-core.workspace = true
+wgpu = "=26.0.1"
+
+[dev-dependencies]
+pollster.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("renderer-abi-26"))'] }

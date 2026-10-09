@@ -1,14 +1,11 @@
-//! Renderer-ABI adapter only: the shader and uniform serialization are shared.
-use media_core::{ColorAdjustments, Rotation};
+//! Renderer-ABI adapter: one shared processor source, no cross-device handles.
+use media_core::{ColorAdjustments, Rotation, Size};
 use wgpu_blitz as w;
 
 pub struct ColorPass {
     pub source: w::Texture,
-    pipeline: w::RenderPipeline,
-    layout: w::BindGroupLayout,
-    sampler: w::Sampler,
+    pipeline: media_gpu_blitz::ResizePipeline,
 }
-
 impl ColorPass {
     pub fn new(device: &w::Device) -> Self {
         let source = device.create_texture(&w::TextureDescriptor {
@@ -25,84 +22,11 @@ impl ColorPass {
             usage: w::TextureUsages::COPY_DST | w::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
-        let layout = device.create_bind_group_layout(&w::BindGroupLayoutDescriptor {
-            label: Some("shared color presenter bindings"),
-            entries: &[
-                w::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: w::ShaderStages::FRAGMENT,
-                    ty: w::BindingType::Texture {
-                        sample_type: w::TextureSampleType::Float { filterable: true },
-                        view_dimension: w::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                w::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: w::ShaderStages::FRAGMENT,
-                    ty: w::BindingType::Sampler(w::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                w::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: w::ShaderStages::FRAGMENT,
-                    ty: w::BindingType::Buffer {
-                        ty: w::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: w::BufferSize::new(32),
-                    },
-                    count: None,
-                },
-            ],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&w::PipelineLayoutDescriptor {
-            label: Some("shared color presenter layout"),
-            bind_group_layouts: &[&layout],
-            push_constant_ranges: &[],
-        });
-        let shader = device.create_shader_module(w::ShaderModuleDescriptor {
-            label: Some("shared resize/color WGSL on Blitz device"),
-            source: w::ShaderSource::Wgsl(media_gpu::RESIZE_SHADER.into()),
-        });
-        let pipeline = device.create_render_pipeline(&w::RenderPipelineDescriptor {
-            label: Some("shared preview color pass"),
-            layout: Some(&pipeline_layout),
-            vertex: w::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            fragment: Some(w::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(w::ColorTargetState {
-                    format: w::TextureFormat::Rgba8Unorm,
-                    blend: None,
-                    write_mask: w::ColorWrites::ALL,
-                })],
-            }),
-            primitive: Default::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            multiview: None,
-            cache: None,
-        });
-        let sampler = device.create_sampler(&w::SamplerDescriptor {
-            mag_filter: w::FilterMode::Linear,
-            min_filter: w::FilterMode::Linear,
-            ..Default::default()
-        });
         Self {
             source,
-            pipeline,
-            layout,
-            sampler,
+            pipeline: media_gpu_blitz::ResizePipeline::new(device, w::TextureFormat::Rgba8Unorm),
         }
     }
-
     pub fn render(
         &self,
         device: &w::Device,
@@ -110,58 +34,18 @@ impl ColorPass {
         target: &w::Texture,
         color: ColorAdjustments,
     ) {
-        let uniform = device.create_buffer(&w::BufferDescriptor {
-            label: Some("immutable preview color snapshot"),
-            size: 32,
-            usage: w::BufferUsages::UNIFORM | w::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        queue.write_buffer(
-            &uniform,
-            0,
-            &media_gpu::adjustment_uniform_bytes(Rotation::Deg0, false, color, false),
-        );
-        let source = self.source.create_view(&Default::default());
-        let target = target.create_view(&Default::default());
-        let binding = device.create_bind_group(&w::BindGroupDescriptor {
-            label: Some("preview color snapshot"),
-            layout: &self.layout,
-            entries: &[
-                w::BindGroupEntry {
-                    binding: 0,
-                    resource: w::BindingResource::TextureView(&source),
-                },
-                w::BindGroupEntry {
-                    binding: 1,
-                    resource: w::BindingResource::Sampler(&self.sampler),
-                },
-                w::BindGroupEntry {
-                    binding: 2,
-                    resource: uniform.as_entire_binding(),
-                },
-            ],
-        });
+        let uniform =
+            self.pipeline
+                .create_adjustment_buffer(device, queue, Rotation::Deg0, false, color);
         let mut encoder = device.create_command_encoder(&Default::default());
-        {
-            let mut pass = encoder.begin_render_pass(&w::RenderPassDescriptor {
-                label: Some("shared native preview adjustment"),
-                color_attachments: &[Some(w::RenderPassColorAttachment {
-                    view: &target,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: w::Operations {
-                        load: w::LoadOp::Clear(w::Color::BLACK),
-                        store: w::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &binding, &[]);
-            pass.draw(0..3, 0..1);
-        }
+        self.pipeline.record_resize(
+            device,
+            &mut encoder,
+            &self.source.create_view(&Default::default()),
+            &uniform,
+            &target.create_view(&Default::default()),
+            Size::new(640, 360).expect("fixed preview size"),
+        );
         queue.submit([encoder.finish()]);
     }
 }

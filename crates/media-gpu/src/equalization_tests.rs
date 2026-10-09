@@ -111,9 +111,21 @@ struct Harness {
 }
 impl Harness {
     fn new(backends: wgpu::Backends, power_preference: wgpu::PowerPreference) -> Self {
-        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        descriptor.backends = backends;
+        #[cfg(not(feature = "renderer-abi-26"))]
+        let descriptor = {
+            let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+            descriptor.backends = backends;
+            descriptor
+        };
+        #[cfg(feature = "renderer-abi-26")]
+        let descriptor = wgpu::InstanceDescriptor {
+            backends,
+            ..Default::default()
+        };
+        #[cfg(not(feature = "renderer-abi-26"))]
         let instance = wgpu::Instance::new(descriptor);
+        #[cfg(feature = "renderer-abi-26")]
+        let instance = wgpu::Instance::new(&descriptor);
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference,
             ..Default::default()
@@ -257,14 +269,20 @@ impl Harness {
             .map_async(wgpu::MapMode::Read, move |result| {
                 sender.send(result).unwrap()
             });
+        #[cfg(not(feature = "renderer-abi-26"))]
         self.device
             .poll(wgpu::PollType::Wait {
                 submission_index: None,
                 timeout: Some(std::time::Duration::from_secs(30)),
             })
             .unwrap();
+        #[cfg(feature = "renderer-abi-26")]
+        self.device.poll(wgpu::PollType::Wait).unwrap();
         receiver.recv().unwrap().unwrap();
+        #[cfg(not(feature = "renderer-abi-26"))]
         let bytes = buffer.slice(..).get_mapped_range().unwrap();
+        #[cfg(feature = "renderer-abi-26")]
+        let bytes = buffer.slice(..).get_mapped_range();
         bytes
             .chunks_exact(stride as usize)
             .flat_map(|row| {

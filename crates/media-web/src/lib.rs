@@ -13,12 +13,16 @@ mod browser {
         estimate_output_coverage, validate_input_size,
     };
     use media_gpu::ResizePipeline;
-    use media_gpu::equalization::EqualizationStage;
+    use media_gpu::equalization::{EqualizationStage, PreviewColorStage};
     use std::{
         cell::{Cell, RefCell},
         future::Future,
         pin::Pin,
         rc::Rc,
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
     };
     use wasm_bindgen::{JsCast, prelude::*};
     use wasm_bindgen_futures::{JsFuture, future_to_promise};
@@ -164,6 +168,7 @@ mod browser {
         export function inspectBrowserInput(file) { return globalThis.__DIAXUS_MEDIA_WEB__.inspect(file); }
         export function previewInfo(file, key, seconds, streaming) { return globalThis.__DIAXUS_MEDIA_WEB__.previewInfo(file, key, seconds, streaming); }
         export function previewRender(processFrame) { return globalThis.__DIAXUS_MEDIA_WEB__.previewRender(processFrame); }
+        export function previewHistory(file, processFrame, windowUs) { return globalThis.__DIAXUS_MEDIA_WEB__.previewHistory(file, processFrame, windowUs); }
         export function clearPreview() { globalThis.__DIAXUS_MEDIA_WEB__.clearPreview(); }
         export function previewDiagnosticsEnabled() {
             return new URL(globalThis.location.href).searchParams.get('diagnostic-preview') === '1';
@@ -241,6 +246,12 @@ mod browser {
         ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = previewRender, catch)]
         fn preview_render(process: &Function) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = previewHistory, catch)]
+        fn preview_history(
+            file: &File,
+            process: &Function,
+            window_us: i64,
+        ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = clearPreview)]
         fn clear_preview();
         #[wasm_bindgen(js_name = runtimeModuleUrl)]
@@ -382,11 +393,6 @@ mod browser {
     ) -> Result<JsValue, MediaError> {
         let mut resize = resize_command(resize);
         if let Some(settings) = settings {
-            if operation == "preview" && settings.equalization.active() {
-                return Err(platform(
-                    "CLAHE history-aware preview is not integrated yet",
-                ));
-            }
             let bitrate = match settings.bitrate {
                 VideoBitrate::Smaller => "smaller".into(),
                 VideoBitrate::Recommended => "recommended".into(),
@@ -531,20 +537,23 @@ mod browser {
         };
         let execution_options = execution_options_from_command(&execution_options)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
-        if operation == "preview" && settings.unwrap_or_default().equalization.active() {
-            return Err(JsValue::from_str(
-                "CLAHE history-aware preview is not integrated yet",
-            ));
-        }
         let result = match operation.as_str() {
             "preview" => match file {
                 Some(file) => {
-                    preview_file(file, &profile, resize, settings.unwrap_or_default().color).await
+                    preview_file(
+                        file,
+                        &profile,
+                        resize,
+                        settings.unwrap_or_default(),
+                        status,
+                        &execution_options.failure_mode,
+                    )
+                    .await
                 }
                 None => Err(platform("no source file")),
             },
             "clear-preview" => {
-                clear_preview();
+                clear_preview_state();
                 Ok(js_sys::Object::new().into())
             }
             "m1" => run_m1_local(status).await,
@@ -756,15 +765,62 @@ mod browser {
         Ok(())
     }
 
+    // Called only at serialized command boundaries after preview submissions
+    // drain; the conversion runner owns its own subsequent stage.
+    fn clear_preview_state() {
+        clear_preview();
+        GPU_SESSION.with(|slot| {
+            if let Some(gpu) = slot.borrow().as_ref() {
+                *gpu.equalization.borrow_mut() = None;
+            }
+        });
+    }
+
     async fn preview_file(
         file: File,
         key: &str,
         resize: ResizeSpec,
-        color: ColorAdjustments,
+        settings: VideoSettings,
+        status: Function,
+        failure_mode: &str,
     ) -> Result<JsValue, MediaError> {
-        let result = preview_file_inner(file, key, resize, color).await;
+        let generation = GENERATION.with(Cell::get);
+        let inject_device_loss = settings.equalization.active()
+            && failure_mode == "device-loss-once"
+            && DEVICE_LOSS_INJECTION_CONSUMED.with(|consumed| {
+                if consumed.get() {
+                    false
+                } else {
+                    consumed.set(true);
+                    true
+                }
+            });
+        let result = preview_file_inner(
+            file,
+            key,
+            resize,
+            settings,
+            generation,
+            status,
+            inject_device_loss,
+        )
+        .await;
+        let result = if GENERATION.with(Cell::get) != generation {
+            Err(platform("CANCELLED: preview stopped and drained"))
+        } else {
+            result
+        };
         if result.is_err() {
-            clear_preview();
+            clear_preview_state();
+            if inject_device_loss
+                || GPU_SESSION.with(|slot| {
+                    slot.borrow()
+                        .as_ref()
+                        .is_some_and(|gpu| gpu.device_lost.load(Ordering::Relaxed))
+                })
+            {
+                GPU_SESSION.with(|slot| *slot.borrow_mut() = None);
+            }
         }
         result
     }
@@ -773,7 +829,10 @@ mod browser {
         file: File,
         key: &str,
         resize: ResizeSpec,
-        color: ColorAdjustments,
+        settings: VideoSettings,
+        generation: u32,
+        status: Function,
+        inject_device_loss: bool,
     ) -> Result<JsValue, MediaError> {
         let mut parts = key.split('@');
         let source_key = parts
@@ -788,6 +847,11 @@ mod browser {
             return Err(platform("invalid preview position"));
         }
         let streaming = parts.next() == Some("1");
+        if streaming && settings.equalization.active() {
+            return Err(platform(
+                "CLAHE playback preview is not integrated; pause first",
+            ));
+        }
         let inspection =
             JsFuture::from(preview_info(&file, source_key, seconds, streaming).map_err(js_error)?)
                 .await
@@ -808,18 +872,72 @@ mod browser {
             false,
         )
         .await?;
-        let process = process_callback(Rc::clone(&gpu), false, color);
-        let result =
-            JsFuture::from(preview_render(process.as_ref().unchecked_ref()).map_err(js_error)?)
-                .await;
-        settle_gpu_job(&gpu, result).await
+        let history_key = format!(
+            "{key}:{}:{}:{}",
+            file.size(),
+            file.last_modified(),
+            resize_command(resize)
+        );
+        let needs_preroll =
+            gpu.prepare_preview_equalization(&history_key, settings.equalization, selected)?;
+        let process = process_callback(
+            Rc::clone(&gpu),
+            inject_device_loss,
+            settings.color,
+            Some((generation, status)),
+        );
+        let result = async {
+            let mut predecessors = None;
+            if needs_preroll {
+                let history = JsFuture::from(
+                    preview_history(
+                        &file,
+                        process.as_ref().unchecked_ref(),
+                        media_core::equalization::HISTORY_US,
+                    )
+                    .map_err(js_error)?,
+                )
+                .await
+                .map_err(js_error)?;
+                predecessors = Some(u32_property(&history, "processed")?);
+                if let Some(effect) = gpu.equalization.borrow_mut().as_mut() {
+                    effect.preview_predecessors = predecessors.unwrap_or(0);
+                }
+            }
+            let result = JsFuture::from(preview_render(process.as_ref().unchecked_ref()).map_err(js_error)?)
+                .await
+                .map_err(js_error)?;
+            if settings.equalization.active() {
+                let count = gpu.equalization.borrow().as_ref().map_or(0, |e| e.preview_predecessors);
+                let history_status = if predecessors.is_some() { "rebuilt" } else { "reused" };
+                let summary = format!(
+                    "{} CLAHE paused preroll: {count} predecessor frames; 100 ms window; history {history_status} for this request (experimental); statistics/adjustments {}×{}, display {}×{}; device generation {}.",
+                    string_property(&result, "summary", "preview returned no summary")?
+                    ,selected.width,selected.height,output.width,output.height,gpu.device_generation
+                );
+                Reflect::set(&result, &"summary".into(), &summary.into()).map_err(js_error)?;
+            }
+            Ok::<_, MediaError>(result)
+        }
+        .await
+        .map_err(|error| JsValue::from_str(&error.to_string()));
+        let drain = gpu.drain_pending().await;
+        match (result, drain) {
+            (Ok(result), Ok(())) => Ok(result),
+            (result, drain) => {
+                *gpu.equalization.borrow_mut() = None;
+                Err(platform(format!(
+                    "preview/drain failed: {result:?}; {drain:?}"
+                )))
+            }
+        }
     }
 
     async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
-        clear_preview();
+        clear_preview_state();
         let generation = begin_generation();
         let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false, true).await?;
-        let process = process_callback(Rc::clone(&gpu), false, ColorAdjustments::default());
+        let process = process_callback(Rc::clone(&gpu), false, ColorAdjustments::default(), None);
         let cancelled = cancellation_callback(generation);
         let fixture =
             js_sys::Uint8Array::from(include_bytes!("../../../fixtures/m1-vp8.ivf").as_slice());
@@ -888,7 +1006,7 @@ mod browser {
         execution_options: ExecutionOptions,
         status: Function,
     ) -> Result<JsValue, MediaError> {
-        clear_preview();
+        clear_preview_state();
         let generation = begin_generation();
         validate_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
@@ -920,6 +1038,7 @@ mod browser {
             Rc::clone(&gpu),
             inject_device_loss,
             settings.unwrap_or_default().color,
+            None,
         );
         gpu.start_equalization(settings.unwrap_or_default().equalization)?;
         let bitmap_ingress_required = bitmap_ingress_callback();
@@ -1241,12 +1360,14 @@ mod browser {
         gpu: Rc<GpuSession>,
         inject_device_loss: bool,
         color: ColorAdjustments,
+        preview: Option<(u32, Function)>,
     ) -> Closure<dyn FnMut(JsValue, JsValue, f64, f64) -> Promise> {
         let processed = Rc::new(Cell::new(0_u32));
         Closure::new(
             move |value: JsValue, prepared_bitmap: JsValue, timestamp: f64, duration: f64| {
                 let gpu = Rc::clone(&gpu);
                 let processed = Rc::clone(&processed);
+                let preview = preview.clone();
                 future_to_promise(async move {
                     let prepared_bitmap = OwnedBitmap(prepared_bitmap);
                     const MAX_SAFE: f64 = 9_007_199_254_740_991.0;
@@ -1261,23 +1382,51 @@ mod browser {
                     let frame = value
                         .dyn_into::<VideoFrame>()
                         .map_err(|_| JsValue::from_str("decoder output was not a VideoFrame"))?;
-                    let count = processed.get() + 1;
-                    processed.set(count);
-                    if inject_device_loss && count == 5 {
-                        gpu.device.destroy();
+                    if preview
+                        .as_ref()
+                        .is_some_and(|(generation, _)| GENERATION.with(Cell::get) != *generation)
+                    {
                         frame.close();
                         return Err(JsValue::from_str(
-                            "INJECTED: WebGPU device loss after 4 completed frames",
+                            "CANCELLED: preview stopped before GPU submission",
                         ));
                     }
-                    gpu.process(
-                        frame,
-                        prepared_bitmap,
-                        timestamp as i64,
-                        duration as i64,
-                        color,
-                    )
-                    .await
+                    let count = processed.get() + 1;
+                    processed.set(count);
+                    if inject_device_loss && count == if preview.is_some() { 2 } else { 5 } {
+                        gpu.device.destroy();
+                        gpu.device_lost.store(true, Ordering::Relaxed);
+                        frame.close();
+                        return Err(JsValue::from_str(if preview.is_some() {
+                            "INJECTED: WebGPU preview device loss after 1 prepared frame"
+                        } else {
+                            "INJECTED: WebGPU device loss after 4 completed frames"
+                        }));
+                    }
+                    let output = gpu
+                        .process(
+                            frame,
+                            prepared_bitmap,
+                            timestamp as i64,
+                            duration as i64,
+                            color,
+                        )
+                        .await?;
+                    if let Some((generation, status)) = preview {
+                        if count == 1 {
+                            let _ = status
+                                .call1(&JsValue::NULL, &"Preview first GPU frame prepared".into());
+                        }
+                        if GENERATION.with(Cell::get) != generation {
+                            if let Some(frame) = output.dyn_ref::<VideoFrame>() {
+                                frame.close();
+                            }
+                            return Err(JsValue::from_str(
+                                "CANCELLED: preview stopped after GPU submission",
+                            ));
+                        }
+                    }
+                    Ok(output)
                 })
             },
         )
@@ -1291,7 +1440,9 @@ mod browser {
         align_for_encoding: bool,
     ) -> Result<Rc<GpuSession>, MediaError> {
         let existing = GPU_SESSION.with(|slot| slot.borrow().clone());
-        let gpu = if let Some(existing) = existing {
+        let gpu = if let Some(existing) =
+            existing.filter(|gpu| !gpu.device_lost.load(Ordering::Relaxed))
+        {
             existing
         } else {
             let canvas = if let Some(canvas) = GPU_CANVAS.with(|slot| slot.borrow().clone()) {
@@ -1356,6 +1507,7 @@ mod browser {
         _bitmap: OwnedBitmap,
     }
     struct GpuSession {
+        device_lost: Arc<AtomicBool>,
         equalization: RefCell<Option<BrowserEqualization>>,
         device_generation: u32,
         texture_allocations: Cell<u64>,
@@ -1372,8 +1524,11 @@ mod browser {
     struct OwnedVideoFrame(VideoFrame);
     struct BrowserEqualization {
         stage: EqualizationStage,
+        preview_color: Option<PreviewColorStage>,
         settings: Equalization,
         origin: Option<i64>,
+        preview_key: Option<String>,
+        preview_predecessors: u32,
     }
     #[derive(Clone, Copy)]
     struct ProcessingMetrics {
@@ -1549,8 +1704,12 @@ mod browser {
                 .find(|format| format.is_srgb())
                 .or_else(|| capabilities.formats.first().copied())
                 .ok_or_else(|| platform("canvas reported no texture formats"))?;
+            let device_lost = Arc::new(AtomicBool::new(false));
+            let loss_flag = Arc::clone(&device_lost);
+            device.set_device_lost_callback(move |_, _| loss_flag.store(true, Ordering::Relaxed));
             let pipeline = ResizePipeline::new(&device, surface_format);
             Ok(Self {
+                device_lost,
                 device_generation,
                 equalization: RefCell::new(None),
                 texture_allocations: Cell::new(0),
@@ -1630,6 +1789,8 @@ mod browser {
                     "cannot reconfigure GPU textures while submissions are in flight",
                 ));
             }
+            // All previous submissions have drained before reconfiguration.
+            *self.equalization.borrow_mut() = None;
             self.canvas.resize(capture_size);
             self.surface.configure(
                 &self.device,
@@ -1695,6 +1856,14 @@ mod browser {
         }
 
         fn start_equalization(&self, settings: Equalization) -> Result<(), MediaError> {
+            self.start_equalization_at(settings, None)
+        }
+
+        fn start_equalization_at(
+            &self,
+            settings: Equalization,
+            selected: Option<Size>,
+        ) -> Result<(), MediaError> {
             *self.equalization.borrow_mut() = None;
             if settings.active() {
                 let configured = self.configured.borrow();
@@ -1704,23 +1873,58 @@ mod browser {
                 let stage = EqualizationStage::new(
                     &self.device,
                     &self.queue,
-                    c.output_size,
+                    selected.unwrap_or(c.output_size),
                     c.rotation,
                     c.flip_horizontal,
                     u64::from(self.device_generation),
                 )?;
+                let preview_color =
+                    if let Some(size) = selected.filter(|size| *size != c.output_size) {
+                        Some(PreviewColorStage::new(
+                            &self.device,
+                            size,
+                            stage.scratch_bytes(),
+                        )?)
+                    } else {
+                        None
+                    };
                 PROCESSING_METRICS.with(|metrics| {
                     let mut m = metrics.get();
-                    m.equalization_bytes = stage.scratch_bytes();
+                    m.equalization_bytes = stage.scratch_bytes()
+                        + preview_color.as_ref().map_or(0, PreviewColorStage::bytes);
                     metrics.set(m);
                 });
                 *self.equalization.borrow_mut() = Some(BrowserEqualization {
                     stage,
+                    preview_color,
                     settings,
                     origin: None,
+                    preview_key: None,
+                    preview_predecessors: 0,
                 });
             }
             Ok(())
+        }
+
+        fn prepare_preview_equalization(
+            &self,
+            key: &str,
+            settings: Equalization,
+            selected: Size,
+        ) -> Result<bool, MediaError> {
+            if let Some(effect) = self.equalization.borrow_mut().as_mut()
+                && effect.preview_key.as_deref() == Some(key)
+            {
+                // Off/Before temporarily bypasses application without discarding
+                // the bounded raw maps. Strength and sliders do not change stats.
+                effect.settings = settings;
+                return Ok(false);
+            }
+            self.start_equalization_at(settings, Some(selected))?;
+            if let Some(effect) = self.equalization.borrow_mut().as_mut() {
+                effect.preview_key = Some(key.to_owned());
+            }
+            Ok(settings.active())
         }
 
         async fn process(
@@ -1849,49 +2053,86 @@ mod browser {
                             label: Some("video resize commands"),
                         });
                 let mut effect = self.equalization.borrow_mut();
-                let adjusted_transform = (!color.is_neutral() || effect.is_some()).then(|| {
-                    self.pipeline.create_adjustment_buffer(
+                let active_effect = effect.as_ref().is_some_and(|e| e.settings.active());
+                let separate_display = effect.as_ref().is_some_and(|e| e.preview_color.is_some());
+                let adjusted_transform = (!color.is_neutral() || active_effect || separate_display)
+                    .then(|| {
+                        self.pipeline.create_adjustment_buffer(
+                            &self.device,
+                            &self.queue,
+                            if active_effect {
+                                Rotation::Deg0
+                            } else {
+                                configured.rotation
+                            },
+                            !active_effect && configured.flip_horizontal,
+                            color,
+                        )
+                    });
+                let (rendered_source, preview_color) =
+                    if let Some(effect) = effect.as_mut().filter(|e| e.settings.active()) {
+                        let origin = *effect.origin.get_or_insert(timestamp);
+                        let pts = timestamp
+                            .checked_sub(origin)
+                            .ok_or_else(|| JsValue::from_str("CLAHE timestamp overflow"))?;
+                        let view = effect
+                            .stage
+                            .record(
+                                &self.device,
+                                &mut encoder,
+                                &source,
+                                pts,
+                                effect.settings,
+                                u64::from(self.device_generation),
+                            )
+                            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                        PROCESSING_METRICS.with(|metrics| {
+                            let mut m = metrics.get();
+                            m.equalization_frames += 1;
+                            metrics.set(m);
+                        });
+                        (view, effect.preview_color.as_ref())
+                    } else {
+                        (
+                            &source,
+                            effect.as_ref().and_then(|e| e.preview_color.as_ref()),
+                        )
+                    };
+                let displayed_source = if let Some(stage) = preview_color {
+                    stage.record(
                         &self.device,
                         &self.queue,
-                        if effect.is_some() {
-                            Rotation::Deg0
-                        } else {
-                            configured.rotation
-                        },
-                        effect.is_none() && configured.flip_horizontal,
-                        color,
+                        &mut encoder,
+                        rendered_source,
+                        (
+                            if active_effect {
+                                Rotation::Deg0
+                            } else {
+                                configured.rotation
+                            },
+                            !active_effect && configured.flip_horizontal,
+                            color,
+                        ),
+                    )
+                } else {
+                    rendered_source
+                };
+                let display_transform = separate_display.then(|| {
+                    self.pipeline.create_transform_buffer(
+                        &self.device,
+                        &self.queue,
+                        Rotation::Deg0,
+                        false,
                     )
                 });
-                let rendered_source = if let Some(effect) = effect.as_mut() {
-                    let origin = *effect.origin.get_or_insert(timestamp);
-                    let pts = timestamp
-                        .checked_sub(origin)
-                        .ok_or_else(|| JsValue::from_str("CLAHE timestamp overflow"))?;
-                    let view = effect
-                        .stage
-                        .record(
-                            &self.device,
-                            &mut encoder,
-                            &source,
-                            pts,
-                            effect.settings,
-                            u64::from(self.device_generation),
-                        )
-                        .map_err(|e| JsValue::from_str(&e.to_string()))?;
-                    PROCESSING_METRICS.with(|metrics| {
-                        let mut m = metrics.get();
-                        m.equalization_frames += 1;
-                        metrics.set(m);
-                    });
-                    view
-                } else {
-                    &source
-                };
                 self.pipeline.record_resize(
                     &self.device,
                     &mut encoder,
-                    rendered_source,
-                    adjusted_transform.as_ref().unwrap_or(&configured.transform),
+                    displayed_source,
+                    display_transform
+                        .as_ref()
+                        .or(adjusted_transform.as_ref())
+                        .unwrap_or(&configured.transform),
                     &target,
                     configured.output_size,
                 );

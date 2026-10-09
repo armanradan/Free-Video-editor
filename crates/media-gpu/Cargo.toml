@@ -11,3 +11,6 @@ wgpu.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 pollster.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("renderer-abi-26"))'] }

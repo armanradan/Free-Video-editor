@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 let serial = 0;
-async function fixture({ initError, initStages = [], initHold = false, crash = false, hold = false, mode = "worker", verify = false, output = "auto" } = {}) {
+async function fixture({ initError, initStages = [], initHold = false, crash = false, hold = false, mode = "worker", verify = false, output = "auto", parity = "" } = {}) {
   const nodes = new Map(["execution-context", "export-canvas", "worker-preview"].map(id => [id, {
     hidden: false, textContent: "", replaceChildren() {},
   }]));
@@ -17,6 +17,7 @@ async function fixture({ initError, initStages = [], initHold = false, crash = f
   if (mode === "main") query.set("execution", "main");
   if (verify) query.set("verify", "full");
   if (output === "memory") query.set("output", "memory");
+  if (parity) query.set("diagnostic-parity", parity);
   globalThis.location = { href: `https://test.invalid/?${query}` };
   globalThis.HTMLCanvasElement = class { transferControlToOffscreen() {} };
   globalThis.Worker = class {
@@ -56,6 +57,15 @@ const until = async predicate => {
   }
   throw Error("test transport did not reach expected state");
 };
+
+test("developer parity selection crosses the worker command boundary only when requested", async () => {
+  const enabled = await fixture({parity:"0,7,35"});
+  await enabled.module.dispatchJob(null,"convert","","","original",()=>{},()=>{});
+  assert.equal(enabled.sent.find(x=>x.message.operation==="convert").message.parityFrames,"0,7,35");
+  const disabled = await fixture();
+  await disabled.module.dispatchJob(null,"convert","","","original",()=>{},()=>{});
+  assert.equal(disabled.sent.find(x=>x.message.operation==="convert").message.parityFrames,"");
+});
 
 test("worker transports commands and metadata; queued jobs are serialized", async () => {
   const { module, sent, workers, nodes } = await fixture({ hold: true, verify: true });

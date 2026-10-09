@@ -391,6 +391,7 @@ let previewDecodes = 0;
 let previewRenders = 0;
 let previewStream = null;
 let previewStreamOpens = 0;
+let previewHistoryOpens = 0;
 function closePreviewStream() {
   const stream = previewStream;
   previewStream = null;
@@ -456,6 +457,25 @@ async function previewInfo(file, sourceKey, seconds, streaming = false) {
     return previewCache.info;
   } finally { sample?.close(); opened.input.dispose(); }
 }
+// Opt-in developer gate only. At most eight small pre-encoder snapshots cross
+// the worker boundary; never persist a conversion's entire decoded raster.
+function parityFrameIndices() {
+  const value = globalThis.__DIAXUS_PARITY_FRAMES__ ?? "";
+  if (!value) return new Set();
+  if (!/^\d+(,\d+){0,7}$/.test(value)) fail("Diagnostic parity requires at most eight frame indices.");
+  const indices = value.split(",").map(Number);
+  if (indices.some(index => !Number.isSafeInteger(index) || index > 1000000)) fail("Invalid diagnostic parity frame index.");
+  return new Set(indices);
+}
+async function paritySnapshot(frame, sourceTimestamp, index = null) {
+  if (frame.displayWidth > 1920 || frame.displayHeight > 1080) fail("Diagnostic parity is limited to 1920×1080 output.");
+  const pixels = new Uint8Array(frame.allocationSize({format: "RGBA"}));
+  if (pixels.length > 1920 * 1080 * 4) fail("Diagnostic parity raster exceeds its byte budget.");
+  await frame.copyTo(pixels, {format: "RGBA"});
+  let binary = "";
+  for (let i = 0; i < pixels.length; i += 8192) binary += String.fromCharCode(...pixels.subarray(i, i + 8192));
+  return {width: frame.displayWidth, height: frame.displayHeight, sourceTimestamp, index, data: btoa(binary)};
+}
 async function previewRender(processFrame) {
   if (!previewCache) fail("Preview source frame is no longer available.");
   const frame = previewCache.frame.clone();
@@ -476,8 +496,37 @@ async function previewRender(processFrame) {
         ingress: globalThis.__DIAXUS_PREVIEW_INGRESS__ };
     }
     const frameSeconds = (frame.timestamp - previewCache.info.videoStartUs) / 1_000_000;
-    return { summary: `${previewStream ? "Playing" : "Paused"} source preview: cache loads=${previewDecodes}; renders=${previewRenders}; frame time=${frameSeconds.toFixed(6)} s; cached frames=1; playback lookahead=${previewStream?.next ? 1 : 0}; stream opens=${previewStreamOpens}; explicit pixel readbacks=${diagnostic ? 2 : 0}.` };
+    const parity = parityFrameIndices().size ? await paritySnapshot(output, frame.timestamp) : null;
+    return { ...(parity ? {parity} : {}), summary: `${previewStream ? "Playing" : "Paused"} source preview: cache loads=${previewDecodes}; renders=${previewRenders}; frame time=${frameSeconds.toFixed(6)} s; cached frames=1; playback lookahead=${previewStream?.next ? 1 : 0}; stream opens=${previewStreamOpens}; preroll opens=${previewHistoryOpens}; explicit pixel readbacks=${(diagnostic ? 2 : 0) + (parity ? 1 : 0)}.` };
   } finally { globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__ = false; output?.close(); frame.close(); }
+}
+
+// Experimental paused preview. Stream the finite mapping window into the same
+// Rust processor, closing each sample/frame/output immediately; never retain a
+// raw-frame history. The current original frame remains the existing cache.
+async function previewHistory(file, processFrame, windowUs) {
+  if (!previewCache || previewStream) fail("CLAHE preroll requires a paused cached frame.");
+  if (windowUs !== 100000) fail("Unsupported CLAHE history revision.");
+  const timestamp = previewCache.frame.timestamp;
+  const opened = await MediabunnyInputAdapter.open(file);
+  previewHistoryOpens++;
+  let processed = 0;
+  try {
+    const startUs = Math.max(Math.round(opened.videoStart * 1e6), timestamp - windowUs);
+    for await (const sample of new VideoSampleSink(opened.track).samples(startUs / 1e6)) {
+      let frame, output;
+      try {
+        const pts = Math.round(sample.timestamp * 1e6);
+        if (pts >= timestamp) break;
+        if (pts < startUs) continue;
+        if (processed >= 64) fail("CLAHE preview preroll exceeds 64 source frames in 100 ms.");
+        frame = sample.toVideoFrame();
+        output = await processFrame(frame, null, frame.timestamp, frame.duration ?? 0);
+        processed++;
+      } finally { output?.close(); frame?.close(); sample.close(); }
+    }
+    return { processed };
+  } finally { opened.input.dispose(); }
 }
 
 const OUTPUT_PROFILES = Object.freeze({
@@ -1057,6 +1106,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
   const profile = resolveProfile(profileId);
   const ffmpeg = ffmpegSelected();
   const requested = requestedAcceleration === "prefer-hardware" ? "prefer-hardware" : "no-preference";
+  const parityIndices = parityFrameIndices();
+  const parityFrames = [];
+  if (parityIndices.size && (outputWidth > 1920 || outputHeight > 1080)) fail("Diagnostic parity is limited to 1920×1080 output.");
   const opened = await MediabunnyInputAdapter.open(file);
   let muxer = null;
   let outputStarted = false;
@@ -1288,6 +1340,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           }
           retain("frames");
           try {
+            if (parityIndices.has(processed)) {
+              parityFrames.push(await paritySnapshot(processedFrame, item.decodedFrame.timestamp, processed));
+            }
             if (failureMode === "codec-once"
                 && !consumedFailureInjections.has(failureMode)
                 && processed === 4) {
@@ -1486,6 +1541,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         ? `PASS: ${processed} ${inputCodecLabel} input frames + ${audioSamples} decoded audio samples → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; ${verified.audioPackets} ${profile.audioCodec.toUpperCase()} packets; audio queue peak=1; conversion pixel readbacks=${ffmpeg ? muxer.readbacks : 0}; backend=${ffmpeg ? "FFmpeg WASM" : "WebCodecs"}.`
         : `PASS: ${processed} ${inputCodecLabel} input frames → ${outputWidth}×${outputHeight} ${profile.label} converted/finalized in ${conversionElapsed.toFixed(1)} ms; ${durationSummary}; conversion pixel readbacks=0; backend=WebCodecs.`)
         + `\n${verificationSummary}`
+        + (parityIndices.size ? `\nDeveloper parity: ${parityFrames.length} explicit test-only pre-encoder pixel readbacks; reported job time includes them and is not conversion throughput.` : "")
         + `\nOutput policy: ${processed} input → ${encoded} output frames; FPS=${fixedFps ? `${options.fpsNumerator}/${options.fpsDenominator} (duplicate/drop resampling, unchanged playback speed)` : "Original (source PTS preserved)"}; target video bitrate=${options[profile.videoCodec] || "legacy quality"} bps (VBR, not a file-size guarantee).`
         + `\nColor adjustments: ${options.colorAdjustments ?? "neutral"}; snapshot applied once per source frame before FPS resampling.`
         + `\nCodec acceleration: requested=${requested}, selected=${selectedAcceleration}; ${ffmpeg ? "browser decoder probed, FFmpeg software encoder selected explicitly" : "exact decoder+encoder probes passed"}${accelerationFallback ? ` after visible fallback (${accelerationFallback})` : ""}; hardware execution unknown.`
@@ -1502,6 +1558,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       targetVideoBitrate: options[profile.videoCodec] || null,
       duration: verified.duration,
       outputBytes: outputBlob.size,
+      ...(parityIndices.size ? {parityFrames} : {}),
     };
   } catch (error) {
     if (outputStarted && !completed) {
@@ -1525,6 +1582,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
 class WebCodecsMediabunnyBackend {
   previewInfo(file, key, seconds, streaming) { return previewInfo(file, key, seconds, streaming); }
   previewRender(processFrame) { return previewRender(processFrame); }
+  previewHistory(file, processFrame, windowUs) { return previewHistory(file, processFrame, Number(windowUs)); }
   clearPreview() { clearPreview(); }
   cleanupOutput() {
     clearPreview();

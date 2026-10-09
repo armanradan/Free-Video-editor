@@ -12,6 +12,7 @@ futures-util.workspace = true
 futures-timer = "=3.0.4"
 media-core.workspace = true
 media-gpu.workspace = true
+media-gpu-blitz.workspace = true
 media-native = { path = "../../crates/media-native" }
 rfd.workspace = true
 ui.workspace = true

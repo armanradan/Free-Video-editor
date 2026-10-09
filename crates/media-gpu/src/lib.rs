@@ -51,8 +51,14 @@ impl ResizePipeline {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("M1 resize pipeline layout"),
+            #[cfg(not(feature = "renderer-abi-26"))]
             bind_group_layouts: &[Some(&layout)],
+            #[cfg(feature = "renderer-abi-26")]
+            bind_group_layouts: &[&layout],
+            #[cfg(not(feature = "renderer-abi-26"))]
             immediate_size: 0,
+            #[cfg(feature = "renderer-abi-26")]
+            push_constant_ranges: &[],
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("M1 resize pipeline"),
@@ -76,7 +82,10 @@ impl ResizePipeline {
             primitive: Default::default(),
             depth_stencil: None,
             multisample: Default::default(),
+            #[cfg(not(feature = "renderer-abi-26"))]
             multiview_mask: None,
+            #[cfg(feature = "renderer-abi-26")]
+            multiview: None,
             cache: None,
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -134,6 +143,7 @@ impl ResizePipeline {
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
+            #[cfg(not(feature = "renderer-abi-26"))]
             multiview_mask: None,
         });
         pass.set_pipeline(&self.pipeline);

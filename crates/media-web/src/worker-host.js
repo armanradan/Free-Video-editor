@@ -50,6 +50,7 @@ if (inWorker) {
       } else {
         if (!runtime) throw Error("media worker was not initialized");
         self.__DIAXUS_BACKEND__ = data.backend;
+        self.__DIAXUS_PARITY_FRAMES__ = data.parityFrames;
         const result = await runtime.execute_job(data.file, operation, data.profile, data.acceleration, data.resize, `${data.outputMode}:${data.verify ? 1 : 0}:${data.failureMode}`,
           status => self.postMessage({ id, type: "progress", status }));
         self.postMessage({ id, type: "result", result });
@@ -203,6 +204,7 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
   const verify = parameters.get("verify") === "full";
   const outputMode = parameters.get("output") === "memory" ? "memory" : "auto";
   const backend = parameters.get("backend") === "ffmpeg-wasm" ? "ffmpeg-wasm" : "webcodecs";
+  const parityFrames = parameters.get("diagnostic-parity") ?? "";
   const requestedFailure = parameters.get("failure");
   const failureMode = requestedFailure === "codec-once" || requestedFailure === "device-loss-once"
     ? requestedFailure
@@ -221,12 +223,13 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
     let result;
     if (useWorker) {
       displayExecution("worker");
-      result = await request(operation, { file, profile, acceleration, resize, outputMode, verify, failureMode, backend }, report);
+      result = await request(operation, { file, profile, acceleration, resize, outputMode, verify, failureMode, backend, parityFrames }, report);
     } else {
       displayExecution("main", fallbackReason);
       await Promise.all([import(assets.m1), import(assets.pipeline)]);
       if (cancelled()) throw Error("CANCELLED: stopped before codec startup");
       globalThis.__DIAXUS_BACKEND__ = backend;
+      globalThis.__DIAXUS_PARITY_FRAMES__ = parityFrames;
       result = await local(file, operation, profile, acceleration, resize, `${outputMode}:${verify ? 1 : 0}:${failureMode}`, report);
     }
     if (cancelled()) throw Error("CANCELLED: completed work discarded after cancellation");

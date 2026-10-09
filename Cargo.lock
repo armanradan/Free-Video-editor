@@ -1226,6 +1226,7 @@ dependencies = [
  "futures-util",
  "media-core",
  "media-gpu",
+ "media-gpu-blitz",
  "media-native",
  "pollster 1.0.1",
  "rfd",
@@ -3854,6 +3855,15 @@ dependencies = [
  "media-core",
  "pollster 1.0.1",
  "wgpu 30.0.1",
+]
+
+[[package]]
+name = "media-gpu-blitz"
+version = "0.1.0"
+dependencies = [
+ "media-core",
+ "pollster 1.0.1",
+ "wgpu 26.0.1",
 ]
 
 [[package]]

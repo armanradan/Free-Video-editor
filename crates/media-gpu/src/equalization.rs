@@ -8,6 +8,80 @@ use wgpu::util::DeviceExt;
 pub const SHADER: &str = include_str!("equalization.wgsl");
 const MAX_BYTES: u64 = 128 * 1024 * 1024;
 
+/// Selected-resolution slider output, before an independent display resize.
+/// RGBA8 matches the supported browser export boundary, not Main 10 precision.
+pub struct PreviewColorStage {
+    pipeline: crate::ResizePipeline,
+    _texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    size: Size,
+    bytes: u64,
+}
+impl PreviewColorStage {
+    pub fn new(
+        device: &wgpu::Device,
+        size: Size,
+        preceding_bytes: u64,
+    ) -> Result<Self, MediaError> {
+        let bytes = u64::from(size.width)
+            .checked_mul(u64::from(size.height))
+            .and_then(|n| n.checked_mul(4))
+            .ok_or_else(|| MediaError::Platform("CLAHE preview byte-size overflow".into()))?;
+        if preceding_bytes
+            .checked_add(bytes)
+            .is_none_or(|n| n > 192 * 1024 * 1024)
+            || size.width == 0
+            || size.height == 0
+            || size.width > device.limits().max_texture_dimension_2d
+            || size.height > device.limits().max_texture_dimension_2d
+        {
+            return Err(MediaError::Platform(
+                "CLAHE preview scratch exceeds device/192 MiB budget".into(),
+            ));
+        }
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("selected-resolution adjusted preview before display scaling"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&Default::default());
+        Ok(Self {
+            pipeline: crate::ResizePipeline::new(device, wgpu::TextureFormat::Rgba8Unorm),
+            _texture: texture,
+            view,
+            size,
+            bytes,
+        })
+    }
+    pub fn bytes(&self) -> u64 {
+        self.bytes
+    }
+    pub fn record<'a>(
+        &'a self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        source: &wgpu::TextureView,
+        policy: (media_core::Rotation, bool, media_core::ColorAdjustments),
+    ) -> &'a wgpu::TextureView {
+        let transform = self
+            .pipeline
+            .create_adjustment_buffer(device, queue, policy.0, policy.1, policy.2);
+        self.pipeline
+            .record_resize(device, encoder, source, &transform, &self.view, self.size);
+        &self.view
+    }
+}
+
 /// Shared neutral geometry stage used by browser and native conversion. The
 /// caller consumes its encoded output through the existing manual-slider pass.
 pub struct EqualizationStage {
@@ -117,6 +191,10 @@ impl ClaheProcessor {
         device_generation: u64,
     ) -> Result<Self, MediaError> {
         let limits = device.limits();
+        #[cfg(feature = "renderer-abi-26")]
+        let max_storage_binding = u64::from(limits.max_storage_buffer_binding_size);
+        #[cfg(not(feature = "renderer-abi-26"))]
+        let max_storage_binding = limits.max_storage_buffer_binding_size;
         let grid = [
             (size.width / 64).clamp(1, 8),
             (size.height / 64).clamp(1, 8),
@@ -134,8 +212,8 @@ impl ClaheProcessor {
             || size.width > limits.max_texture_dimension_2d
             || size.height > limits.max_texture_dimension_2d
             || storage_bytes > MAX_BYTES
-            || histogram_bytes > limits.max_storage_buffer_binding_size
-            || map_bytes > limits.max_storage_buffer_binding_size
+            || histogram_bytes > max_storage_binding
+            || map_bytes > max_storage_binding
             || histogram_bytes > limits.max_buffer_size
             || map_bytes > limits.max_buffer_size
             || limits.max_storage_buffers_per_shader_stage < 3
@@ -224,8 +302,14 @@ impl ClaheProcessor {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("CLAHE pipelines"),
+            #[cfg(not(feature = "renderer-abi-26"))]
             bind_group_layouts: &[Some(&layout)],
+            #[cfg(feature = "renderer-abi-26")]
+            bind_group_layouts: &[&layout],
+            #[cfg(not(feature = "renderer-abi-26"))]
             immediate_size: 0,
+            #[cfg(feature = "renderer-abi-26")]
+            push_constant_ranges: &[],
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("CLAHE v1"),
