@@ -123,6 +123,13 @@ pub struct PlayerState {
     pub error: Option<String>,
 }
 
+impl PlayerState {
+    /// A processing error must not turn Pause into a seek/restart command.
+    pub fn restart_on_play(&self) -> bool {
+        self.paused && (self.ended || self.error.is_some())
+    }
+}
+
 #[derive(Default)]
 pub struct PreviewService {
     pub frames: Arc<Mutex<FrameSlot>>,
@@ -188,6 +195,9 @@ impl PreviewService {
     }
 
     pub fn history_unavailable(&self, reason: &str) {
+        // Missing geometry is a recoverable presentation error, not permission
+        // to keep audio/clock running behind an intentionally hidden image.
+        self.pause(true);
         if let Ok(mut slot) = self.frames.lock() {
             slot.history_error = Some(reason.to_owned());
         }
@@ -848,6 +858,37 @@ mod tests {
         assert!(service.frames.lock().unwrap().history_request.is_none());
         service.set_history_preview(None).unwrap();
         service.start(fixture, 0, true, true).unwrap();
+        service.shutdown();
+    }
+    #[test]
+    fn processing_error_keeps_pause_distinct_from_restart() {
+        let playing = PlayerState {
+            ready: true,
+            paused: false,
+            position_us: 88_000_000,
+            error: Some("selected geometry unavailable".into()),
+            ..Default::default()
+        };
+        assert!(!playing.restart_on_play());
+        assert!(
+            PlayerState {
+                paused: true,
+                ..playing
+            }
+            .restart_on_play()
+        );
+
+        let service = PreviewService::default();
+        let fixture =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/m35-vfr-offset.mp4");
+        service.start(fixture, 500_000, true, true).unwrap();
+        service.history_unavailable("Inspect source");
+        let state = service.state();
+        assert!(state.paused);
+        assert_eq!(state.position_us, 500_000);
+        assert_eq!(state.error.as_deref(), Some("Inspect source"));
+        service.set_history_preview(None).unwrap();
+        assert!(service.state().error.is_none());
         service.shutdown();
     }
     #[test]

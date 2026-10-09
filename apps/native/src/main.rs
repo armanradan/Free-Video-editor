@@ -246,7 +246,7 @@ fn app() -> Element {
                     window::PlayerKey::Start => Some(0),
                     window::PlayerKey::End => Some(state.duration_us.saturating_sub(1)),
                     window::PlayerKey::Toggle => {
-                        if state.ended || state.error.is_some() {
+                        if state.restart_on_play() {
                             let _ = app_state().preview.start(
                                 PathBuf::from(preview_path()),
                                 0,
@@ -861,7 +861,18 @@ fn app() -> Element {
                         div { class: "color-actions",
                             button { id: "native-clahe-enable", disabled: (busy || estimate_source().is_none() && !clahe_check && !equalization().values().0).then_some("true"), aria_pressed: equalization().values().0,
                                 title: "Inspect source first. CLAHE precedes all sliders; conversion needs Shared GPU and 8-bit output. Bounded-preroll playback may be slower.",
-                                onclick: move |_| { let (enabled, strength) = equalization().values(); equalization.set(media_core::equalization::Equalization::new(!enabled, strength).unwrap()); before.set(false); },
+                                onclick: move |_| {
+                                    let (enabled, strength) = equalization().values();
+                                    // Enforce availability in the command handler as well as
+                                    // the DOM: native disabled event dispatch is incomplete.
+                                    if busy { return; }
+                                    if !enabled && estimate_source().is_none() && !clahe_check {
+                                        status.set("Inspect this source before enabling CLAHE.".into());
+                                        return;
+                                    }
+                                    equalization.set(media_core::equalization::Equalization::new(!enabled, strength).unwrap());
+                                    before.set(false);
+                                },
                                 if equalization().values().0 { "CLAHE: On" } else { "CLAHE: Off" } }
                             button { disabled: busy.then_some("true"), aria_label: "Reset all color adjustments", onclick: move |_| { color.set(ColorAdjustments::default()); equalization.set(media_core::equalization::Equalization::default()); before.set(false); }, "Reset color" }
                             button { disabled: (busy || !showing_preview() || !preview_is_source()).then_some("true"), aria_pressed: before(), aria_label: "Compare original source with adjusted preview",
@@ -1084,7 +1095,7 @@ fn VideoPlayer(
         let mut restart = restart.clone();
         move || {
             let state = app_state().preview.state();
-            if state.ended || state.error.is_some() {
+            if state.restart_on_play() {
                 restart(0, true, muted());
             } else {
                 app_state().preview.pause(!state.paused);
