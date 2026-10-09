@@ -82,6 +82,13 @@ pub struct FrameSlot {
     color: media_core::ColorAdjustments,
     color_revision: u64,
     color_updates: ColorUpdates,
+    history_policy: Option<(media_core::Size, media_core::equalization::Equalization)>,
+    history_request: Option<crate::preview_gpu::worker::Request>,
+    history_error: Option<String>,
+    history_playing: bool,
+    completed_revision: u64,
+    published_completion: u64,
+    history_controls: Vec<crate::preview_gpu::worker::Control>,
 }
 
 struct Job {
@@ -121,17 +128,68 @@ pub struct PreviewService {
     pub frames: Arc<Mutex<FrameSlot>>,
     job: Mutex<Option<Job>>,
     closed: AtomicBool,
+    #[cfg(test)]
+    publication_gate: Arc<Mutex<()>>,
 }
 
 impl PreviewService {
     pub fn presentation_revision(&self) -> (u64, u64) {
         let slot = self.frames.lock().unwrap();
-        (slot.revision, slot.color_revision)
+        (
+            slot.revision,
+            slot.color_revision.wrapping_add(slot.completed_revision),
+        )
     }
 
     pub fn set_color(&self, color: media_core::ColorAdjustments) {
         if let Ok(mut slot) = self.frames.lock() {
             slot.color_updates.requested = color;
+        }
+    }
+
+    /// Exact finite-preroll preview policy. None restores the original player.
+    pub fn set_history_preview(
+        &self,
+        policy: Option<(media_core::Size, media_core::equalization::Equalization)>,
+    ) -> Result<(), String> {
+        let job = self.job.lock().map_err(|_| "preview job lock poisoned")?;
+        let mut slot = self
+            .frames
+            .lock()
+            .map_err(|_| "preview frame lock poisoned")?;
+        if slot.history_policy == policy {
+            if policy.is_none() {
+                slot.history_error = None;
+            }
+            return Ok(());
+        }
+        if let Some((selected, settings)) = policy {
+            let job = job.as_ref().ok_or("open a paused source preview first")?;
+            if selected.width == 0 || selected.height == 0 {
+                return Err("invalid selected preview geometry".into());
+            }
+            slot.history_request = Some(crate::preview_gpu::worker::Request {
+                path: job.path.clone(),
+                position_us: job.control.position_us.load(Ordering::Acquire),
+                selected,
+                settings,
+                color: slot.color,
+            });
+        } else {
+            slot.history_request = None;
+            for control in &slot.history_controls {
+                control.invalidate();
+            }
+        }
+        slot.history_policy = policy;
+        slot.history_error = None;
+        slot.color_revision = slot.color_revision.wrapping_add(1);
+        Ok(())
+    }
+
+    pub fn history_unavailable(&self, reason: &str) {
+        if let Ok(mut slot) = self.frames.lock() {
+            slot.history_error = Some(reason.to_owned());
         }
     }
 
@@ -141,12 +199,14 @@ impl PreviewService {
             return false;
         };
         let current = slot.color;
+        let completed = slot.completed_revision != slot.published_completion;
+        slot.published_completion = slot.completed_revision;
         if let Some(color) = slot.color_updates.publish(current, Instant::now()) {
             slot.color = color;
             slot.color_revision = slot.color_revision.wrapping_add(1);
             true
         } else {
-            false
+            completed
         }
     }
     pub fn start(
@@ -185,6 +245,26 @@ impl PreviewService {
             cancel: cancel.clone(),
             control: control.clone(),
         };
+        {
+            let mut slot = self
+                .frames
+                .lock()
+                .map_err(|_| "preview frame lock poisoned")?;
+            if let Some((selected, settings)) = slot.history_policy {
+                slot.history_request = Some(crate::preview_gpu::worker::Request {
+                    path: path.clone(),
+                    position_us,
+                    selected,
+                    settings,
+                    color: slot.color,
+                });
+            }
+            slot.history_error = None;
+            slot.history_playing = playing;
+            for control in &slot.history_controls {
+                control.invalidate();
+            }
+        }
         if let Some(job) = job.as_mut() {
             let mut requests = job
                 .mailbox
@@ -206,6 +286,8 @@ impl PreviewService {
             ));
             let worker_mailbox = mailbox.clone();
             let frames = self.frames.clone();
+            #[cfg(test)]
+            let publication_gate = self.publication_gate.clone();
             let thread = std::thread::spawn(move || {
                 loop {
                     let request = {
@@ -225,12 +307,18 @@ impl PreviewService {
                         &request.control,
                         &request.cancel,
                         |frame| {
+                            #[cfg(test)]
+                            let _publication = publication_gate.lock().unwrap();
                             let mut slot =
                                 frames.lock().map_err(|_| "preview frame lock poisoned")?;
                             if request.cancel.is_cancelled() {
                                 return Err("Preview cancelled".into());
                             }
                             slot.revision = slot.revision.wrapping_add(1);
+                            slot.history_playing = !request.control.paused.load(Ordering::Acquire);
+                            if let Some(history) = slot.history_request.as_mut() {
+                                history.position_us = frame.requested_us;
+                            }
                             slot.frame = Some(frame);
                             Ok(())
                         },
@@ -263,6 +351,9 @@ impl PreviewService {
             && let Some(job) = job.as_ref()
         {
             job.control.paused.store(paused, Ordering::Release);
+            if let Ok(mut slot) = self.frames.lock() {
+                slot.history_playing = !paused;
+            }
         }
     }
 
@@ -282,13 +373,23 @@ impl PreviewService {
             duration_us: c.duration_us.load(Ordering::Acquire),
             audio_active: c.audio_active.load(Ordering::Acquire),
             muted: c.muted.load(Ordering::Acquire),
-            error: c.error.lock().ok().and_then(|v| v.clone()),
+            error: self
+                .frames
+                .lock()
+                .ok()
+                .and_then(|slot| slot.history_error.clone())
+                .or_else(|| c.error.lock().ok().and_then(|v| v.clone())),
         }
     }
 
     fn clear(&self) {
         if let Ok(mut slot) = self.frames.lock() {
             slot.frame = None;
+            slot.history_request = None;
+            slot.history_error = None;
+            for control in &slot.history_controls {
+                control.invalidate();
+            }
             slot.revision = slot.revision.wrapping_add(1);
         }
     }
@@ -335,9 +436,111 @@ pub struct Presenter {
     texture: Option<wgpu_blitz::Texture>,
     handle: Option<TextureHandle>,
     revision: Option<u64>,
+    history_worker: Option<crate::preview_gpu::worker::Worker>,
+    generation: u64,
+    history_source: Option<(PathBuf, media_core::Size)>,
+    detached: bool,
+    lost: Arc<AtomicBool>,
+    loss_reporting: Arc<AtomicBool>,
 }
 
 impl Presenter {
+    fn render_history(
+        &mut self,
+        mut ctx: CustomPaintCtx<'_>,
+        request: crate::preview_gpu::worker::Request,
+        playing: bool,
+    ) -> Option<TextureHandle> {
+        let device = self.device.as_ref()?;
+        if self.history_worker.is_none() {
+            let frames = self.frames.clone();
+            self.history_worker = Some(crate::preview_gpu::worker::Worker::new_checked(
+                device.device.clone(),
+                device.queue.clone(),
+                self.generation,
+                move || {
+                    if let Ok(mut slot) = frames.lock() {
+                        slot.completed_revision = slot.completed_revision.wrapping_add(1);
+                    }
+                },
+                self.lost.clone(),
+            ));
+            if let Ok(mut slot) = self.frames.lock() {
+                slot.history_controls.retain(|control| control.live());
+                slot.history_controls
+                    .push(self.history_worker.as_ref()?.control());
+            }
+            // Never display an old differently processed image as CLAHE.
+            if let Some(handle) = self.handle.take() {
+                ctx.unregister_texture(handle);
+            }
+            self.texture = None;
+        }
+        let worker = self.history_worker.as_ref()?;
+        let source = (request.path.clone(), request.selected);
+        if self.history_source.as_ref() != Some(&source) {
+            if let Some(handle) = self.handle.take() {
+                ctx.unregister_texture(handle);
+            }
+            self.texture = None;
+        }
+        self.history_source = Some(source);
+        worker.request_sample(request, playing);
+        if let Some(result) = worker.take_result() {
+            match result {
+                Ok(output) => {
+                    let _uploads = output.uploads;
+                    if self.texture.as_ref().is_none() {
+                        if let Some(handle) = self.handle.take() {
+                            ctx.unregister_texture(handle);
+                        }
+                        let texture =
+                            device
+                                .device
+                                .create_texture(&wgpu_blitz::TextureDescriptor {
+                                    label: Some("registered native history preview"),
+                                    size: wgpu_blitz::Extent3d {
+                                        width: 640,
+                                        height: 360,
+                                        depth_or_array_layers: 1,
+                                    },
+                                    mip_level_count: 1,
+                                    sample_count: 1,
+                                    dimension: wgpu_blitz::TextureDimension::D2,
+                                    format: wgpu_blitz::TextureFormat::Rgba8Unorm,
+                                    usage: wgpu_blitz::TextureUsages::COPY_DST
+                                        | wgpu_blitz::TextureUsages::COPY_SRC
+                                        | wgpu_blitz::TextureUsages::TEXTURE_BINDING
+                                        | wgpu_blitz::TextureUsages::RENDER_ATTACHMENT,
+                                    view_formats: &[],
+                                });
+                        self.handle = Some(ctx.register_texture(texture.clone()));
+                        self.texture = Some(texture);
+                    }
+                    crate::preview_gpu::copy_history_display(
+                        &device.device,
+                        &device.queue,
+                        &output.texture,
+                        self.texture.as_ref()?,
+                    );
+                    if let Ok(mut slot) = self.frames.lock() {
+                        slot.history_error = None;
+                    }
+                }
+                Err(error) => {
+                    if let Some(handle) = self.handle.take() {
+                        ctx.unregister_texture(handle);
+                    }
+                    self.texture = None;
+                    if let Ok(mut slot) = self.frames.lock() {
+                        slot.history_error = Some(error);
+                    }
+                }
+            }
+        }
+        self.handle.clone()
+    }
+
     pub fn new(frames: Arc<Mutex<FrameSlot>>) -> Self {
         Self {
             color_pass: None,
@@ -347,7 +550,19 @@ impl Presenter {
             texture: None,
             handle: None,
             revision: None,
+            history_worker: None,
+            generation: 0,
+            history_source: None,
+            detached: false,
+            lost: Arc::new(AtomicBool::new(false)),
+            loss_reporting: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    pub fn detached(frames: Arc<Mutex<FrameSlot>>) -> Self {
+        let mut presenter = Self::new(frames);
+        presenter.detached = true;
+        presenter
     }
 }
 
@@ -355,8 +570,30 @@ impl CustomPaintSource for Presenter {
     fn resume(&mut self, device: &DeviceHandle) {
         self.suspend();
         self.device = Some(device.clone());
+        self.generation = self.generation.wrapping_add(1);
+        self.lost = Arc::new(AtomicBool::new(false));
+        let lost = self.lost.clone();
+        self.loss_reporting = Arc::new(AtomicBool::new(true));
+        let reporting = self.loss_reporting.clone();
+        let detached = self.detached;
+        // This app installs exactly one presenter on each window's independent
+        // Vello renderer/context. The callback belongs to that context, not to
+        // individual cache workers; replacing a worker never overwrites it.
+        device
+            .device
+            .set_device_lost_callback(move |reason, message| {
+                lost.store(true, Ordering::Release);
+                #[cfg(not(test))]
+                if reporting.load(Ordering::Acquire) {
+                    crate::window::report_renderer_loss(detached);
+                }
+                eprintln!("Renderer device lost: {reason:?}: {message}");
+                #[cfg(test)]
+                let _ = (detached, &reporting);
+            });
     }
     fn suspend(&mut self) {
+        self.loss_reporting.store(false, Ordering::Release);
         // Renderer suspension drops its texture registry. Never carry a handle
         // into the resumed renderer/device generation.
         self.handle = None;
@@ -365,6 +602,8 @@ impl CustomPaintSource for Presenter {
         self.revision = None;
         self.color_pass = None;
         self.color_revision = None;
+        self.history_worker = None;
+        self.history_source = None;
     }
     fn render(
         &mut self,
@@ -373,6 +612,30 @@ impl CustomPaintSource for Presenter {
         _height: u32,
         _scale: f64,
     ) -> Option<TextureHandle> {
+        if self.lost.load(Ordering::Acquire) {
+            return None;
+        }
+        let slot = self.frames.lock().ok()?;
+        if slot.history_error.is_some() && slot.history_request.is_none() {
+            return None;
+        }
+        if let Some(mut request) = slot.history_request.clone() {
+            request.color = slot.color;
+            let playing = slot.history_playing;
+            drop(slot);
+            return self.render_history(ctx, request, playing);
+        }
+        if self.history_worker.is_some() {
+            drop(slot);
+            self.history_worker = None;
+            if let Some(handle) = self.handle.take() {
+                ctx.unregister_texture(handle);
+            }
+            self.texture = None;
+            self.revision = None;
+        } else {
+            drop(slot);
+        }
         let slot = self.frames.lock().ok()?;
         let frame = slot.frame.as_ref()?;
         let device = self.device.as_ref()?;
@@ -460,6 +723,133 @@ pub fn format_time(us: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "real renderer ABI device, presenter suspension and fresh worker"]
+    fn presenter_suspend_resume_retires_history_worker() {
+        let instance = wgpu_blitz::Instance::default();
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        println!("Presenter lifecycle adapter: {:?}", adapter.get_info());
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let mut device = DeviceHandle {
+            instance,
+            adapter,
+            device,
+            queue,
+        };
+        let frames = Arc::new(Mutex::new(FrameSlot::default()));
+        let mut presenter = Presenter::new(frames);
+        let request = crate::preview_gpu::worker::Request {
+            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/m35-vfr-offset.mp4"),
+            position_us: 500_000,
+            selected: media_core::Size::new(160, 90).unwrap(),
+            settings: media_core::equalization::Equalization::new(true, 50).unwrap(),
+            color: media_core::ColorAdjustments::default(),
+        };
+        let mut reference = None;
+        for generation in 1..=2 {
+            presenter.resume(&device);
+            assert_eq!(presenter.generation, generation);
+            assert!(presenter.texture.is_none() && presenter.handle.is_none());
+            // Same worker construction as render_history; CustomPaintCtx's
+            // registry is private, so registration is covered by live UI checks.
+            presenter.history_worker = Some(crate::preview_gpu::worker::Worker::new(
+                device.device.clone(),
+                device.queue.clone(),
+                generation,
+                || {},
+            ));
+            let worker = presenter.history_worker.as_ref().unwrap();
+            let control = worker.control();
+            worker.request(request.clone());
+            let deadline = Instant::now() + Duration::from_secs(15);
+            let output = loop {
+                if let Some(result) = worker.take_result() {
+                    break result.unwrap();
+                }
+                assert!(Instant::now() < deadline, "presenter worker timed out");
+                std::thread::sleep(Duration::from_millis(2));
+            };
+            assert_eq!(output.uploads, 3); // Fresh history, not a previous generation's cache.
+            let pixels = crate::preview_gpu::diagnostic_readback(
+                &device.device,
+                &device.queue,
+                &output.texture,
+            );
+            if let Some(expected) = &reference {
+                assert_eq!(&pixels, expected);
+            } else {
+                reference = Some(pixels);
+            }
+            worker.request(crate::preview_gpu::worker::Request {
+                position_us: 1_900_000,
+                ..request.clone()
+            });
+            presenter.suspend(); // Cancels and joins even with pending preparation.
+            assert!(!control.live());
+            assert!(presenter.device.is_none() && presenter.history_worker.is_none());
+            assert!(presenter.texture.is_none() && presenter.handle.is_none());
+            if generation == 1 {
+                // Destroy only this test-owned, already retired renderer device,
+                // not the live application's UI device or an active queue.
+                let lost = Arc::new(AtomicBool::new(false));
+                let observed = lost.clone();
+                device
+                    .device
+                    .set_device_lost_callback(move |reason, message| {
+                        println!("Retired renderer device loss: {reason:?}: {message}");
+                        observed.store(true, Ordering::Release);
+                    });
+                device.device.destroy();
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while !lost.load(Ordering::Acquire) {
+                    let _ = device.device.poll(wgpu_blitz::PollType::Poll);
+                    assert!(Instant::now() < deadline, "missing device-loss callback");
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                let (replacement, queue) =
+                    pollster::block_on(device.adapter.request_device(&Default::default())).unwrap();
+                device.device = replacement;
+                device.queue = queue;
+            }
+        }
+    }
+    #[test]
+    fn history_policy_tracks_seek_close_and_playback_samples() {
+        let service = PreviewService::default();
+        let fixture =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/m35-vfr-offset.mp4");
+        let policy = (
+            media_core::Size::new(160, 90).unwrap(),
+            media_core::equalization::Equalization::new(true, 50).unwrap(),
+        );
+        assert!(service.set_history_preview(Some(policy)).is_err());
+        service.start(fixture.clone(), 0, false, true).unwrap();
+        service.set_history_preview(Some(policy)).unwrap();
+        let revision = service.presentation_revision();
+        service.set_history_preview(Some(policy)).unwrap();
+        assert_eq!(revision, service.presentation_revision());
+        service.start(fixture.clone(), 0, true, true).unwrap();
+        service.pause(false);
+        assert!(!service.state().paused);
+        assert!(service.state().error.is_none());
+        service
+            .start(fixture.clone(), 500_000, false, true)
+            .unwrap();
+        {
+            let slot = service.frames.lock().unwrap();
+            let request = slot.history_request.as_ref().unwrap();
+            assert_eq!(request.path, fixture);
+            assert_eq!(request.position_us, 500_000);
+            assert!(slot.history_error.is_none());
+        }
+        service.cancel();
+        assert!(service.frames.lock().unwrap().history_request.is_none());
+        service.set_history_preview(None).unwrap();
+        service.start(fixture, 0, true, true).unwrap();
+        service.shutdown();
+    }
     #[test]
     fn secondary_presenter_shares_frame_without_restarting_or_canceling_playback() {
         let service = PreviewService::default();
@@ -600,13 +990,16 @@ mod tests {
         assert!(duration > 1_000_000);
         // Block publication, making the loading-state assertion deterministic.
         {
-            let slot = service.frames.lock().unwrap();
-            let revision = slot.revision;
-            let pointer = slot.frame.as_ref().unwrap().rgba.as_ptr();
+            let _publication = service.publication_gate.lock().unwrap();
+            let (revision, pointer) = {
+                let slot = service.frames.lock().unwrap();
+                (slot.revision, slot.frame.as_ref().unwrap().rgba.as_ptr())
+            };
             service
                 .start(fixture.clone(), 1_000_000, false, true)
                 .unwrap();
             let pending = service.state();
+            let slot = service.frames.lock().unwrap();
             assert_eq!(pending.duration_us, duration);
             assert_eq!(pending.position_us, 1_000_000);
             assert_eq!(slot.revision, revision);

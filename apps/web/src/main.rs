@@ -50,6 +50,7 @@ fn App() -> Element {
         );
     });
     let mut color = use_signal(ColorAdjustments::default);
+    let mut equalization = use_signal(media_core::equalization::Equalization::default);
     let mut before = use_signal(|| false);
     let mut preview_seconds = use_signal(|| 0.0_f64);
     let mut source_key = use_signal(|| 0_u64);
@@ -118,6 +119,7 @@ fn App() -> Element {
     use_effect(move || {
         let _desired = (
             color(),
+            equalization(),
             before(),
             preview_seconds(),
             source_key(),
@@ -166,6 +168,11 @@ fn App() -> Element {
                         *preview_seconds.peek(),
                         resize,
                         selected_color,
+                        if *before.peek() {
+                            media_core::equalization::Equalization::default()
+                        } else {
+                            *equalization.peek()
+                        },
                     )
                     .await;
                     if revision == *preview_revision.peek() && !*running.peek() {
@@ -275,8 +282,18 @@ fn App() -> Element {
                 };
                 let result = match resize {
                     Ok(resize) => {
-                        media_web::preview_playback_source(key, seconds, resize, selected_color)
-                            .await
+                        media_web::preview_playback_source(
+                            key,
+                            seconds,
+                            resize,
+                            selected_color,
+                            if *before.peek() {
+                                media_core::equalization::Equalization::default()
+                            } else {
+                                *equalization.peek()
+                            },
+                        )
+                        .await
                     }
                     Err(error) => {
                         playback_error.set(error);
@@ -339,6 +356,7 @@ fn App() -> Element {
             }
         };
         settings.color = color();
+        settings.equalization = equalization();
         preview_playing.set(false);
         media_web::pause_preview_playback();
         running.set(true);
@@ -646,6 +664,9 @@ fn App() -> Element {
                         on_cancel: cancel,
                     }
                     ColorControls { color: color(), disabled: running() || !has_source(), before: before(),
+                        equalization: equalization(),
+                        on_equalization: move |value| { equalization.set(value); before.set(false); },
+                        on_reset: move |_| { color.set(ColorAdjustments::default()); equalization.set(media_core::equalization::Equalization::default()); before.set(false); },
                         on_change: move |value| { color.set(value); before.set(false); },
                         on_compare: move |_| { let value = !before(); before.set(value); },
                     }

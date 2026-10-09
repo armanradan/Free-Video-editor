@@ -10,12 +10,16 @@ pub fn ColorControls(
     color: ColorAdjustments,
     disabled: bool,
     before: bool,
+    equalization: media_core::equalization::Equalization,
+    on_equalization: EventHandler<media_core::equalization::Equalization>,
+    on_reset: EventHandler<MouseEvent>,
     on_change: EventHandler<ColorAdjustments>,
     on_compare: EventHandler<MouseEvent>,
 ) -> Element {
     let (brightness, contrast, saturation) = color.values();
+    let (enabled, strength) = equalization.values();
     rsx! {
-        details { class: "color-controls", open: true,
+        details { class: "color-controls",
             summary { "Color adjustments" }
             for (id, name, value, min, max) in [
                 ("brightness", "Brightness", brightness, -100, 100),
@@ -37,12 +41,22 @@ pub fn ColorControls(
                 }
             }
             div { class: "color-actions",
-                button { id: "color-reset", disabled, onclick: move |_| on_change.call(ColorAdjustments::default()), "Reset color" }
+                button { id: "clahe-enable", disabled, aria_pressed: enabled,
+                    onclick: move |_| on_equalization.call(media_core::equalization::Equalization::new(!enabled, strength).unwrap()),
+                    if enabled { "CLAHE: On" } else { "CLAHE: Off" } }
+                button { id: "color-reset", disabled, onclick: move |event| on_reset.call(event), "Reset color" }
                 button { id: "color-compare", disabled, onclick: move |event| on_compare.call(event),
                     if before { "Before — show After" } else { "After — show Before" }
                 }
             }
-            p { class: "note", "Before/After compares the source preview only; conversion uses the saved sliders. CLAHE is not implemented yet." }
+            if enabled {
+                label { r#for: "clahe-strength", "Equalization strength: {strength}%" }
+                input { id: "clahe-strength", r#type: "range", min: "0", max: "100", step: "1", value: strength, disabled,
+                    oninput: move |event| { if let Ok(strength) = event.value().parse::<u16>()
+                        && let Ok(value) = media_core::equalization::Equalization::new(enabled, strength) { on_equalization.call(value); }
+                    } }
+            }
+            p { class: "note", "CLAHE precedes all three sliders. Playback uses bounded preroll samples and may be slower. Before affects preview only; conversion uses saved settings." }
         }
     }
 }

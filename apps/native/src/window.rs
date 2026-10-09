@@ -22,6 +22,21 @@ static LOGICAL_WIDTH: AtomicU64 = AtomicU64::new(960.0_f64.to_bits());
 static LOGICAL_HEIGHT: AtomicU64 = AtomicU64::new(760.0_f64.to_bits());
 static PREVIEW_FULLSCREEN: AtomicBool = AtomicBool::new(false);
 static APP_WINDOW: Mutex<Option<Arc<Window>>> = Mutex::new(None);
+static MAIN_RENDERER_LOST: AtomicBool = AtomicBool::new(false);
+static PREVIEW_RENDERER_LOST: AtomicBool = AtomicBool::new(false);
+
+#[cfg(not(test))]
+pub fn report_renderer_loss(detached: bool) {
+    if detached {
+        &PREVIEW_RENDERER_LOST
+    } else {
+        &MAIN_RENDERER_LOST
+    }
+    .store(true, Ordering::Release);
+    if let Some(window) = APP_WINDOW.lock().ok().and_then(|w| w.clone()) {
+        window.request_redraw();
+    }
+}
 static PREVIEW_WIDTH: AtomicU64 = AtomicU64::new(960.0_f64.to_bits());
 static PREVIEW_HEIGHT: AtomicU64 = AtomicU64::new(760.0_f64.to_bits());
 
@@ -238,6 +253,7 @@ pub fn launch(app: fn() -> Element, attributes: WindowAttributes) {
         pending: Some(config),
         main_id: None,
         preview_id: None,
+        quarantined: [false; 2],
     };
     event_loop.run_app(&mut application).unwrap();
 }
@@ -252,9 +268,98 @@ struct ViewportApplication {
     modifiers: ModifiersState,
     main_id: Option<WindowId>,
     preview_id: Option<WindowId>,
+    quarantined: [bool; 2],
 }
 
 impl ViewportApplication {
+    fn dispatch_window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        id: WindowId,
+        event: WindowEvent,
+    ) {
+        // Loss can occur on the worker while Vello is already drawing. The
+        // pinned renderer panics on that invalid texture rather than returning
+        // an error. Retire it only when our device callback confirms loss;
+        // unrelated panics keep their original behavior. Never resume partially
+        // unwound Vello state: F5 constructs a new document/renderer/context.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.inner.window_event(event_loop, id, event)
+        }));
+        if let Err(panic) = outcome {
+            let confirmed = if self.preview_id == Some(id) {
+                PREVIEW_RENDERER_LOST.load(Ordering::Acquire)
+            } else {
+                MAIN_RENDERER_LOST.load(Ordering::Acquire)
+            };
+            if confirmed {
+                self.quarantine_renderers();
+            } else {
+                std::panic::resume_unwind(panic);
+            }
+        }
+    }
+    fn quarantine_renderers(&mut self) {
+        for (index, lost, id) in [
+            (0, MAIN_RENDERER_LOST.load(Ordering::Acquire), self.main_id),
+            (
+                1,
+                PREVIEW_RENDERER_LOST.load(Ordering::Acquire),
+                self.preview_id,
+            ),
+        ] {
+            if lost && !self.quarantined[index] {
+                self.quarantined[index] = true;
+                crate::app_state().preview.pause(true);
+                if index == 0 {
+                    crate::app_state().session.cancel_active();
+                    crate::app_state().preview.cancel();
+                }
+                if let Some(view) = id.and_then(|id| self.inner.windows.get_mut(&id)) {
+                    view.suspend();
+                    view.window.set_title(
+                        "GPU renderer lost · F5 restarts (resets controls) · Close exits",
+                    );
+                }
+            }
+        }
+    }
+
+    fn restart_renderer(&mut self, detached: bool, event_loop: &ActiveEventLoop) {
+        if detached {
+            if let Some(id) = self.preview_id.take() {
+                self.inner.windows.remove(&id);
+            }
+            PREVIEW_RENDERER_LOST.store(false, Ordering::Release);
+            self.quarantined[1] = false;
+            self.reconcile_preview(event_loop);
+        } else {
+            crate::app_state().session.cancel_active();
+            crate::app_state().preview.cancel();
+            let _ = crate::app_state().preview.set_history_preview(None);
+            set_preview_fullscreen(false);
+            self.inner.windows.clear();
+            self.preview_id = None;
+            MAIN_RENDERER_LOST.store(false, Ordering::Release);
+            PREVIEW_RENDERER_LOST.store(false, Ordering::Release);
+            self.quarantined = [false; 2];
+            let document =
+                DioxusDocument::new(VirtualDom::new(crate::app), DocumentConfig::default());
+            let attributes = Window::default_attributes()
+                .with_title("Diaxus · Video Converter")
+                .with_inner_size(winit::dpi::LogicalSize::new(960.0, 760.0))
+                .with_min_inner_size(winit::dpi::LogicalSize::new(900.0, 740.0));
+            let config = WindowConfig::with_attributes(
+                Box::new(document),
+                DioxusNativeWindowRenderer::new(),
+                attributes,
+            );
+            let id = self.insert_document(config, event_loop);
+            self.main_id = Some(id);
+            *APP_WINDOW.lock().unwrap() = Some(self.inner.windows[&id].window.clone());
+            self.inner.windows.get_mut(&id).unwrap().resume();
+        }
+    }
     fn insert_document(
         &mut self,
         config: WindowConfig<DioxusNativeWindowRenderer>,
@@ -324,7 +429,12 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
             self.main_id = Some(id);
             *APP_WINDOW.lock().unwrap() = Some(self.inner.windows[&id].window.clone());
         }
-        self.inner.resumed(event_loop);
+        for (id, view) in &mut self.inner.windows {
+            let index = usize::from(self.preview_id == Some(*id));
+            if !self.quarantined[index] {
+                view.resume();
+            }
+        }
     }
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
         self.inner.suspended(event_loop);
@@ -333,10 +443,12 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
         self.inner.new_events(event_loop, cause);
     }
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: BlitzShellEvent) {
+        self.quarantine_renderers();
         self.inner.user_event(event_loop, event);
         self.reconcile_preview(event_loop);
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+        self.quarantine_renderers();
         let detached = self.preview_id == Some(id);
         // Late events from a dropped preview must never close the main window
         // or overwrite its viewport measurements.
@@ -355,6 +467,16 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
             *APP_WINDOW.lock().unwrap() = None;
             event_loop.exit();
             return;
+        }
+        if self.quarantined[usize::from(detached)] {
+            if let WindowEvent::KeyboardInput { event, .. } = &event
+                && event.state == ElementState::Pressed
+                && !event.repeat
+                && event.logical_key == Key::Named(NamedKey::F5)
+            {
+                self.restart_renderer(detached, event_loop);
+            }
+            return; // Never submit drawing/resizing to the lost device.
         }
         if detached {
             if let Some(view) = self.inner.windows.get(&id) {
@@ -387,7 +509,7 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
             if matches!(event, WindowEvent::Focused(false)) {
                 self.modifiers = ModifiersState::empty();
             }
-            self.inner.window_event(event_loop, id, event);
+            self.dispatch_window_event(event_loop, id, event);
             self.reconcile_preview(event_loop);
             return;
         }
@@ -448,7 +570,7 @@ impl ApplicationHandler<BlitzShellEvent> for ViewportApplication {
             (f64::from(self.physical_height) / self.scale).to_bits(),
             Ordering::Release,
         );
-        self.inner.window_event(event_loop, id, event);
+        self.dispatch_window_event(event_loop, id, event);
         self.reconcile_preview(event_loop);
     }
 }

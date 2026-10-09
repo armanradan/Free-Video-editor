@@ -712,8 +712,9 @@ mod browser {
         seconds: f64,
         resize: ResizeSpec,
         color: ColorAdjustments,
+        equalization: Equalization,
     ) -> Result<String, MediaError> {
-        preview_source_mode(source_key, seconds, resize, color, false).await
+        preview_source_mode(source_key, seconds, resize, color, equalization, false).await
     }
 
     pub async fn preview_playback_source(
@@ -721,8 +722,9 @@ mod browser {
         seconds: f64,
         resize: ResizeSpec,
         color: ColorAdjustments,
+        equalization: Equalization,
     ) -> Result<String, MediaError> {
-        preview_source_mode(source_key, seconds, resize, color, true).await
+        preview_source_mode(source_key, seconds, resize, color, equalization, true).await
     }
 
     async fn preview_source_mode(
@@ -730,6 +732,7 @@ mod browser {
         seconds: f64,
         resize: ResizeSpec,
         color: ColorAdjustments,
+        equalization: Equalization,
         streaming: bool,
     ) -> Result<String, MediaError> {
         if !seconds.is_finite() || seconds < 0.0 {
@@ -743,6 +746,7 @@ mod browser {
             resize,
             Some(VideoSettings {
                 color,
+                equalization,
                 ..Default::default()
             }),
             js_sys::Function::new_no_args(""),
@@ -846,12 +850,11 @@ mod browser {
         if !seconds.is_finite() || seconds < 0.0 {
             return Err(platform("invalid preview position"));
         }
-        let streaming = parts.next() == Some("1");
-        if streaming && settings.equalization.active() {
-            return Err(platform(
-                "CLAHE playback preview is not integrated; pause first",
-            ));
-        }
+        let playback = parts.next() == Some("1");
+        // Active CLAHE samples the same bounded exact preroll as paused preview.
+        // The separate audio clock continues; no skipped source statistics are
+        // approximated by the old low-rate streaming preview cache.
+        let streaming = playback && !settings.equalization.active();
         let inspection =
             JsFuture::from(preview_info(&file, source_key, seconds, streaming).map_err(js_error)?)
                 .await
@@ -908,11 +911,15 @@ mod browser {
                 .await
                 .map_err(js_error)?;
             if settings.equalization.active() {
+                let source_summary = string_property(&result, "summary", "preview returned no summary")?;
+                let source_summary = if playback {
+                    source_summary.replacen("Paused source preview:", "Playing sampled source preview:", 1)
+                } else { source_summary };
                 let count = gpu.equalization.borrow().as_ref().map_or(0, |e| e.preview_predecessors);
                 let history_status = if predecessors.is_some() { "rebuilt" } else { "reused" };
                 let summary = format!(
                     "{} CLAHE paused preroll: {count} predecessor frames; 100 ms window; history {history_status} for this request (experimental); statistics/adjustments {}×{}, display {}×{}; device generation {}.",
-                    string_property(&result, "summary", "preview returned no summary")?
+                    source_summary
                     ,selected.width,selected.height,output.width,output.height,gpu.device_generation
                 );
                 Reflect::set(&result, &"summary".into(), &summary.into()).map_err(js_error)?;

@@ -2,6 +2,59 @@
 use media_core::{ColorAdjustments, Rotation, Size};
 use wgpu_blitz as w;
 
+mod history;
+pub use history::HistoryPass;
+#[cfg(test)]
+pub(crate) use history::tests::readback as diagnostic_readback;
+pub(crate) mod worker;
+
+/// Final display-only letterboxing. Histogram/slider stages never see bars.
+pub(crate) fn copy_history_display(
+    device: &w::Device,
+    queue: &w::Queue,
+    source: &w::Texture,
+    target: &w::Texture,
+) {
+    let mut encoder = device.create_command_encoder(&Default::default());
+    let view = target.create_view(&Default::default());
+    {
+        let _clear = encoder.begin_render_pass(&w::RenderPassDescriptor {
+            label: Some("display-only black preview bars"),
+            color_attachments: &[Some(w::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                depth_slice: None,
+                ops: w::Operations {
+                    load: w::LoadOp::Clear(w::Color::BLACK),
+                    store: w::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+    }
+    let copy = |texture, origin| w::TexelCopyTextureInfo {
+        texture,
+        mip_level: 0,
+        origin,
+        aspect: w::TextureAspect::All,
+    };
+    encoder.copy_texture_to_texture(
+        copy(source, w::Origin3d::ZERO),
+        copy(
+            target,
+            w::Origin3d {
+                x: (target.width() - source.width()) / 2,
+                y: (target.height() - source.height()) / 2,
+                z: 0,
+            },
+        ),
+        source.size(),
+    );
+    queue.submit([encoder.finish()]);
+}
+
 pub struct ColorPass {
     pub source: w::Texture,
     pipeline: media_gpu_blitz::ResizePipeline,

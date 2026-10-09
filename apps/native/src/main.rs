@@ -16,8 +16,8 @@ use std::{
 };
 use ui::{ResizePresetButtons, frame_rate_label};
 mod preferences;
-mod preview;
-mod preview_gpu;
+pub mod preview;
+pub mod preview_gpu;
 mod window;
 use preferences::GpuPreferences;
 
@@ -168,6 +168,12 @@ fn selected_bitrate(policy: VideoBitrate, custom: &str) -> Result<VideoBitrate, 
 }
 
 fn app() -> Element {
+    // Opt-in local diagnostic: no controls or export policy change. Uses only
+    // the checked-in CC0 fixture to exercise the actual renderer/device limits.
+    let clahe_check = use_hook(|| {
+        std::env::args()
+            .any(|arg| arg == "--clahe-preview-check" || arg == "--clahe-device-loss-check")
+    });
     let preview_canvas =
         dioxus::native::use_wgpu(|| preview::Presenter::new(app_state().preview.frames.clone()));
     let adapters = use_hook(enumerate_adapters);
@@ -178,6 +184,13 @@ fn app() -> Element {
     let mut choosing_fps = use_signal(|| false);
     let mut color_expanded = use_signal(|| false);
     let mut color = use_signal(ColorAdjustments::default);
+    let mut equalization = use_signal(move || {
+        if clahe_check {
+            media_core::equalization::Equalization::new(true, 50).unwrap()
+        } else {
+            media_core::equalization::Equalization::default()
+        }
+    });
     let mut color_preview_revision = use_signal(|| 0_u64);
     let mut before = use_signal(|| false);
     let mut preview_is_source = use_signal(|| true);
@@ -260,7 +273,16 @@ fn app() -> Element {
         }
     });
     let mut verified_output = use_signal(String::new);
-    let mut input = use_signal(String::new);
+    let mut input = use_signal(move || {
+        if clahe_check {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/m35-vfr-offset.mp4")
+                .display()
+                .to_string()
+        } else {
+            String::new()
+        }
+    });
     use_effect(move || {
         if showing_preview() && preview_is_source() && preview_path() != input().trim() {
             app_state().preview.cancel();
@@ -334,11 +356,54 @@ fn app() -> Element {
                 if !color_expanded() || running() || switching() {
                     continue;
                 }
-                color.set(color_from_key(color(), index, key));
+                if index == 3 {
+                    let (enabled, strength) = equalization().values();
+                    let strength = match key {
+                        window::ColorKey::Step(step) => {
+                            (strength as i16 + step).clamp(0, 100) as u16
+                        }
+                        window::ColorKey::Min => 0,
+                        window::ColorKey::Max => 100,
+                    };
+                    equalization.set(
+                        media_core::equalization::Equalization::new(enabled, strength).unwrap(),
+                    );
+                } else {
+                    color.set(color_from_key(color(), index, key));
+                }
                 before.set(false);
             }
             if app_state().preview.publish_color() {
                 color_preview_revision.set(color_preview_revision().wrapping_add(1));
+            }
+            if showing_preview() && preview_is_source() && app_state().preview.state().ready {
+                let settings = if before() {
+                    media_core::equalization::Equalization::default()
+                } else {
+                    equalization()
+                };
+                let selected = if clahe_check {
+                    Size::new(160, 90).ok()
+                } else {
+                    estimate_source().and_then(|source| {
+                        resize_spec(&resize())?
+                            .output_size(
+                                Size::new(source.display_width, source.display_height).ok()?,
+                            )
+                            .ok()
+                    })
+                };
+                let policy = if equalization().values().0 {
+                    selected.map(|size| (size, settings))
+                } else {
+                    None
+                };
+                let _ = app_state().preview.set_history_preview(policy);
+                if equalization().values().0 && selected.is_none() {
+                    app_state().preview.history_unavailable("Inspect this source first to resolve selected CLAHE geometry; no unadjusted substitute is displayed.");
+                }
+            } else if !preview_is_source() || !showing_preview() {
+                let _ = app_state().preview.set_history_preview(None);
             }
             futures_timer::Delay::new(preview::COLOR_INTERVAL).await;
         }
@@ -465,6 +530,11 @@ fn app() -> Element {
         let selected_fps = frame_rate();
         let selected_route = route();
         let selected_color = color();
+        let selected_equalization = equalization();
+        if selected_equalization.active() && !selected_route.uses_wgpu() {
+            status.set("CLAHE requires an explicitly selected Shared GPU route and 8-bit output. Direct FFmpeg has no matching temporal algorithm; no automatic fallback.".into());
+            return;
+        }
         if selected_route == ProcessingRoute::NvidiaFfmpeg && !selected_color.is_neutral() {
             status.set("Color adjustments need CPU FFmpeg or shared GPU. Select that route explicitly; direct NVIDIA will not fall back to CPU.".into());
             return;
@@ -501,7 +571,7 @@ fn app() -> Element {
                             bitrate: Some(selected_bitrate),
                             frame_rate: selected_fps,
                             color: selected_color,
-                            equalization: media_core::equalization::Equalization::default(),
+                            equalization: selected_equalization,
                         },
                         &cancel,
                         |stage| {
@@ -778,18 +848,25 @@ fn app() -> Element {
                         }
                     },
                     span { if color_expanded() { "- Color adjustments" } else { "+ Color adjustments" } }
-                    span { class: "note", if color().is_neutral() { "Neutral" } else if route() == ProcessingRoute::NvidiaFfmpeg { "Select CPU / Shared GPU" } else { "Adjusted" } }
+                    span { class: "note", if equalization().active() && !route().uses_wgpu() { "Select Shared GPU" } else if color().is_neutral() && !equalization().active() { "Neutral" } else if route() == ProcessingRoute::NvidiaFfmpeg { "Select CPU / Shared GPU" } else { "Adjusted" } }
                 }
                 if color_expanded() {
                     div { id: "native-color-controls",
                         for (index, name, min, max) in [(0, "Brightness", -100, 100), (1, "Contrast %", 0, 200), (2, "Saturation %", 0, 200)] {
-                            NativeColorSlider { index, name, min, max, color, before, pointer_released, disabled: busy }
+                            NativeColorSlider { index, name, min, max, color, equalization, before, pointer_released, disabled: busy }
+                        }
+                        if equalization().values().0 {
+                            NativeColorSlider { index: 3, name: "Strength %", min: 0, max: 100, color, equalization, before, pointer_released, disabled: busy }
                         }
                         div { class: "color-actions",
-                            button { disabled: busy.then_some("true"), aria_label: "Reset brightness contrast and saturation", onclick: move |_| { color.set(ColorAdjustments::default()); before.set(false); }, "Reset color" }
+                            button { id: "native-clahe-enable", disabled: (busy || estimate_source().is_none() && !clahe_check && !equalization().values().0).then_some("true"), aria_pressed: equalization().values().0,
+                                title: "Inspect source first. CLAHE precedes all sliders; conversion needs Shared GPU and 8-bit output. Bounded-preroll playback may be slower.",
+                                onclick: move |_| { let (enabled, strength) = equalization().values(); equalization.set(media_core::equalization::Equalization::new(!enabled, strength).unwrap()); before.set(false); },
+                                if equalization().values().0 { "CLAHE: On" } else { "CLAHE: Off" } }
+                            button { disabled: busy.then_some("true"), aria_label: "Reset all color adjustments", onclick: move |_| { color.set(ColorAdjustments::default()); equalization.set(media_core::equalization::Equalization::default()); before.set(false); }, "Reset color" }
                             button { disabled: (busy || !showing_preview() || !preview_is_source()).then_some("true"), aria_pressed: before(), aria_label: "Compare original source with adjusted preview",
                                 onclick: move |_| { app_state().preview.pause(true); before.set(!before()); }, if before() { "Before · show After" } else { "After · show Before" } }
-                            span { class: "note", title: "8-bit display approximation, not exact selected-output geometry. Before affects preview only; saved settings are exported. Output preview bypasses adjustments.", "Preview only comparison" }
+                            span { class: "note", title: "8-bit display approximation. Enabled CLAHE uses selected-output geometry. Before affects preview only; saved settings are exported. Output preview bypasses adjustments.", "Preview comparison" }
                         }
                     }
                 }
@@ -841,6 +918,7 @@ fn NativeColorSlider(
     min: i16,
     max: i16,
     mut color: Signal<ColorAdjustments>,
+    mut equalization: Signal<media_core::equalization::Equalization>,
     mut before: Signal<bool>,
     pointer_released: Signal<u64>,
     disabled: bool,
@@ -851,9 +929,18 @@ fn NativeColorSlider(
         dragging.set(false);
     });
     let (b, c, s) = color().values();
-    let value = [b, c as i16, s as i16][index];
+    let value = [b, c as i16, s as i16, equalization().values().1 as i16][index];
     let percent = f64::from(value - min) * 100.0 / f64::from(max - min);
     let mut change = move |value: i16| {
+        if index == 3 {
+            if let Ok(next) =
+                media_core::equalization::Equalization::new(equalization().values().0, value as u16)
+            {
+                equalization.set(next);
+                before.set(false);
+            }
+            return;
+        }
         let (b, c, s) = color().values();
         let next = match index {
             0 => ColorAdjustments::new(value, c, s),
@@ -1107,8 +1194,9 @@ fn VideoPlayer(
 // A second document/presenter, not a second decoder or playback owner. Only
 // bounded metadata crosses between UI roots; textures stay renderer-local.
 fn preview_window() -> Element {
-    let canvas =
-        dioxus::native::use_wgpu(|| preview::Presenter::new(app_state().preview.frames.clone()));
+    let canvas = dioxus::native::use_wgpu(|| {
+        preview::Presenter::detached(app_state().preview.frames.clone())
+    });
     let mut settings = use_signal(window::preview_settings);
     let fullscreen = use_signal(|| true);
     let mut before = use_signal(|| window::preview_settings().before);

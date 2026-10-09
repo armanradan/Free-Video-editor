@@ -80,6 +80,14 @@ fn terminate_child(child: &mut Child) {
 
 impl ChildGuard {
     fn spawn(command: &mut Command) -> NativeResult<Self> {
+        Self::spawn_observed(command, |_| {})
+    }
+
+    // Observers must not block: codec stderr is drained concurrently with pixels.
+    fn spawn_observed(
+        command: &mut Command,
+        mut observe: impl FnMut(&[u8]) + Send + 'static,
+    ) -> NativeResult<Self> {
         command.stderr(Stdio::piped());
         let mut child = command.spawn()?;
         let diagnostics = Arc::new(Mutex::new(Vec::new()));
@@ -93,6 +101,7 @@ impl ChildGuard {
                 if length == 0 {
                     break;
                 }
+                observe(&buffer[..length]);
                 if let Ok(mut tail) = target.lock() {
                     tail.extend_from_slice(&buffer[..length]);
                     let excess = tail.len().saturating_sub(8192);

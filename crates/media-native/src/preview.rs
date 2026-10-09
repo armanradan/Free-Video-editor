@@ -6,6 +6,9 @@ use std::{
     process::{Command, Stdio},
 };
 
+mod history;
+pub use history::{HistoryFrame, HistorySummary, stream_history};
+
 pub const WIDTH: u32 = 640;
 pub const HEIGHT: u32 = 360;
 pub const FRAME_BYTES: usize = (WIDTH * HEIGHT * 4) as usize;
@@ -26,6 +29,24 @@ pub struct PreviewFrame {
 
 /// Probe bounded metadata and the supported display color policy, not pixels.
 pub fn probe_info(path: &Path, cancel: &CancellationToken) -> NativeResult<PreviewInfo> {
+    let metadata = probe_metadata(path, cancel)?;
+    let duration = metadata["format"]["duration"]
+        .as_str()
+        .ok_or("preview duration is unavailable")?;
+    let duration_us = u64::try_from(crate::parse_decimal_us(duration)?)?;
+    if duration_us == 0 {
+        return Err("preview duration must be positive".into());
+    }
+    let has_audio = metadata["streams"]
+        .as_array()
+        .is_some_and(|streams| streams.iter().any(|stream| stream["codec_type"] == "audio"));
+    Ok(PreviewInfo {
+        duration_us,
+        has_audio,
+    })
+}
+
+fn probe_metadata(path: &Path, cancel: &CancellationToken) -> NativeResult<serde_json::Value> {
     cancel.check()?;
     if !path.is_file() {
         return Err("preview input is not a file".into());
@@ -36,7 +57,7 @@ pub fn probe_info(path: &Path, cancel: &CancellationToken) -> NativeResult<Previ
             "-v",
             "error",
             "-show_entries",
-            "format=duration:stream=codec_type,color_space,color_transfer,color_primaries,color_range",
+            "format=duration:stream=codec_type,width,height,start_pts,time_base,sample_aspect_ratio,color_space,color_transfer,color_primaries,color_range:stream_side_data=rotation",
             "-of",
             "json",
         ])
@@ -76,20 +97,7 @@ pub fn probe_info(path: &Path, cancel: &CancellationToken) -> NativeResult<Previ
             return Err("frame preview supports limited-range BT.709 SDR only; HDR/wide/full-range preview is not implemented".into());
         }
     }
-    let duration = metadata["format"]["duration"]
-        .as_str()
-        .ok_or("preview duration is unavailable")?;
-    let duration_us = u64::try_from(crate::parse_decimal_us(duration)?)?;
-    if duration_us == 0 {
-        return Err("preview duration must be positive".into());
-    }
-    let has_audio = metadata["streams"]
-        .as_array()
-        .is_some_and(|streams| streams.iter().any(|stream| stream["codec_type"] == "audio"));
-    Ok(PreviewInfo {
-        duration_us,
-        has_audio,
-    })
+    Ok(metadata)
 }
 
 /// Decode one bounded SDR frame into a fixed letterboxed display surface.

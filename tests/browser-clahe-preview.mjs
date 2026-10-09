@@ -67,7 +67,10 @@ export async function runClahePreview({send,navigate,selectFile,directory,contex
     await evaluate("window.__historyTest.host.dispatchJob(null,'clear-preview','','','original',()=>{},window.__historyTest.wasm.execute_job)");
     const cleared=await preview(.4);assert.match(cleared.summary,/history rebuilt/);
     evidence.cases.push({cleared:true,result:cleared});
-    await assert.rejects(preview(.4,50,true),/pause first/);
+    const playing = await preview(.4,50,true);
+    assert.match(playing.summary,/CLAHE paused preroll:/);
+    assert.equal(await snapshot(),initial,'sampled playback must retain exact preroll parity');
+    evidence.cases.push({sampledPlayback:true,result:playing});
     const retry=await preview(.4);assert.match(retry.summary,/CLAHE paused preroll:/);
     evidence.retry=retry;
     if(lifecycle){
