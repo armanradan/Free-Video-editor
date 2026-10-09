@@ -1,5 +1,13 @@
 # M1 browser interoperability report
 
+## Browser FFmpeg WASM source-preview readiness correction — 2026-10-09
+
+Reproduced in the in-app Chromium browser on Intel gen-12lp: selecting the CC0 VFR fixture with `?backend=ffmpeg-wasm` / Original FPS returned valid source metadata and geometry but rejected the timestamp-less FFmpeg export profile. The UI incorrectly gated preview on that export readiness, leaving the panel hidden, its status at Loading and Play disabled.
+
+Source preview now has its own readiness signal, invalidated on source/probe changes and enabled only after successful inspection/selected-geometry resolution. Paused/playback commands and Play use that signal; Convert/profile controls retain the independent export gate. Preview continues to use the existing WebCodecs/shared-wgpu service regardless of output backend. This does not add FFmpeg decoding to preview, bypass export restrictions or claim that FFmpeg can preserve Original VFR.
+
+Verified through `tests/browser-ffmpeg-preview-ui.mjs` on the actual UI in both worker and explicit main-thread execution: rejected Original VFR export still permits visible paused preview, CLAHE preview, playback and pause; selecting 30 FPS enables export; returning to Original rejects export without removing preview. Worker capture additionally verified nonblack decoded fixture pixels using one test-only output readback. Evidence: `tmp/ffmpeg-preview-ui-worker/evidence.json` (six cases) and `tmp/ffmpeg-preview-ui-main/evidence.json` (five cases). The first runner attempt waited for a Playing label that ordinary preview does not emit and timed out; the corrected assertion verifies actual transport state and advancing position instead. All final cases passed. Wasm check/Clippy with `-D warnings`, formatting, JS syntax and diff checks passed. No FFmpeg conversion was run in this UI regression; FFmpeg CLAHE export acceptance, Firefox (skipped), other input/decoder failures and broader browser coverage are not implied.
+
 ## Native CLAHE missing-inspection / Pause correction — 2026-10-09
 
 Computer Use reproduced the reported failure in an ordinary native launch: CLAHE was On with no inspected source metadata, the presenter deliberately hid the unresolved image, and audio/playback continued. Clicking Pause sought to zero/restarted because both mouse and keyboard toggles treated every preview error as a restart request. Inspecting the user's 1920×1080 H.264/AAC, 8,582-frame source restored the CLAHE image. This was missing selected geometry, not evidence of a black equalization shader result.

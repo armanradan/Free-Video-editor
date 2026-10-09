@@ -90,6 +90,8 @@ fn App() -> Element {
     let mut source_metadata = use_signal(String::new);
     let mut has_source = use_signal(|| false);
     let mut profile_ready = use_signal(|| false);
+    // Source preview does not require the selected encoder/output profile.
+    let mut preview_ready = use_signal(|| false);
     let mp4_supported = use_signal(|| false);
     let mp4_reason = use_signal(String::new);
     let hevc_supported = use_signal(|| false);
@@ -100,6 +102,7 @@ fn App() -> Element {
         generation: probe_generation,
         running,
         profile_ready,
+        preview_ready,
         mp4_supported,
         mp4_reason,
         hevc_supported,
@@ -130,7 +133,7 @@ fn App() -> Element {
         );
         let next_revision = preview_revision.peek().wrapping_add(1);
         preview_revision.set(next_revision);
-        if running() || !profile_ready() || !has_source() {
+        if running() || !preview_ready() || !has_source() {
             media_web::pause_preview_playback();
             if *preview_playing.peek() {
                 preview_playing.set(false);
@@ -147,7 +150,7 @@ fn App() -> Element {
         spawn(async move {
             loop {
                 let _ = wasm_bindgen_futures::JsFuture::from(preview_delay()).await;
-                if *running.peek() || !*profile_ready.peek() || *preview_playing.peek() {
+                if *running.peek() || !*preview_ready.peek() || *preview_playing.peek() {
                     break;
                 }
                 let revision = *preview_revision.peek();
@@ -196,7 +199,7 @@ fn App() -> Element {
     });
 
     let mut toggle_preview = move || {
-        if running() || !profile_ready() || !has_source() {
+        if running() || !preview_ready() || !has_source() {
             return;
         }
         let next_token = playback_token.peek().wrapping_add(1);
@@ -426,6 +429,7 @@ fn App() -> Element {
         });
         has_source.set(true);
         profile_ready.set(false);
+        preview_ready.set(false);
         source_metadata.set(String::new());
         inspected_source.set(None);
         let resize = match requested_resize(
@@ -690,7 +694,7 @@ fn App() -> Element {
                     if let Some(source) = inspected_source() {
                         div { class: "preview-playback-controls",
                         div { class: "preview-transport",
-                            button { id: "source-preview-play", disabled: running() || !profile_ready(), onclick: move |_| toggle_preview(),
+                            button { id: "source-preview-play", disabled: running() || !preview_ready(), onclick: move |_| toggle_preview(),
                                 if preview_playing() { "Pause" } else { "Play" }
                             }
                             span { class: "note", "{preview_seconds():.2} / {source.duration_seconds:.2} s" }
@@ -732,6 +736,7 @@ struct ProbeSignals {
     generation: Signal<u64>,
     running: Signal<bool>,
     profile_ready: Signal<bool>,
+    preview_ready: Signal<bool>,
     mp4_supported: Signal<bool>,
     mp4_reason: Signal<String>,
     hevc_supported: Signal<bool>,
@@ -810,6 +815,7 @@ fn reprobe_if_ready(
         Ok(resize) => resize,
         Err(error) => {
             signals.profile_ready.set(false);
+            signals.preview_ready.set(false);
             signals.mp4_supported.set(false);
             signals.hevc_supported.set(false);
             signals.resolved_size.set(String::new());
@@ -827,6 +833,7 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
         return;
     }
     signals.profile_ready.set(false);
+    signals.preview_ready.set(false);
     signals.mp4_supported.set(false);
     signals.hevc_supported.set(false);
     signals
@@ -860,6 +867,10 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
                 .inspected_source
                 .set(Some(capabilities.source.clone()));
             signals.output_size.set(Some(capabilities.output_size));
+            // Inspection and selected geometry succeeded. Encoder restrictions
+            // (VFR/raw bridge, audio, isolation or unavailable codec) must not
+            // suppress the independently validated source preview command.
+            signals.preview_ready.set(true);
             signals.mp4_supported.set(capabilities.mp4_supported);
             signals.mp4_reason.set(capabilities.mp4_reason.clone());
             signals.hevc_supported.set(capabilities.hevc_supported);
