@@ -1,0 +1,8 @@
+{"fixture": "tos-text-texture-2x", "frames": 64, "status": "measured"}
+{"fixture": "tos-text-texture-4x", "frames": 64, "status": "measured"}
+{"fixture": "tos-face-2x", "frames": 64, "status": "measured"}
+{"fixture": "tos-face-4x", "frames": 64, "status": "measured"}
+{"fixture": "tos-motion-2x", "frames": 64, "status": "measured"}
+{"fixture": "tos-motion-4x", "frames": 64, "status": "measured"}
+{"fixture": "ai-upscale-cut-2x", "frames": 4, "status": "measured"}
+{"fixture": "ai-upscale-cut-4x", "frames": 4, "status": "measured"}

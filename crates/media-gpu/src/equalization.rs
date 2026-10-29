@@ -93,6 +93,18 @@ pub struct EqualizationStage {
     scratch_bytes: u64,
 }
 impl EqualizationStage {
+    pub fn estimated_scratch_bytes(size: Size) -> Result<u64, MediaError> {
+        let bytes = ClaheProcessor::estimated_storage_bytes(size)?
+            .checked_add(u64::from(size.width) * u64::from(size.height) * 8)
+            .ok_or_else(|| MediaError::Platform("CLAHE geometry scratch overflow".into()))?;
+        if bytes > 192 * 1024 * 1024 {
+            return Err(MediaError::Platform(
+                "CLAHE engine plus geometry scratch exceeds 192 MiB budget".into(),
+            ));
+        }
+        Ok(bytes)
+    }
+
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -101,16 +113,8 @@ impl EqualizationStage {
         flip: bool,
         generation: u64,
     ) -> Result<Self, MediaError> {
+        let scratch_bytes = Self::estimated_scratch_bytes(size)?;
         let processor = ClaheProcessor::new(device, size, generation)?;
-        let scratch_bytes = processor
-            .storage_bytes()
-            .checked_add(u64::from(size.width) * u64::from(size.height) * 8)
-            .ok_or_else(|| MediaError::Platform("CLAHE geometry scratch overflow".into()))?;
-        if scratch_bytes > 192 * 1024 * 1024 {
-            return Err(MediaError::Platform(
-                "CLAHE engine plus geometry scratch exceeds 192 MiB budget".into(),
-            ));
-        }
         let pipeline = crate::ResizePipeline::new(device, wgpu::TextureFormat::Rgba16Float);
         let neutral = pipeline.create_transform_buffer(device, queue, rotation, flip);
         let geometry = device.create_texture(&wgpu::TextureDescriptor {
@@ -185,6 +189,22 @@ pub struct ClaheProcessor {
     storage_bytes: u64,
 }
 impl ClaheProcessor {
+    pub fn estimated_storage_bytes(size: Size) -> Result<u64, MediaError> {
+        let tiles = u64::from((size.width / 64).clamp(1, 8) * (size.height / 64).clamp(1, 8));
+        let maps = 4 * (2 * tiles + 1) * u64::from(BINS) * 4 + 16;
+        let bytes = u64::from(size.width)
+            .checked_mul(u64::from(size.height))
+            .and_then(|n| n.checked_mul(8))
+            .and_then(|n| n.checked_add(maps))
+            .ok_or_else(|| MediaError::Platform("CLAHE scratch size overflow".into()))?;
+        if size.width == 0 || size.height == 0 || bytes > MAX_BYTES {
+            return Err(MediaError::Platform(
+                "CLAHE exceeds 128 MiB scratch budget or empty geometry".into(),
+            ));
+        }
+        Ok(bytes)
+    }
+
     pub fn new(
         device: &wgpu::Device,
         size: Size,
@@ -202,11 +222,7 @@ impl ClaheProcessor {
         let tiles = u64::from(grid[0] * grid[1]);
         let histogram_bytes = 4 * (tiles + 1) * u64::from(BINS) * 4;
         let map_bytes = 4 * tiles * u64::from(BINS) * 4;
-        let storage_bytes = u64::from(size.width)
-            .checked_mul(u64::from(size.height))
-            .and_then(|n| n.checked_mul(8))
-            .and_then(|n| n.checked_add(histogram_bytes + map_bytes + 16))
-            .ok_or_else(|| MediaError::Platform("CLAHE scratch size overflow".into()))?;
+        let storage_bytes = Self::estimated_storage_bytes(size)?;
         if size.width == 0
             || size.height == 0
             || size.width > limits.max_texture_dimension_2d

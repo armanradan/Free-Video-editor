@@ -1,0 +1,24 @@
+{
+  "status": "passed-in-recorded-scope",
+  "execution_date": "2026-10-23",
+  "recorded_date": "2026-10-24",
+  "launch": "ordinary converter-native, no diagnostic flag",
+  "window_pixels": [
+    960,
+    760
+  ],
+  "cases": [
+    "75% ordinary resize selected",
+    "AI setup opens in dark theme",
+    "2x/4x remain disabled and Off remains selected",
+    "Off/Done retain 75% ordinary resize",
+    "light-theme collapsed layout inspected"
+  ],
+  "stderr_bytes": 0,
+  "remaining_owned_helpers": 0,
+  "closed": true,
+  "limits": [
+    "No actual AI On selection or inference in this window test",
+    "No release acceptance granted"
+  ]
+}

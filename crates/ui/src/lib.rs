@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod ai_upscale;
+pub use ai_upscale::{AiChoices, AiUpscalingPanel, onnx_selection};
+
 use dioxus::prelude::*;
 use media_core::{
     CodecAcceleration, ColorAdjustments, FrameRateSpec, OutputProfileId, VideoBitrate,
@@ -184,6 +187,7 @@ pub fn ResizePresetSelect(
 pub fn ConverterControls(
     ffmpeg_spike: bool,
     running: bool,
+    #[props(default)] ai_on: bool,
     download_url: String,
     download_name: String,
     profile: OutputProfileId,
@@ -235,11 +239,12 @@ pub fn ConverterControls(
                 }
             }
             ResizePresetSelect {
-                running,
+                running: running || ai_on,
                 resize_mode: resize_mode.clone(),
                 show_exact: true,
                 on_change: on_resize_mode_change,
             }
+            if ai_on { p { class:"note", "AI supplies output size. Ordinary resize settings are retained until AI Off." } }
             if resize_mode == "exact" {
                 label { r#for: "resize-width", "Maximum width" }
                 input {
@@ -248,7 +253,7 @@ pub fn ConverterControls(
                     min: "2",
                     step: "1",
                     value: exact_width,
-                    disabled: running,
+                    disabled: running || ai_on,
                     onchange: move |event| on_exact_width_change.call(event),
                 }
                 label { r#for: "resize-height", "Maximum height" }
@@ -258,7 +263,7 @@ pub fn ConverterControls(
                     min: "2",
                     step: "1",
                     value: exact_height,
-                    disabled: running,
+                    disabled: running || ai_on,
                     onchange: move |event| on_exact_height_change.call(event),
                 }
                 label { r#for: "resize-aspect", "Geometry" }
@@ -267,7 +272,7 @@ pub fn ConverterControls(
                         id: "resize-aspect",
                         r#type: "checkbox",
                         checked: preserve_aspect_ratio,
-                        disabled: running,
+                        disabled: running || ai_on,
                         onchange: move |event| on_aspect_ratio_change.call(event),
                     }
                     "Preserve aspect ratio"
@@ -279,7 +284,9 @@ pub fn ConverterControls(
             label { r#for: "output-profile", "Output profile" }
             select {
                 id: "output-profile",
-                disabled: running || !profile_ready,
+                // An unavailable current profile must still let the user
+                // explicitly choose another profile whose probe passed.
+                disabled: running || (!profile_ready && !mp4_supported && !hevc_supported),
                 onchange: move |event| on_profile_change.call(event),
                 option {
                     value: OutputProfileId::WebmVp8Opus.as_str(),

@@ -1,0 +1,13 @@
+{"stage":"initialize","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"capabilities","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"vsr-available","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"scratch-size","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"create-vsr","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"loaded-runtime","name":"_nvngx.dll","path":"C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_00e5dc1fb00a1261\\_nvngx.dll"}
+{"stage":"loaded-runtime","name":"nvngx_truehdr.dll","path":"D:\\Libraries\\RTX_Video_SDK_v1.1.0\\bin\\Windows\\x64\\rel\\nvngx_truehdr.dll"}
+{"stage":"loaded-runtime","name":"nvngx_vsr.dll","path":"D:\\Libraries\\RTX_Video_SDK_v1.1.0\\bin\\Windows\\x64\\rel\\nvngx_vsr.dll"}
+{"stage":"ready","protocol":1,"sdk":"1.1.0","pid":32172,"dxgi_index":1,"adapter_name":"NVIDIA GeForce RTX 3050 Laptop GPU","vendor_id":4318,"device_id":9634,"luid_high":0,"luid_low":78108,"color":"opaque-rgba8-full-range-bt709-srgb","quality":3,"max_width":192,"max_height":108,"in_flight":1}
+{"stage":"release-feature","ngx_result":"0x00000001"}
+{"stage":"destroy-parameters","ngx_result":"0x00000001"}
+{"stage":"shutdown-device","ngx_result":"0x00000001"}
+{"stage":"failed","error":"protocol: unsupported geometry/scale/color/length"}

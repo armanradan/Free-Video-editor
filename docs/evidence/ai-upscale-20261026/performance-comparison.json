@@ -1,0 +1,173 @@
+{
+  "scope": "Sequential isolated 64-frame/192x80/12FPS three-excerpt runs, identical model/preprocessing/effects/size/fps/profile. Intel explicitly disabled DXC; NVIDIA used default compiler with explicit high-performance GPU/D3D11 launch. Not a hardware-only isolation claim, larger-source or real-time guarantee.",
+  "cases": [
+    {
+      "context": "main",
+      "request": {
+        "clahe": true,
+        "scale": "2x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-text-texture.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 38161.56499999948,
+      "nvidia_conversion_ms": 3678.289999999106,
+      "observed_ratio": 10.374811393340044
+    },
+    {
+      "context": "main",
+      "request": {
+        "clahe": true,
+        "scale": "4x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-text-texture.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 37645.36499999929,
+      "nvidia_conversion_ms": 3273.2400000002235,
+      "observed_ratio": 11.500948601384781
+    },
+    {
+      "context": "main",
+      "request": {
+        "clahe": true,
+        "scale": "2x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-face.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 37532.58999999985,
+      "nvidia_conversion_ms": 3304.155000001192,
+      "observed_ratio": 11.359209843359743
+    },
+    {
+      "context": "main",
+      "request": {
+        "clahe": true,
+        "scale": "4x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-face.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 44017.19000000041,
+      "nvidia_conversion_ms": 3280.2599999997765,
+      "observed_ratio": 13.418811313738365
+    },
+    {
+      "context": "main",
+      "request": {
+        "clahe": true,
+        "scale": "2x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-motion.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 46922.830000000075,
+      "nvidia_conversion_ms": 3256.449999999255,
+      "observed_ratio": 14.409197131849348
+    },
+    {
+      "context": "main",
+      "request": {
+        "clahe": true,
+        "scale": "4x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-motion.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 39094.09499999974,
+      "nvidia_conversion_ms": 3325.265000000596,
+      "observed_ratio": 11.756685557389481
+    },
+    {
+      "context": "worker",
+      "request": {
+        "clahe": true,
+        "scale": "2x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-text-texture.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 44352.04000000004,
+      "nvidia_conversion_ms": 3653.5499999988824,
+      "observed_ratio": 12.1394369859489
+    },
+    {
+      "context": "worker",
+      "request": {
+        "clahe": true,
+        "scale": "4x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-text-texture.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 42331.300000000745,
+      "nvidia_conversion_ms": 3460.1150000002235,
+      "observed_ratio": 12.23407314496715
+    },
+    {
+      "context": "worker",
+      "request": {
+        "clahe": true,
+        "scale": "2x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-face.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 43293.549999999814,
+      "nvidia_conversion_ms": 3491.0449999999255,
+      "observed_ratio": 12.401315365456686
+    },
+    {
+      "context": "worker",
+      "request": {
+        "clahe": true,
+        "scale": "4x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-face.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 42417.299999999814,
+      "nvidia_conversion_ms": 3457.5149999987334,
+      "observed_ratio": 12.268146342102739
+    },
+    {
+      "context": "worker",
+      "request": {
+        "clahe": true,
+        "scale": "2x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-motion.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 38871.15500000026,
+      "nvidia_conversion_ms": 3281.820000000298,
+      "observed_ratio": 11.844389698398063
+    },
+    {
+      "context": "worker",
+      "request": {
+        "clahe": true,
+        "scale": "4x",
+        "bilinear": false,
+        "fps": "original",
+        "fixture": "tos-motion.mp4",
+        "color": "10/115/80"
+      },
+      "intel_conversion_ms": 38162.41500000004,
+      "nvidia_conversion_ms": 3310.460000000894,
+      "observed_ratio": 11.527828458881766
+    }
+  ]
+}

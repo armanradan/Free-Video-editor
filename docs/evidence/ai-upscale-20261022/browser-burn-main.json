@@ -1,0 +1,36 @@
+{
+  "status": "failed",
+  "context": "main",
+  "cases": [],
+  "engine": "Burn 0.22.1 / CubeCL 0.11.2",
+  "boundary": "Burn forward 1x1",
+  "setup": {
+    "adapter": "AdapterInfo { name: \"\", vendor: 0, device: 0, device_type: Other, device_pci_bus_id: \"\", driver: \"\", driver_info: \"\", backend: BrowserWebGpu, subgroup_min_size: 8, subgroup_max_size: 128, transient_saves_memory: None, limit_bucket: None }",
+    "device_source": "actual media-web GpuSession handles",
+    "generation": 1,
+    "precision": "explicit F32"
+  },
+  "gpu": {
+    "vendor": "intel",
+    "architecture": "gen-12lp",
+    "device": "",
+    "description": ""
+  },
+  "deviceRequests": 1,
+  "processingLimits": {
+    "maxComputeInvocationsPerWorkgroup": 256
+  },
+  "error": "RuntimeError: unreachable",
+  "contextRetiredAfterError": true,
+  "browserVersion": "141.0.7390.37",
+  "selected_logs": [
+    "panicked at D:\\Libraries\\Cargo\\CARGO_HOME\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\cubecl-wgpu-0.11.2\\src\\compute\\device_poison.rs:42:17:\nwgpu error: The total number of workgroup invocations (1024) exceeds the maximum allowed (256). This adapter supports a higher maxComputeInvocationsPerWorkgroup of 1024, which can be specified in requiredLimits when calling requestDevice(). Limits differ by hardware, so always check the adapter limits prior to requesting a higher limit.\n - While initializing [ComputePipeline \"copy_kernel_t_f32_n_1_ced71a9c\"]\n - While calling [Device \"browser video processing device\"].CreateComputePipeline([ComputePipelineDescriptor \"\"copy_kernel_t_f32_n_1_ced71a9c\"\"]).\n"
+  ],
+  "cleanup": "Failed standalone browser context retired; no successful tensor/GPU allocator cleanup claim",
+  "model_bpk_sha256": "0e5f20302257c42a8082a4b6bc067e514d38073e22659d6dbd6fd6f347a97784",
+  "diagnostic_flags": [
+    "--enable-unsafe-webgpu",
+    "--use-angle=d3d11",
+    "--disable-dawn-features=use_dxc"
+  ]
+}

@@ -1,0 +1,4 @@
+{"stage":"adapter","dxgi_index":1,"name":"NVIDIA GeForce RTX 3050 Laptop GPU","vendor":4318,"device":9634,"luid_high":0,"luid_low":78108}
+{"stage":"initialize","ngx_result":"0x00000001"}
+{"stage":"shutdown-device","ngx_result":"0x00000001"}
+{"status":"failed","error":"SDK accepted invalid version; error-path test unproven"}

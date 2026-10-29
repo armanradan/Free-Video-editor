@@ -1,0 +1,56 @@
+{
+  "status": "partial-release-matrix-not-product-accepted",
+  "os": "Windows-11-10.0.26300-SP0",
+  "native_ai_exports": 18,
+  "browser_ai_exports": 36,
+  "browser_off_exports": 18,
+  "input_clip_bytes": 61422,
+  "native_total_ms": {
+    "minimum": 2791,
+    "maximum": 3504,
+    "count": 18
+  },
+  "browser_diagnostic_ms": {
+    "minimum": 4466.460000000079,
+    "maximum": 5508.225000000093,
+    "count": 36
+  },
+  "native_admission_bytes": [
+    154662224,
+    160740688
+  ],
+  "browser_admission_bytes": [
+    158533264,
+    162891408
+  ],
+  "browser_requested_peak_bytes": [
+    39610512,
+    41003968,
+    42397424,
+    46920288,
+    52180368,
+    57440448
+  ],
+  "source": "https://mango.blender.org/about/",
+  "limitations": [
+    "Short eight-frame excerpts, no broad temporal acceptance",
+    "No same-GPU native/browser performance comparison",
+    "Browser diagnostic times include pixel readbacks",
+    "No component-isolated native inference/transfer/encode benchmark",
+    "No new ordinary AI On UI or cross-path preview/lifecycle acceptance",
+    "RTX and Burn results unchanged"
+  ],
+  "builds": {
+    "native": {
+      "mode": "release",
+      "bytes": 14330148,
+      "sha256": "d6ba8addafc24635a143022ca4f79da9866aa2cb7c1467e75a2afbe88fcd5b99"
+    },
+    "browser_probe": {
+      "mode": "release",
+      "bytes": 2247695,
+      "sha256": "5b4c18fa441dc64df402f5a749ba30bf6abb15bcf1987121e3bd94989450a38d"
+    }
+  },
+  "native_release_build_warning": "linker stderr: corrupt .drectve at end of def file; build succeeded and actual exports passed"
+}

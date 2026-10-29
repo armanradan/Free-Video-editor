@@ -1,0 +1,860 @@
+{
+  "adapter": {
+    "backend": "Vulkan",
+    "device": 9634,
+    "device_type": "DiscreteGpu",
+    "driver": "NVIDIA",
+    "key": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318
+  },
+  "cases": [
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 33572,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 0,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 2,
+      "scale": "Two",
+      "selected": {
+        "height": 72,
+        "width": 128
+      },
+      "selected_us": 100000,
+      "source_index": 2,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 3686400,
+        "inference_readback_bytes": 110592,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 147456,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 33572,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 1,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 2,
+      "scale": "Two",
+      "selected": {
+        "height": 72,
+        "width": 128
+      },
+      "selected_us": 100000,
+      "source_index": 2,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 6451200,
+        "inference_readback_bytes": 110592,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 221184,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 33572,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 2,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 2,
+      "scale": "Two",
+      "selected": {
+        "height": 72,
+        "width": 128
+      },
+      "selected_us": 100000,
+      "source_index": 2,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 9216000,
+        "inference_readback_bytes": 110592,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 294912,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 31564,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 3,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 2,
+      "scale": "Four",
+      "selected": {
+        "height": 144,
+        "width": 256
+      },
+      "selected_us": 100000,
+      "source_index": 2,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 3686400,
+        "inference_readback_bytes": 442368,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 589824,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 31564,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 4,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 2,
+      "scale": "Four",
+      "selected": {
+        "height": 144,
+        "width": 256
+      },
+      "selected_us": 100000,
+      "source_index": 2,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 6451200,
+        "inference_readback_bytes": 442368,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 884736,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 31564,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 5,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 2,
+      "scale": "Four",
+      "selected": {
+        "height": 144,
+        "width": 256
+      },
+      "selected_us": 100000,
+      "source_index": 2,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 9216000,
+        "inference_readback_bytes": 442368,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 1179648,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 9884,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 6,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 0,
+      "scale": "Two",
+      "selected": {
+        "height": 72,
+        "width": 128
+      },
+      "selected_us": 233333,
+      "source_index": 3,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 1843200,
+        "inference_readback_bytes": 36864,
+        "inference_upload_bytes": 9216,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 73728,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 9884,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 7,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 0,
+      "scale": "Two",
+      "selected": {
+        "height": 72,
+        "width": 128
+      },
+      "selected_us": 233333,
+      "source_index": 3,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 4608000,
+        "inference_readback_bytes": 36864,
+        "inference_upload_bytes": 9216,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 147456,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 9884,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 8,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 0,
+      "scale": "Two",
+      "selected": {
+        "height": 72,
+        "width": 128
+      },
+      "selected_us": 233333,
+      "source_index": 3,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 7372800,
+        "inference_readback_bytes": 36864,
+        "inference_upload_bytes": 9216,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 221184,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 34416,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 9,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 0,
+      "scale": "Four",
+      "selected": {
+        "height": 144,
+        "width": 256
+      },
+      "selected_us": 233333,
+      "source_index": 3,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 1843200,
+        "inference_readback_bytes": 147456,
+        "inference_upload_bytes": 9216,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 294912,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 34416,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 10,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 0,
+      "scale": "Four",
+      "selected": {
+        "height": 144,
+        "width": 256
+      },
+      "selected_us": 233333,
+      "source_index": 3,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 4608000,
+        "inference_readback_bytes": 147456,
+        "inference_upload_bytes": 9216,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 589824,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 360,
+        "width": 640
+      },
+      "fixture": "ai-upscale-cut",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 34416,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 11,
+      "input": {
+        "height": 36,
+        "width": 64
+      },
+      "predecessors": 0,
+      "scale": "Four",
+      "selected": {
+        "height": 144,
+        "width": 256
+      },
+      "selected_us": 233333,
+      "source_index": 3,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 7372800,
+        "inference_readback_bytes": 147456,
+        "inference_upload_bytes": 9216,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 884736,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 320,
+        "width": 640
+      },
+      "fixture": "ai-upscale-preview",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 9496,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 12,
+      "input": {
+        "height": 96,
+        "width": 192
+      },
+      "predecessors": 0,
+      "scale": "Two",
+      "selected": {
+        "height": 192,
+        "width": 384
+      },
+      "selected_us": 0,
+      "source_index": 0,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 157193552,
+        "display_readback_bytes": 1638400,
+        "inference_readback_bytes": 294912,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 589824,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 320,
+        "width": 640
+      },
+      "fixture": "ai-upscale-preview",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 9496,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 13,
+      "input": {
+        "height": 96,
+        "width": 192
+      },
+      "predecessors": 0,
+      "scale": "Two",
+      "selected": {
+        "height": 192,
+        "width": 384
+      },
+      "selected_us": 0,
+      "source_index": 0,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 157193552,
+        "display_readback_bytes": 4096000,
+        "inference_readback_bytes": 294912,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 1179648,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 320,
+        "width": 640
+      },
+      "fixture": "ai-upscale-preview",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 9496,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 14,
+      "input": {
+        "height": 96,
+        "width": 192
+      },
+      "predecessors": 0,
+      "scale": "Two",
+      "selected": {
+        "height": 192,
+        "width": 384
+      },
+      "selected_us": 0,
+      "source_index": 0,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 157193552,
+        "display_readback_bytes": 6553600,
+        "inference_readback_bytes": 294912,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 1769472,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 320,
+        "width": 640
+      },
+      "fixture": "ai-upscale-preview",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 2444,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 15,
+      "input": {
+        "height": 96,
+        "width": 192
+      },
+      "predecessors": 0,
+      "scale": "Four",
+      "selected": {
+        "height": 384,
+        "width": 768
+      },
+      "selected_us": 0,
+      "source_index": 0,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 1638400,
+        "inference_readback_bytes": 1179648,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 2359296,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 320,
+        "width": 640
+      },
+      "fixture": "ai-upscale-preview",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 2444,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 16,
+      "input": {
+        "height": 96,
+        "width": 192
+      },
+      "predecessors": 0,
+      "scale": "Four",
+      "selected": {
+        "height": 384,
+        "width": 768
+      },
+      "selected_us": 0,
+      "source_index": 0,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 4096000,
+        "inference_readback_bytes": 1179648,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 4718592,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    },
+    {
+      "display": {
+        "height": 320,
+        "width": 640
+      },
+      "fixture": "ai-upscale-preview",
+      "identity": {
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "cpu_fallback": false,
+        "device_id": 9634,
+        "dxgi_index": 1,
+        "halo": 0,
+        "luid_high": 0,
+        "luid_low": 78108,
+        "model_sha256": "",
+        "pid": 2444,
+        "protocol": 1,
+        "runtime": "RTX Video SDK 1.1.0",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "tile_interior": 0,
+        "vendor_id": 4318
+      },
+      "index": 17,
+      "input": {
+        "height": 96,
+        "width": 192
+      },
+      "predecessors": 0,
+      "scale": "Four",
+      "selected": {
+        "height": 384,
+        "width": 768
+      },
+      "selected_us": 0,
+      "source_index": 0,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 6553600,
+        "inference_readback_bytes": 1179648,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 7077888,
+        "renderer_upload_bytes": 0,
+        "source_frames": 1
+      }
+    }
+  ],
+  "status": "GPU runs completed; independent display pixel comparison required"
+}

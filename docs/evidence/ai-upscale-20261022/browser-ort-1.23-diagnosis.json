@@ -1,0 +1,364 @@
+{
+  "decoded_main_exception": {
+    "status": "failed",
+    "context": "main",
+    "cases": [],
+    "gpu": {
+      "vendor": "intel",
+      "architecture": "gen-12lp",
+      "device": "",
+      "description": ""
+    },
+    "processingLimits": {
+      "maxStorageBufferBindingSize": 134217728,
+      "maxBufferSize": 268435456,
+      "maxStorageBuffersPerShaderStage": 8
+    },
+    "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+    "loadMs": 850.6100000031292,
+    "exactDeviceIdentity": true,
+    "boundary": "session.run GPU input 1x1",
+    "error": "19351728",
+    "cppException": {
+      "address": 19351728,
+      "fields": [
+        {
+          "offset": 0,
+          "pointer": 953972,
+          "text": null
+        },
+        {
+          "offset": 4,
+          "pointer": 19351808,
+          "text": "/mnt/vss/_work/1/s/onnxruntime/core/providers/webgpu/buffer_manager.cc"
+        },
+        {
+          "offset": 8,
+          "pointer": 70,
+          "text": null
+        },
+        {
+          "offset": 12,
+          "pointer": 2147483720,
+          "text": null
+        },
+        {
+          "offset": 16,
+          "pointer": 571,
+          "text": null
+        },
+        {
+          "offset": 20,
+          "pointer": 19089064,
+          "text": "void onnxruntime::webgpu::BufferManager::Download(WGPUBuffer, void *, size_t) const"
+        }
+      ]
+    },
+    "sessionReleased": true,
+    "gpuValidationError": null,
+    "browserVersion": "141.0.7390.37",
+    "selected_logs": [
+      "2026-10-22 20:03:41.434544 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.1/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.434925 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.11/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.435269 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.13/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.435554 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.15/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.435849 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.17/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.436175 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.19/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.436494 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.21/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.436794 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.23/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.437104 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.25/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.437409 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.27/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.437720 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.29/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.438020 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.3/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.438394 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.31/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.438639 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.33/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.438879 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.35/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.439124 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.37/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.440044 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.39/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.440424 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.41/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.440659 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.43/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.440929 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.45/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.441189 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.47/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.441384 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.49/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.441564 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.5/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.441740 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.51/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.441894 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.53/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.442034 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.55/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.442184 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.57/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.442389 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.59/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.442550 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.61/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.442700 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.63/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.442849 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.65/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.442994 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.7/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.443219 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyFromHost after /body.9/PRelu for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.443385 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.0/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.443544 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.10/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.443759 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.12/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.443929 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.14/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.444075 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.16/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.444219 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.18/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.444455 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.2/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.444744 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.20/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.445035 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.22/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.445319 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.24/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.445589 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.26/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.445899 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.28/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.446179 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.30/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.446459 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.32/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.446729 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.34/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.447044 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.36/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.447320 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.38/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.447589 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.4/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.447875 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.40/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.448129 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.42/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.448395 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.44/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.448644 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.46/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.448909 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.48/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.449175 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.50/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.449479 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.52/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.449799 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.54/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.450064 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.56/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.450305 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.58/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.450594 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.6/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.450879 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.60/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.451174 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.62/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.451500 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.64/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.451759 [I:onnxruntime:, transformer_memcpy.cc:340 AddCopyNode] Add MemcpyToHost before /body.8/Conv for WebGpuExecutionProvider",
+      "2026-10-22 20:03:41.460399 [V:onnxruntime:, session_state.cc:1293 VerifyEachNodeIsAssignedToAnEp]  Node(s) placed on [WebGpuExecutionProvider]. Number of nodes: 106",
+      "2026-10-22 20:03:41.485730 [V:onnxruntime:, session_state.cc:1293 VerifyEachNodeIsAssignedToAnEp]  Node(s) placed on [CPUExecutionProvider]. Number of nodes: 33",
+      "2026-10-22 20:03:41.486044 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.1/PRelu)",
+      "2026-10-22 20:03:41.486349 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.3/PRelu)",
+      "2026-10-22 20:03:41.486674 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.5/PRelu)",
+      "2026-10-22 20:03:41.486929 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.7/PRelu)",
+      "2026-10-22 20:03:41.487164 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.9/PRelu)",
+      "2026-10-22 20:03:41.487385 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.11/PRelu)",
+      "2026-10-22 20:03:41.487654 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.13/PRelu)",
+      "2026-10-22 20:03:41.487889 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.15/PRelu)",
+      "2026-10-22 20:03:41.488134 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.17/PRelu)",
+      "2026-10-22 20:03:41.488375 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.19/PRelu)",
+      "2026-10-22 20:03:41.488634 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.21/PRelu)",
+      "2026-10-22 20:03:41.488875 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.23/PRelu)",
+      "2026-10-22 20:03:41.489104 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.25/PRelu)",
+      "2026-10-22 20:03:41.489339 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.27/PRelu)",
+      "2026-10-22 20:03:41.489570 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.29/PRelu)",
+      "2026-10-22 20:03:41.489779 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.31/PRelu)",
+      "2026-10-22 20:03:41.490004 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.33/PRelu)",
+      "2026-10-22 20:03:41.490214 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.35/PRelu)",
+      "2026-10-22 20:03:41.490429 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.37/PRelu)",
+      "2026-10-22 20:03:41.490674 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.39/PRelu)",
+      "2026-10-22 20:03:41.490879 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.41/PRelu)",
+      "2026-10-22 20:03:41.491074 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.43/PRelu)",
+      "2026-10-22 20:03:41.491290 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.45/PRelu)",
+      "2026-10-22 20:03:41.491504 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.47/PRelu)",
+      "2026-10-22 20:03:41.491734 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.49/PRelu)",
+      "2026-10-22 20:03:41.491939 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.51/PRelu)",
+      "2026-10-22 20:03:41.492169 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.53/PRelu)",
+      "2026-10-22 20:03:41.492379 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.55/PRelu)",
+      "2026-10-22 20:03:41.492574 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.57/PRelu)",
+      "2026-10-22 20:03:41.492764 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.59/PRelu)",
+      "2026-10-22 20:03:41.492999 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.61/PRelu)",
+      "2026-10-22 20:03:41.493209 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.63/PRelu)",
+      "2026-10-22 20:03:41.493435 [V:onnxruntime:, session_state.cc:1295 VerifyEachNodeIsAssignedToAnEp]   PRelu (/body.65/PRelu)"
+    ]
+  },
+  "cpu_fallback_disabled": [
+    {
+      "status": "failed",
+      "context": "main",
+      "cases": [],
+      "gpu": {
+        "vendor": "intel",
+        "architecture": "gen-12lp",
+        "device": "",
+        "description": ""
+      },
+      "processingLimits": {
+        "maxStorageBufferBindingSize": 134217728,
+        "maxBufferSize": 268435456,
+        "maxStorageBuffersPerShaderStage": 8
+      },
+      "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+      "error": "Error: Can't create a session. ERROR_CODE: 1, ERROR_MESSAGE: This session contains graph nodes that are assigned to the default CPU EP, but fallback to CPU EP has been explicitly disabled by the user.\n    at S (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:26202)\n    at Ce (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:51352)\n    at async Xe.loadModel (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:63949)\n    at async Ze.createInferenceSessionHandler (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:65658)\n    at async t.create (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:19836)\n    at async probe (eval at evaluate (:290:30), <anonymous>:74:15)\n    at async <anonymous>:316:30",
+      "gpuValidationError": null,
+      "browserVersion": "141.0.7390.37",
+      "selected_logs": [
+        "\u001b[1;31m2026-10-22 20:09:31.356765 [E:onnxruntime:, inference_session.cc:2431 Initialize] This session contains graph nodes that are assigned to the default CPU EP, but fallback to CPU EP has been explicitly disabled by the user.\u001b[m"
+      ]
+    },
+    {
+      "status": "failed",
+      "context": "worker",
+      "cases": [],
+      "gpu": {
+        "vendor": "intel",
+        "architecture": "gen-12lp",
+        "device": "",
+        "description": ""
+      },
+      "processingLimits": {
+        "maxStorageBufferBindingSize": 134217728,
+        "maxBufferSize": 268435456,
+        "maxStorageBuffersPerShaderStage": 8
+      },
+      "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+      "error": "Error: Can't create a session. ERROR_CODE: 1, ERROR_MESSAGE: This session contains graph nodes that are assigned to the default CPU EP, but fallback to CPU EP has been explicitly disabled by the user.\n    at S (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:26202)\n    at Ce (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:51352)\n    at async Xe.loadModel (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:63949)\n    at async Ze.createInferenceSessionHandler (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:65658)\n    at async t.create (http://127.0.0.1:7725/ort/ort.webgpu.min.mjs:6:19836)\n    at async probe (http://127.0.0.1:7725/diagnostic-worker.js:80:15)\n    at async self.onmessage (http://127.0.0.1:7725/diagnostic-worker.js:7:42)",
+      "gpuValidationError": null,
+      "browserVersion": "141.0.7390.37",
+      "selected_logs": [
+        "\u001b[1;31m2026-10-22 20:09:33.256684 [E:onnxruntime:, inference_session.cc:2431 Initialize] This session contains graph nodes that are assigned to the default CPU EP, but fallback to CPU EP has been explicitly disabled by the user.\u001b[m"
+      ]
+    }
+  ],
+  "isolated_operators": [
+    {
+      "status": "diagnostic-complete-not-model-acceptance",
+      "context": "main",
+      "cases": [
+        {
+          "operator": "Conv",
+          "cases": [
+            {
+              "stem": "Conv-1x1",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (eval at evaluate (:290:30), <anonymous>:77:25)\n    at async <anonymous>:316:30"
+            },
+            {
+              "stem": "Conv-17x19",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (eval at evaluate (:290:30), <anonymous>:77:25)\n    at async <anonymous>:316:30"
+            }
+          ],
+          "status": "failed"
+        },
+        {
+          "operator": "PRelu",
+          "cases": [],
+          "status": "failed",
+          "error": "Error: Can't create a session. ERROR_CODE: 1, ERROR_MESSAGE: This session contains graph nodes that are assigned to the default CPU EP, but fallback to CPU EP has been explicitly disabled by the user.\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at Ce (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:51352)\n    at async Xe.loadModel (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:63949)\n    at async Ze.createInferenceSessionHandler (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:65658)\n    at async t.create (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:19836)\n    at async probe (eval at evaluate (:290:30), <anonymous>:64:21)\n    at async <anonymous>:316:30"
+        },
+        {
+          "operator": "DepthToSpace",
+          "cases": [
+            {
+              "stem": "DepthToSpace-1x1",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (eval at evaluate (:290:30), <anonymous>:77:25)\n    at async <anonymous>:316:30"
+            },
+            {
+              "stem": "DepthToSpace-17x19",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (eval at evaluate (:290:30), <anonymous>:77:25)\n    at async <anonymous>:316:30"
+            }
+          ],
+          "status": "failed"
+        },
+        {
+          "operator": "Resize",
+          "cases": [
+            {
+              "stem": "Resize-1x1",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (eval at evaluate (:290:30), <anonymous>:77:25)\n    at async <anonymous>:316:30"
+            },
+            {
+              "stem": "Resize-17x19",
+              "status": "failed",
+              "error": "TypeError: Required member is undefined.\n    at nd (http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.mjs:94:33)\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[4658]:0x70b05c\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[313]:0x431e3\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[2927]:0x3f8fdc\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[11033]:0xeeb11b\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[11426]:0xfa99ba\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[11680]:0xfd9def\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[2257]:0x2d1a1f\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[4679]:0x715903\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[4680]:0x716d9f"
+            }
+          ],
+          "status": "failed"
+        }
+      ],
+      "gpu": {
+        "vendor": "intel",
+        "architecture": "gen-12lp",
+        "device": "",
+        "description": ""
+      },
+      "processingLimits": {
+        "maxStorageBufferBindingSize": 134217728,
+        "maxBufferSize": 268435456,
+        "maxStorageBuffersPerShaderStage": 8
+      },
+      "mode": "isolated-operators-no-cpu-fallback",
+      "deviceRequests": 1,
+      "gpuValidationError": null,
+      "browserVersion": "141.0.7390.37"
+    },
+    {
+      "status": "diagnostic-complete-not-model-acceptance",
+      "context": "worker",
+      "cases": [
+        {
+          "operator": "Conv",
+          "cases": [
+            {
+              "stem": "Conv-1x1",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (http://127.0.0.1:10669/diagnostic-worker.js:83:25)\n    at async self.onmessage (http://127.0.0.1:10669/diagnostic-worker.js:7:42)"
+            },
+            {
+              "stem": "Conv-17x19",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (http://127.0.0.1:10669/diagnostic-worker.js:83:25)\n    at async self.onmessage (http://127.0.0.1:10669/diagnostic-worker.js:7:42)"
+            }
+          ],
+          "status": "failed"
+        },
+        {
+          "operator": "PRelu",
+          "cases": [],
+          "status": "failed",
+          "error": "Error: Can't create a session. ERROR_CODE: 1, ERROR_MESSAGE: This session contains graph nodes that are assigned to the default CPU EP, but fallback to CPU EP has been explicitly disabled by the user.\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at Ce (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:51352)\n    at async Xe.loadModel (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:63949)\n    at async Ze.createInferenceSessionHandler (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:65658)\n    at async t.create (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:19836)\n    at async probe (http://127.0.0.1:10669/diagnostic-worker.js:70:21)\n    at async self.onmessage (http://127.0.0.1:10669/diagnostic-worker.js:7:42)"
+        },
+        {
+          "operator": "DepthToSpace",
+          "cases": [
+            {
+              "stem": "DepthToSpace-1x1",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (http://127.0.0.1:10669/diagnostic-worker.js:83:25)\n    at async self.onmessage (http://127.0.0.1:10669/diagnostic-worker.js:7:42)"
+            },
+            {
+              "stem": "DepthToSpace-17x19",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (http://127.0.0.1:10669/diagnostic-worker.js:83:25)\n    at async self.onmessage (http://127.0.0.1:10669/diagnostic-worker.js:7:42)"
+            }
+          ],
+          "status": "failed"
+        },
+        {
+          "operator": "Resize",
+          "cases": [
+            {
+              "stem": "Resize-1x1",
+              "status": "failed",
+              "error": "Error: failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: Failed to wait for the operation:3\n    at S (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:26202)\n    at _e (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:57042)\n    at async Xe.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:64497)\n    at async t.run (http://127.0.0.1:10669/ort/ort.webgpu.min.mjs:6:18251)\n    at async probe (http://127.0.0.1:10669/diagnostic-worker.js:83:25)\n    at async self.onmessage (http://127.0.0.1:10669/diagnostic-worker.js:7:42)"
+            },
+            {
+              "stem": "Resize-17x19",
+              "status": "failed",
+              "error": "TypeError: Required member is undefined.\n    at nd (http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.mjs:94:33)\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[4658]:0x70b05c\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[313]:0x431e3\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[2927]:0x3f8fdc\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[11033]:0xeeb11b\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[11426]:0xfa99ba\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[11680]:0xfd9def\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[2257]:0x2d1a1f\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[4679]:0x715903\n    at http://127.0.0.1:10669/ort/ort-wasm-simd-threaded.asyncify.wasm:wasm-function[4680]:0x716d9f"
+            }
+          ],
+          "status": "failed"
+        }
+      ],
+      "gpu": {
+        "vendor": "intel",
+        "architecture": "gen-12lp",
+        "device": "",
+        "description": ""
+      },
+      "processingLimits": {
+        "maxStorageBufferBindingSize": 134217728,
+        "maxBufferSize": 268435456,
+        "maxStorageBuffersPerShaderStage": 8
+      },
+      "mode": "isolated-operators-no-cpu-fallback",
+      "deviceRequests": 1,
+      "gpuValidationError": null,
+      "browserVersion": "141.0.7390.37"
+    }
+  ]
+}

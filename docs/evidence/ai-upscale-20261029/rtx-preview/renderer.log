@@ -1,0 +1,11 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+   Compiling converter-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\apps\native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 38.99s
+     Running unittests src\main.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\converter_native-f3ff250108116caa.exe)
+
+running 1 test
+test preview_gpu::worker::tests::actual_ai_renderer_staging_cache_and_invalidation has been running for over 60 seconds
+Native renderer AI evidence: D:\Active_Projects\Rust\Diaxus\Video editor\apps\native\../../tmp/ai-upscale/native-rtx-renderer-19668
+test preview_gpu::worker::tests::actual_ai_renderer_staging_cache_and_invalidation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 82.14s

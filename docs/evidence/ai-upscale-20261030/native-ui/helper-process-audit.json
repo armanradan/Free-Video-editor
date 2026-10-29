@@ -1,0 +1,22 @@
+[
+  {
+    "pid": 22688,
+    "backend": "RTX Video SDK 1.1.0",
+    "process_present": false
+  },
+  {
+    "pid": 32840,
+    "backend": "RTX Video SDK 1.1.0",
+    "process_present": false
+  },
+  {
+    "pid": 11704,
+    "backend": "1.23.0",
+    "process_present": false
+  },
+  {
+    "pid": 31024,
+    "backend": "1.23.0",
+    "process_present": false
+  }
+]

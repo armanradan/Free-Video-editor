@@ -1,0 +1,67 @@
+{
+  "change": "ai-upscale",
+  "task": "1.5",
+  "status": "sdk-feasibility-passed-not-product-accepted",
+  "authorization": "User accepted local SDK evaluation; user installed C++ tools; assistant installed nothing",
+  "toolchain": {
+    "compiler": "MSVC 19.51.36247 x64",
+    "tools": "14.51.36231",
+    "windows_sdk": "10.0.26100.0",
+    "note": "User installed latest toolset, not the originally suggested v143. Actual standalone build/link/runtime pass; no extra toolset was requested."
+  },
+  "device": {
+    "dxgi_index": 1,
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318,
+    "device": 9634,
+    "luid_high": 0,
+    "luid_low": 78108,
+    "driver": "621.01"
+  },
+  "configuration": {
+    "sdk": "1.1.0",
+    "api": "D3D11",
+    "input": "opaque RGBA8 SDR 192x108, two synthetic known patterns",
+    "scales": [
+      2,
+      4
+    ],
+    "qualities": {
+      "enhancement": 3,
+      "sdk_bicubic_baseline": 0
+    },
+    "destination": "GPU-cleared opaque black before every evaluate"
+  },
+  "verified": [
+    "SDK initialization, VSR availability and no requested driver update",
+    "2 patterns x2 scales x2 qualities, nonblack exact-size opaque RGBA8 outputs",
+    "Exact GPU upload/readback ingress equality",
+    "High output differs from SDK Bicubic in RGB and differs between patterns",
+    "Two complete evaluator suites, each with three successful fresh processes and strict output hash repeatability",
+    "Wrong Intel selection and missing-runtime guard failures before initialization",
+    "Actual missing-resource SDK evaluation returns 0xbad00002 (NGX platform error), followed by success cleanup statuses and healthy new-process retry",
+    "Actual runtime module paths and hashes; VSR DLL from explicit supplied SDK root",
+    "release-feature, destroy-parameters and shutdown-device each return 0x00000001"
+  ],
+  "preserved_failures": [
+    "Initial build linked without user32.lib; fixed the missing system import, no ABI bypass",
+    "Initial one Bicubic output repeat varied by up to29 LSB over56 pixels/136 RGB channels, max bbox x349..369 y5..7; High outputs were identical. Cleared destination before evaluate; both complete strict-repeat suites subsequently passed. This does not prove universal determinism or a driver root cause.",
+    "SDK version-zero initialization succeeded, so it was not a valid error-path proof; removed this test mode and preserved original source/binary/log in ignored evaluation storage."
+  ],
+  "transfers_per_successful_process": {
+    "source_cpu_uploads": 4,
+    "source_upload_bytes": 331776,
+    "diagnostic_input_readbacks": 4,
+    "diagnostic_output_readbacks": 8,
+    "diagnostic_total_readback_bytes": 6967296
+  },
+  "limitations": [
+    "No native UI capability enabled",
+    "No real video timestamps/audio/preview/export acceptance",
+    "No SDK sample equivalence gate yet (task5.1)",
+    "No cancellation, timeout, device-loss, memory-envelope or throughput claim",
+    "No proprietary redistribution/release approval",
+    "SDK different model from Real-ESRGAN; High-Bicubic differences are not fidelity improvement proof",
+    "Opaque SDK/driver allocations and internal copies unknown; explicit CPU-staged diagnostic only"
+  ]
+}

@@ -1,0 +1,7 @@
+main.cpp
+D:\Libraries\RTX_Video_SDK_v1.1.0\include\nvsdk_ngx_helpers_vsr.h(35): warning C4100: 'pInVSRCreateParams': unreferenced parameter
+D:\Libraries\RTX_Video_SDK_v1.1.0\include\nvsdk_ngx_helpers_vsr.h(77): warning C4100: 'pInVSRCreateParams': unreferenced parameter
+   Creating library D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-msvc-20261029\probe.lib and object D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-msvc-20261029\probe.exp
+nvsdk_ngx_s.lib(util-log.obj) : error LNK2019: unresolved external symbol __imp_GetWindowThreadProcessId referenced in function "bool __cdecl ngx::util::setLogFilename(wchar_t const *,bool,int,void (__cdecl*)(char const *,enum NVSDK_NGX_Logging_Level,enum NVSDK_NGX_Feature),bool)" (?setLogFilename@util@ngx@@YA_NPEB_W_NHP6AXPEBDW4NVSDK_NGX_Logging_Level@@W4NVSDK_NGX_Feature@@@Z1@Z)
+nvsdk_ngx_s.lib(util-err.obj) : error LNK2019: unresolved external symbol __imp_MessageBoxA referenced in function "void __cdecl ngx::util::DefaultErrorCallback(char const *)" (?DefaultErrorCallback@util@ngx@@YAXPEBD@Z)
+D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-msvc-20261029\probe.exe : fatal error LNK1120: 2 unresolved externals

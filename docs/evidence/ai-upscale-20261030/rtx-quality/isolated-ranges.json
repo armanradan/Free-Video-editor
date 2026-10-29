@@ -1,0 +1,308 @@
+[
+  {
+    "engine": "bilinear",
+    "scale": "2x",
+    "clips": 3,
+    "wall_seconds_range": [
+      1.8064479000022402,
+      2.0599775000009686
+    ],
+    "conversion_total_ms_range": [
+      1298,
+      1524
+    ],
+    "wall_intervals_ms": {
+      "processing_setup_us": [
+        299.697,
+        353.921
+      ],
+      "helper_startup_us": [
+        0.0,
+        0.0
+      ],
+      "decode_pipe_wait_us": [
+        58.325,
+        74.812
+      ],
+      "inference_roundtrip_us": [
+        0.0,
+        0.0
+      ],
+      "postprocess_and_encoder_pipe_us": [
+        223.02,
+        229.318
+      ],
+      "codec_drain_us": [
+        122.951,
+        123.544
+      ],
+      "helper_shutdown_us": [
+        0.0,
+        0.0
+      ]
+    },
+    "helper_sampled_peak_mib": [
+      0.0,
+      0.0
+    ],
+    "admission_bytes_range": [
+      0,
+      0
+    ]
+  },
+  {
+    "engine": "bilinear",
+    "scale": "4x",
+    "clips": 3,
+    "wall_seconds_range": [
+      1.9048628999989887,
+      2.073526899999706
+    ],
+    "conversion_total_ms_range": [
+      1397,
+      1504
+    ],
+    "wall_intervals_ms": {
+      "processing_setup_us": [
+        304.146,
+        317.655
+      ],
+      "helper_startup_us": [
+        0.0,
+        0.0
+      ],
+      "decode_pipe_wait_us": [
+        59.471,
+        69.755
+      ],
+      "inference_roundtrip_us": [
+        0.0,
+        0.0
+      ],
+      "postprocess_and_encoder_pipe_us": [
+        238.526,
+        239.041
+      ],
+      "codec_drain_us": [
+        154.146,
+        154.324
+      ],
+      "helper_shutdown_us": [
+        0.0,
+        0.0
+      ]
+    },
+    "helper_sampled_peak_mib": [
+      0.0,
+      0.0
+    ],
+    "admission_bytes_range": [
+      0,
+      0
+    ]
+  },
+  {
+    "engine": "rtx",
+    "scale": "2x",
+    "clips": 3,
+    "wall_seconds_range": [
+      5.182350499999302,
+      5.872339599998668
+    ],
+    "conversion_total_ms_range": [
+      4642,
+      5303
+    ],
+    "wall_intervals_ms": {
+      "processing_setup_us": [
+        306.946,
+        337.251
+      ],
+      "helper_startup_us": [
+        2992.597,
+        3564.954
+      ],
+      "decode_pipe_wait_us": [
+        70.195,
+        79.11
+      ],
+      "inference_roundtrip_us": [
+        163.534,
+        178.522
+      ],
+      "postprocess_and_encoder_pipe_us": [
+        262.034,
+        283.099
+      ],
+      "codec_drain_us": [
+        102.478,
+        124.02
+      ],
+      "helper_shutdown_us": [
+        82.391,
+        93.624
+      ]
+    },
+    "helper_sampled_peak_mib": [
+      60.8828125,
+      60.8984375
+    ],
+    "admission_bytes_range": [
+      153924944,
+      153924944
+    ]
+  },
+  {
+    "engine": "rtx",
+    "scale": "4x",
+    "clips": 3,
+    "wall_seconds_range": [
+      5.883440400000836,
+      6.192107400001987
+    ],
+    "conversion_total_ms_range": [
+      5351,
+      5617
+    ],
+    "wall_intervals_ms": {
+      "processing_setup_us": [
+        305.009,
+        321.96
+      ],
+      "helper_startup_us": [
+        3274.386,
+        3504.977
+      ],
+      "decode_pipe_wait_us": [
+        71.404,
+        86.279
+      ],
+      "inference_roundtrip_us": [
+        317.781,
+        334.872
+      ],
+      "postprocess_and_encoder_pipe_us": [
+        448.438,
+        475.971
+      ],
+      "codec_drain_us": [
+        133.646,
+        134.152
+      ],
+      "helper_shutdown_us": [
+        82.823,
+        92.472
+      ]
+    },
+    "helper_sampled_peak_mib": [
+      104.8828125,
+      104.8984375
+    ],
+    "admission_bytes_range": [
+      160740688,
+      160740688
+    ]
+  },
+  {
+    "engine": "onnx",
+    "scale": "2x",
+    "clips": 3,
+    "wall_seconds_range": [
+      5.095440100001724,
+      5.613246699998854
+    ],
+    "conversion_total_ms_range": [
+      4541,
+      5025
+    ],
+    "wall_intervals_ms": {
+      "processing_setup_us": [
+        307.156,
+        375.019
+      ],
+      "helper_startup_us": [
+        380.17,
+        500.324
+      ],
+      "decode_pipe_wait_us": [
+        63.958,
+        91.589
+      ],
+      "inference_roundtrip_us": [
+        2829.971,
+        3035.287
+      ],
+      "postprocess_and_encoder_pipe_us": [
+        154.323,
+        158.562
+      ],
+      "codec_drain_us": [
+        101.875,
+        102.677
+      ],
+      "helper_shutdown_us": [
+        92.68,
+        103.16
+      ]
+    },
+    "helper_sampled_peak_mib": [
+      63.953125,
+      63.953125
+    ],
+    "admission_bytes_range": [
+      154662224,
+      154662224
+    ]
+  },
+  {
+    "engine": "onnx",
+    "scale": "4x",
+    "clips": 3,
+    "wall_seconds_range": [
+      5.1379089999973075,
+      5.655717100002221
+    ],
+    "conversion_total_ms_range": [
+      4627,
+      5089
+    ],
+    "wall_intervals_ms": {
+      "processing_setup_us": [
+        300.669,
+        341.717
+      ],
+      "helper_startup_us": [
+        367.316,
+        407.682
+      ],
+      "decode_pipe_wait_us": [
+        64.288,
+        68.904
+      ],
+      "inference_roundtrip_us": [
+        2833.021,
+        3109.632
+      ],
+      "postprocess_and_encoder_pipe_us": [
+        194.573,
+        201.453
+      ],
+      "codec_drain_us": [
+        103.313,
+        123.71
+      ],
+      "helper_shutdown_us": [
+        92.596,
+        103.919
+      ]
+    },
+    "helper_sampled_peak_mib": [
+      63.953125,
+      63.953125
+    ],
+    "admission_bytes_range": [
+      160740688,
+      160740688
+    ]
+  }
+]

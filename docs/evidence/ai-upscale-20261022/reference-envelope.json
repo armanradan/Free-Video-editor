@@ -1,0 +1,71 @@
+{
+  "candidate": "realesr-general-x4v3-strong-fp32-evaluation-v1",
+  "weight_key": "params",
+  "versions": {
+    "torch": "2.8.0+cpu",
+    "onnx": "1.19.0",
+    "numpy": "2.2.6"
+  },
+  "reference_device": "cpu",
+  "precision": "float32",
+  "cases": [
+    {
+      "width": 577,
+      "height": 579,
+      "output_shape": [
+        1,
+        3,
+        2316,
+        2308
+      ],
+      "inference_seconds": 5.331327899999451,
+      "input_sha256": "db950ebf3be9f8dafd2f27e59c684fe332a94e5bdf4a94075cbb3ec9e427e484",
+      "reference_sha256": "e5f607702f2abd3813b3ed616d51581d242f4aed80766bf57aad9d50d344eb53",
+      "unclamped_min": -0.31899744272232056,
+      "unclamped_max": 1.1284265518188477
+    }
+  ],
+  "tiles": [],
+  "onnx": {
+    "sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+    "bytes": 4866413,
+    "opset": [
+      {
+        "domain": "",
+        "version": 17
+      }
+    ],
+    "operators": {
+      "Add": 1,
+      "Constant": 1,
+      "Conv": 34,
+      "DepthToSpace": 1,
+      "PRelu": 33,
+      "Resize": 1
+    },
+    "special_nodes": [
+      {
+        "op": "DepthToSpace",
+        "attributes": {
+          "blocksize": "4",
+          "mode": "b'CRD'"
+        }
+      },
+      {
+        "op": "Resize",
+        "attributes": {
+          "coordinate_transformation_mode": "b'asymmetric'",
+          "cubic_coeff_a": "-0.75",
+          "mode": "b'nearest'",
+          "nearest_mode": "b'floor'"
+        }
+      }
+    ]
+  },
+  "cpu_process_memory": {
+    "rss_bytes": 1111994368,
+    "peak_working_set_bytes": 1144193024,
+    "scope": "Whole CPU diagnostic process including references and export; not GPU memory"
+  },
+  "status": "reference-generated-not-a-runtime-pilot"
+}

@@ -1,0 +1,68 @@
+{
+  "status": "video-pilot-passed-not-release-accepted",
+  "context": "worker",
+  "cases": [
+    {
+      "request": {
+        "fixture": "m35-vfr-offset.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": false
+      },
+      "summary": "PASS: 36 H.264 input frames + 95 decoded audio samples \u2192 1280\u00d7720 MP4/H.264/AAC converted/finalized in 182140.7 ms; 2.027 s; 95 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 32.4 ms; 36-frame timestamp/duration timeline PASS (maximum container quantization 4 \u00b5s); decoded output audio peak=0.1256; total job 182173.2 ms.\nOutput policy: 36 input \u2192 36 output frames; FPS=Original (source PTS preserved); target video bitrate=1000288 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 320\u00d7180, visible 320\u00d7180+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 1280\u00d7720; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/36/0; GPU 0/1/36/0; video encoder callbacks 0/1/36/0; video packet callbacks 0/1/36/0; decoded-audio 0/1/95/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/95/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=32; leases live/peak=0/4; ingress copies=36; canvas captures=36; capture visible/backing=1280\u00d7720 / 1280\u00d7720; CPU submission/bridge=181910.1 ms; cumulative submitted-work completion latency=255.5 ms; slot-reuse wait=0.2 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "m35-vfr-offset-1280x720.mp4",
+      "frameCount": 36,
+      "inputFrameCount": 36,
+      "targetVideoBitrate": 1000288,
+      "duration": 2.026666666666667,
+      "outputBytes": 231983,
+      "aiSourceFrames": 36,
+      "aiAdmissionBytes": 177400704,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 182890.65000000014,
+      "allocation": {
+        "bufferBytes": 1216,
+        "textureBytes": 1843200,
+        "buffers": 38,
+        "textures": 8,
+        "peakBytes": 74583872,
+        "windowPeakBytes": 74583872,
+        "largestBufferBytes": 8388608,
+        "createdBuffers": 777,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    }
+  ],
+  "ortVersion": "1.30.0",
+  "mode": "decoded-video-ai-composition-pilot",
+  "artifacts": [
+    {
+      "name": "video-worker-0.mp4",
+      "bytes": 231983
+    }
+  ],
+  "baseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "boundary": "video 0 m35-vfr-offset.mp4 4x original",
+  "deviceRequests": 1,
+  "gpuValidationError": null,
+  "browserVersion": "155.0.4283.62",
+  "log_summary": {
+    "count": 0,
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "node_placement": []
+  }
+}

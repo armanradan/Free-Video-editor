@@ -1,0 +1,164 @@
+{
+  "cases": [
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 0,
+      "scale": "Two",
+      "selected_us": 100000,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 151207184,
+        "display_readback_bytes": 147456,
+        "inference_readback_bytes": 1327104,
+        "inference_upload_bytes": 82944,
+        "processing_upload_bytes": 589824,
+        "renderer_upload_bytes": 36864,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 1,
+      "scale": "Two",
+      "selected_us": 100000,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 151207184,
+        "display_readback_bytes": 184320,
+        "inference_readback_bytes": 1327104,
+        "inference_upload_bytes": 82944,
+        "processing_upload_bytes": 737280,
+        "renderer_upload_bytes": 36864,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 2,
+      "scale": "Two",
+      "selected_us": 100000,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 151207184,
+        "display_readback_bytes": 221184,
+        "inference_readback_bytes": 1327104,
+        "inference_upload_bytes": 82944,
+        "processing_upload_bytes": 884736,
+        "renderer_upload_bytes": 36864,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 3,
+      "scale": "Four",
+      "selected_us": 100000,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 152509712,
+        "display_readback_bytes": 589824,
+        "inference_readback_bytes": 1327104,
+        "inference_upload_bytes": 82944,
+        "processing_upload_bytes": 589824,
+        "renderer_upload_bytes": 147456,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 4,
+      "scale": "Four",
+      "selected_us": 100000,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 152509712,
+        "display_readback_bytes": 737280,
+        "inference_readback_bytes": 1327104,
+        "inference_upload_bytes": 82944,
+        "processing_upload_bytes": 737280,
+        "renderer_upload_bytes": 147456,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 5,
+      "scale": "Four",
+      "selected_us": 100000,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 152509712,
+        "display_readback_bytes": 884736,
+        "inference_readback_bytes": 1327104,
+        "inference_upload_bytes": 82944,
+        "processing_upload_bytes": 884736,
+        "renderer_upload_bytes": 147456,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-preview",
+      "index": 6,
+      "scale": "Four",
+      "selected_us": 0,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 1638400,
+        "inference_readback_bytes": 4792320,
+        "inference_upload_bytes": 299520,
+        "processing_upload_bytes": 2359296,
+        "renderer_upload_bytes": 819200,
+        "source_frames": 1
+      }
+    },
+    {
+      "fixture": "ai-upscale-preview",
+      "index": 7,
+      "scale": "Four",
+      "selected_us": 0,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 2457600,
+        "inference_readback_bytes": 4792320,
+        "inference_upload_bytes": 299520,
+        "processing_upload_bytes": 3538944,
+        "renderer_upload_bytes": 819200,
+        "source_frames": 1
+      }
+    },
+    {
+      "fixture": "ai-upscale-preview",
+      "index": 8,
+      "scale": "Four",
+      "selected_us": 0,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 3276800,
+        "inference_readback_bytes": 4792320,
+        "inference_upload_bytes": 299520,
+        "processing_upload_bytes": 4718592,
+        "renderer_upload_bytes": 819200,
+        "source_frames": 1
+      }
+    }
+  ],
+  "device_loss": "renderer device lost; preview retired: native conversion cancelled",
+  "fresh_generation": 43,
+  "invalidation": "replacement published at correct geometry; worker joined",
+  "processing": {
+    "backend": "Vulkan",
+    "device": 9634,
+    "device_type": "DiscreteGpu",
+    "driver": "NVIDIA",
+    "key": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318
+  },
+  "renderer": "AdapterInfo { name: \"Intel(R) UHD Graphics\", vendor: 32902, device: 39528, device_type: IntegratedGpu, driver: \"Intel Corporation\", driver_info: \"Intel driver\", backend: Vulkan }",
+  "status": "renderer GPU runs completed; independent pixels required",
+  "pixel_validation": "native-ai-preview-pixels.json",
+  "independent_pixel_status": "passed"
+}

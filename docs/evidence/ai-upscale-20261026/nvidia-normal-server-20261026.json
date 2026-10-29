@@ -1,0 +1,9 @@
+{
+  "status": "Ready. Output resolves to 384×160. Supported profiles: MP4/H.264/AAC.",
+  "launch": "headed persistent dedicated profile, no unsafe WebGPU flag",
+  "assets": "Explicit UI import/acquire using existing hash-pinned local evaluation assets; no new network downloads",
+  "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)",
+  "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+  "isolated": true,
+  "modelRuntime": "ONNX Runtime Web 1.30.0 verified and cached."
+}

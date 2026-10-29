@@ -1,0 +1,103 @@
+{
+  "scope": "OffscreenCanvas Rust processing-device probe; not UI/video acceptance",
+  "trials": [
+    {
+      "status": "failed",
+      "context": "main",
+      "cases": [],
+      "error": "WebGPU device request failed: JsValue(OperationError: Failed to execute 'requestDevice' on 'GPUAdapter': DynamicLib.Open: dxil.dll Windows Error: 87\n    at EnsureDXCLibraries (..\\..\\third_party\\dawn\\src\\dawn\\native\\d3d12\\PlatformFunctionsD3D12.cpp:129)\n\nOperationError: Failed to execute 'requestDevice' on 'GPUAdapter': DynamicLib.Open: dxil.dll Windows Error: 87\n    at EnsureDXCLibraries (..\\..\\third_party\\dawn\\src\\dawn\\native\\d3d12\\PlatformFunctionsD3D12.cpp:129)\n)",
+      "browserVersion": "141.0.7390.37",
+      "diagnostic_flags": [
+        "--enable-unsafe-webgpu",
+        "--use-angle=d3d11"
+      ],
+      "selected_logs": [
+        "Device failed at creation."
+      ],
+      "full_logs_location": "tmp/ai-upscale/browser-full-chromium-preflight/main.json (ignored local storage)"
+    },
+    {
+      "status": "failed",
+      "context": "worker",
+      "cases": [],
+      "error": "WebGPU device request failed: JsValue(OperationError: Failed to execute 'requestDevice' on 'GPUAdapter': DynamicLib.Open: dxil.dll Windows Error: 87\n    at EnsureDXCLibraries (..\\..\\third_party\\dawn\\src\\dawn\\native\\d3d12\\PlatformFunctionsD3D12.cpp:129)\n\nOperationError: Failed to execute 'requestDevice' on 'GPUAdapter': DynamicLib.Open: dxil.dll Windows Error: 87\n    at EnsureDXCLibraries (..\\..\\third_party\\dawn\\src\\dawn\\native\\d3d12\\PlatformFunctionsD3D12.cpp:129)\n)",
+      "browserVersion": "141.0.7390.37",
+      "diagnostic_flags": [
+        "--enable-unsafe-webgpu",
+        "--use-angle=d3d11"
+      ],
+      "selected_logs": [],
+      "full_logs_location": "tmp/ai-upscale/browser-full-chromium-preflight/worker.json (ignored local storage)"
+    },
+    {
+      "status": "failed",
+      "context": "main",
+      "cases": [],
+      "gpu": {
+        "vendor": "intel",
+        "architecture": "gen-12lp",
+        "device": "",
+        "description": ""
+      },
+      "processingLimits": {
+        "maxStorageBufferBindingSize": 134217728,
+        "maxBufferSize": 268435456,
+        "maxStorageBuffersPerShaderStage": 8
+      },
+      "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+      "loadMs": 1151.464999999851,
+      "exactDeviceIdentity": true,
+      "boundary": "session.run GPU input 1x1",
+      "error": "19351728",
+      "sessionReleased": true,
+      "gpuValidationError": null,
+      "browserVersion": "141.0.7390.37",
+      "diagnostic_flags": [
+        "--enable-unsafe-webgpu",
+        "--use-angle=d3d11",
+        "--disable-dawn-features=use_dxc"
+      ],
+      "input_allocation": "round logical byte length up to 16; tensor dimensions and data unchanged",
+      "selected_logs": [
+        "2026-10-22 19:18:08.717700 [V:onnxruntime:Default, webgpu_provider_factory.cc:167 Create] WebGPU EP Device ID: 1",
+        "\u001b[0;93m2026-10-22 19:18:09.178860 [W:onnxruntime:, session_state.cc:1307 VerifyEachNodeIsAssignedToAnEp] Some nodes were not assigned to the preferred execution providers which may or may not have an negative impact on performance. e.g. ORT explicitly assigns shape related ops to CPU to improve perf.\u001b[m"
+      ],
+      "full_logs_location": "tmp/ai-upscale/browser-validation/main.json (ignored local storage)"
+    },
+    {
+      "status": "failed",
+      "context": "worker",
+      "cases": [],
+      "gpu": {
+        "vendor": "intel",
+        "architecture": "gen-12lp",
+        "device": "",
+        "description": ""
+      },
+      "processingLimits": {
+        "maxStorageBufferBindingSize": 134217728,
+        "maxBufferSize": 268435456,
+        "maxStorageBuffersPerShaderStage": 8
+      },
+      "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+      "loadMs": 985.820000000298,
+      "exactDeviceIdentity": true,
+      "boundary": "session.run GPU input 1x1",
+      "error": "19351728",
+      "sessionReleased": true,
+      "gpuValidationError": null,
+      "browserVersion": "141.0.7390.37",
+      "diagnostic_flags": [
+        "--enable-unsafe-webgpu",
+        "--use-angle=d3d11",
+        "--disable-dawn-features=use_dxc"
+      ],
+      "input_allocation": "round logical byte length up to 16; tensor dimensions and data unchanged",
+      "selected_logs": [
+        "2026-10-22 19:18:11.513298 [V:onnxruntime:Default, webgpu_provider_factory.cc:167 Create] WebGPU EP Device ID: 1",
+        "\u001b[0;93m2026-10-22 19:18:11.888043 [W:onnxruntime:, session_state.cc:1307 VerifyEachNodeIsAssignedToAnEp] Some nodes were not assigned to the preferred execution providers which may or may not have an negative impact on performance. e.g. ORT explicitly assigns shape related ops to CPU to improve perf.\u001b[m"
+      ],
+      "full_logs_location": "tmp/ai-upscale/browser-validation/worker.json (ignored local storage)"
+    }
+  ]
+}

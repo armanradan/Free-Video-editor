@@ -1,0 +1,10 @@
+{
+  "crates/media-native/src/rtx_tests.rs": "77d737c06a606391843b3ac916201214adfdf0b574c592fc7cf1458a5c3bff00",
+  "crates/media-native/src/rtx_inference.rs": "c13acd990da8b19de446b2f7fc20ea11b96705f5ea447d4cba3bfe497e744c34",
+  "crates/media-native/src/ai_inference.rs": "3afd7879bffe1ca1967b454df5716012c4e17f51ae7948f652aafeb2329065e7",
+  "crates/media-native/src/ai_video_tests.rs": "9f59f53426f5c1ad536ece6e2179dc05c17b419072bf2b8f633a1bab506ce0e9",
+  "crates/media-native/src/lib.rs": "1f8272df013d8c2102af36fb22ea7f48ddb84cb2d36ca7e4c3da8697e2be4628",
+  "tools/ai-upscale/native-rtx-helper/main.cpp": "667387c76c9609b6cafbb514224be6fb7ad4339fc933776b516c534f3546760f",
+  "tools/ai-upscale/native-rtx-helper/build.ps1": "8fefb1a2dc66dfff0872d150d9716ba16321813aba098c0854ad4d0e12fc3467",
+  "tools/ai-upscale/native_video.py": "d1509500629a2559bb6b50738757a175899c26dfdbe2998b0f45a713e3f92352"
+}

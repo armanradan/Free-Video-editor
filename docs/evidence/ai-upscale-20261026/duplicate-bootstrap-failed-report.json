@@ -1,0 +1,13 @@
+{
+  "status": "failed",
+  "scope": "Ordinary UI and backend commands; optional engine acceptance build; no diagnostic command substitution",
+  "contexts": [],
+  "launch": {
+    "headless": false,
+    "extraArgs": [
+      "--force-high-performance-gpu"
+    ]
+  },
+  "browser": "156.0.4314.42",
+  "error": "AssertionError [ERR_ASSERTION]: {\"s\":{\"status\":\"Ready. Select an MP4 with H.264 or H.265 video.\",\"preview\":\"Select an input for paused source preview.\",\"position\":0,\"play\":\"Play\",\"size\":\"Output: 192×80 (codec-safe)\",\"estimate\":\"Select a source for adaptive bitrate and estimated output size.\",\"gpu\":\"Selected GPU: determined when processing starts.\"},\"logs\":[]}"
+}

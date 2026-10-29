@@ -1,0 +1,33 @@
+{
+  "license": "CC0-1.0",
+  "provenance": "Local derivative of checked-in original synthetic CC0 fixture; no downloaded media",
+  "parent": "fixtures\\ai-upscale-vfr.mp4",
+  "parent_manifest": "fixtures/ai-upscale-vfr.json",
+  "parent_sha256": "ae7d68d6712228338323cac02584037e5ff1eff19f7549953f5ed9f784c3b5ec",
+  "fixture": "tmp\\ai-upscale\\rtx-active-lifecycle-8516\\pipe-fixture.mp4",
+  "bytes": 8733,
+  "sha256": "61bc9989b469e67a9629837defe40a6ae33c3db4cfcaf83129fbde5dc76eb5ca",
+  "generator": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "argv": [
+    "ffmpeg",
+    "-v",
+    "error",
+    "-n",
+    "-copyts",
+    "-i",
+    "fixtures\\ai-upscale-vfr.mp4",
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0",
+    "-vf",
+    "scale=192:108:flags=neighbor",
+    "-fps_mode",
+    "passthrough",
+    "-c:v",
+    "libx264",
+    "-c:a",
+    "copy",
+    "tmp\\ai-upscale\\rtx-active-lifecycle-8516\\pipe-fixture.mp4"
+  ]
+}

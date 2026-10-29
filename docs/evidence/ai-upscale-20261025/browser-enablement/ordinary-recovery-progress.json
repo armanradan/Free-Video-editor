@@ -1,0 +1,23 @@
+{
+  "mode": "worker",
+  "theme": "dark",
+  "state": {
+    "status": "Ready. Output resolves to 320×180. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+    "preview": "Loading this input's source preview…",
+    "position": 0,
+    "play": "Play",
+    "size": "Output: 320×180 (codec-safe)",
+    "estimate": "0.50 Mbps video · Estimated ~0.2 MB (VBR may differ)",
+    "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+  },
+  "logs": [
+    "AI UI session create started",
+    "AI UI session create finished",
+    "AI UI session create started",
+    "AI UI session create finished",
+    "AI UI session create started",
+    "AI UI session create finished",
+    "AI UI session create started",
+    "AI UI session create finished"
+  ]
+}

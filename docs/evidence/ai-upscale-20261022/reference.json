@@ -1,0 +1,264 @@
+{
+  "candidate": "realesr-general-x4v3-strong-fp32-evaluation-v1",
+  "weight_key": "params",
+  "versions": {
+    "torch": "2.8.0+cpu",
+    "onnx": "1.19.0",
+    "numpy": "2.2.6"
+  },
+  "reference_device": "cpu",
+  "precision": "float32",
+  "cases": [
+    {
+      "width": 1,
+      "height": 1,
+      "output_shape": [
+        1,
+        3,
+        4,
+        4
+      ],
+      "inference_seconds": 0.004554700000880985,
+      "input_sha256": "314c107a456ef236f17cf1b27f97bffa81357da8abd463d707422da0dcb1cf2d",
+      "reference_sha256": "7fa8f98041f71c2d952c0067aeea4f1651e5607e8c77fa7ea351df6a6f0505b8",
+      "unclamped_min": -0.02357957325875759,
+      "unclamped_max": 0.1007387712597847
+    },
+    {
+      "width": 3,
+      "height": 5,
+      "output_shape": [
+        1,
+        3,
+        20,
+        12
+      ],
+      "inference_seconds": 0.004931499999656808,
+      "input_sha256": "672481841eba83d9678be3b82a2c4ef8226b2678a47e39a79c5a21f2e0d46a17",
+      "reference_sha256": "340c2d75492329fdb816c6ce117346b48c893b03af48545404ed20faab760d0b",
+      "unclamped_min": -0.051041025668382645,
+      "unclamped_max": 0.29944750666618347
+    },
+    {
+      "width": 17,
+      "height": 19,
+      "output_shape": [
+        1,
+        3,
+        76,
+        68
+      ],
+      "inference_seconds": 0.021074399999633897,
+      "input_sha256": "834e05eb2b9b2730fb4a74c29bc4fd50ba5c7038db106d05010dab0d95456d77",
+      "reference_sha256": "fab6b5f3373db50e1072ac2758eab1e82b56f7a7f5cc0a441980160dcafb9b6e",
+      "unclamped_min": -0.2908245921134949,
+      "unclamped_max": 1.1715245246887207
+    },
+    {
+      "width": 33,
+      "height": 31,
+      "output_shape": [
+        1,
+        3,
+        124,
+        132
+      ],
+      "inference_seconds": 0.02006999999866821,
+      "input_sha256": "ed414cc77abcd24f37242000a64e85ed40de7b3a1fbf13eb4afe0391dfaddb7d",
+      "reference_sha256": "90660e1c441e1e0df3b7fbb56a89243510d40ad6097b813eab458100ef78b3f0",
+      "unclamped_min": -0.25467732548713684,
+      "unclamped_max": 1.1759222745895386
+    },
+    {
+      "width": 257,
+      "height": 259,
+      "output_shape": [
+        1,
+        3,
+        1036,
+        1028
+      ],
+      "inference_seconds": 2.427700600001117,
+      "input_sha256": "0fba53821a7c139dd6bd52a67f52a3e9ce533981e3930815c07043938e810d0f",
+      "reference_sha256": "35a9461bd8ba90e89c4b96b20c75f53c089603491752b9cd68fd7c1d067d2295",
+      "unclamped_min": -0.22363847494125366,
+      "unclamped_max": 1.106770396232605
+    }
+  ],
+  "tiles": [
+    {
+      "interior": 128,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 9,
+      "seconds": 4.64723210000011,
+      "numeric": {
+        "max_abs": 7.748603820800781e-07,
+        "mae": 1.7683281505753712e-09,
+        "p99": 5.960464477539063e-08
+      },
+      "edges": {
+        "max_abs": 6.556510925292969e-07,
+        "mae": 5.122184632000426e-08,
+        "p99": 3.3527612686157227e-07
+      },
+      "seams": {
+        "max_abs": 7.748603820800781e-07,
+        "mae": 3.5292632816208425e-08,
+        "p99": 3.5762786865234375e-07
+      },
+      "interior_pixels": {
+        "max_abs": 6.556510925292969e-07,
+        "mae": 4.66650440511529e-10,
+        "p99": 0.0
+      },
+      "order_difference": null,
+      "tile_size_difference": null
+    },
+    {
+      "interior": 128,
+      "halo": 34,
+      "reverse": true,
+      "tiles": 9,
+      "seconds": 2.7850614999988466,
+      "numeric": {
+        "max_abs": 7.748603820800781e-07,
+        "mae": 1.7683281505753712e-09,
+        "p99": 5.960464477539063e-08
+      },
+      "edges": {
+        "max_abs": 6.556510925292969e-07,
+        "mae": 5.122184632000426e-08,
+        "p99": 3.3527612686157227e-07
+      },
+      "seams": {
+        "max_abs": 7.748603820800781e-07,
+        "mae": 3.5292632816208425e-08,
+        "p99": 3.5762786865234375e-07
+      },
+      "interior_pixels": {
+        "max_abs": 6.556510925292969e-07,
+        "mae": 4.66650440511529e-10,
+        "p99": 0.0
+      },
+      "order_difference": {
+        "max_abs": 0.0,
+        "mae": 0.0,
+        "p99": 0.0
+      },
+      "tile_size_difference": null
+    },
+    {
+      "interior": 256,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 4,
+      "seconds": 1.5283449000016844,
+      "numeric": {
+        "max_abs": 2.5704503059387207e-07,
+        "mae": 2.878114847143509e-12,
+        "p99": 0.0
+      },
+      "edges": {
+        "max_abs": 2.5704503059387207e-07,
+        "mae": 1.8635794296617547e-10,
+        "p99": 0.0
+      },
+      "seams": {
+        "max_abs": 2.5704503059387207e-07,
+        "mae": 2.128769660547647e-10,
+        "p99": 0.0
+      },
+      "interior_pixels": {
+        "max_abs": 0.0,
+        "mae": 0.0,
+        "p99": 0.0
+      },
+      "order_difference": null,
+      "tile_size_difference": {
+        "max_abs": 7.748603820800781e-07,
+        "mae": 1.7654498973840305e-09,
+        "p99": 5.960464477539063e-08
+      }
+    },
+    {
+      "interior": 256,
+      "halo": 34,
+      "reverse": true,
+      "tiles": 4,
+      "seconds": 3.6524677999987034,
+      "numeric": {
+        "max_abs": 2.5704503059387207e-07,
+        "mae": 2.878114847143509e-12,
+        "p99": 0.0
+      },
+      "edges": {
+        "max_abs": 2.5704503059387207e-07,
+        "mae": 1.8635794296617547e-10,
+        "p99": 0.0
+      },
+      "seams": {
+        "max_abs": 2.5704503059387207e-07,
+        "mae": 2.128769660547647e-10,
+        "p99": 0.0
+      },
+      "interior_pixels": {
+        "max_abs": 0.0,
+        "mae": 0.0,
+        "p99": 0.0
+      },
+      "order_difference": {
+        "max_abs": 0.0,
+        "mae": 0.0,
+        "p99": 0.0
+      },
+      "tile_size_difference": {
+        "max_abs": 7.748603820800781e-07,
+        "mae": 1.7654498973840305e-09,
+        "p99": 5.960464477539063e-08
+      }
+    }
+  ],
+  "onnx": {
+    "sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+    "bytes": 4866413,
+    "opset": [
+      {
+        "domain": "",
+        "version": 17
+      }
+    ],
+    "operators": {
+      "Add": 1,
+      "Constant": 1,
+      "Conv": 34,
+      "DepthToSpace": 1,
+      "PRelu": 33,
+      "Resize": 1
+    },
+    "special_nodes": [
+      {
+        "op": "DepthToSpace",
+        "attributes": {
+          "blocksize": "4",
+          "mode": "b'CRD'"
+        }
+      },
+      {
+        "op": "Resize",
+        "attributes": {
+          "coordinate_transformation_mode": "b'asymmetric'",
+          "cubic_coeff_a": "-0.75",
+          "mode": "b'nearest'",
+          "nearest_mode": "b'floor'"
+        }
+      }
+    ]
+  },
+  "cpu_process_memory": {
+    "rss_bytes": 396992512,
+    "peak_working_set_bytes": 432922624,
+    "scope": "Whole CPU diagnostic process including references and export; not GPU memory"
+  },
+  "status": "reference-generated-not-a-runtime-pilot"
+}

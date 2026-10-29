@@ -1,0 +1,9 @@
+native pipeline failed: decoder=exit code: 0, encoder=exit code: 0xffffffea; decoder: ; encoder: [h264_nvenc @ 0000024a94ca07c0] InitializeEncoder failed: invalid param (8): Frame Dimension less than the minimum supported value.
+[vost#0:0/h264_nvenc @ 0000024a94ca0440] [enc:h264_nvenc @ 0000024a840b3080] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vf#0:0 @ 0000024a94de1040] Error sending frames to consumers: Invalid argument
+[vf#0:0 @ 0000024a94de1040] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 0000024a94de1040] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/h264_nvenc @ 0000024a94ca0440] [enc:h264_nvenc @ 0000024a840b3080] Could not open encoder before EOF
+[vost#0:0/h264_nvenc @ 0000024a94ca0440] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/h264_nvenc @ 0000024a94ca0440] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp4 @ 0000024a8404b2c0] Nothing was written into output file, because at least one of its streams received no packets.. No implicit CPU codec fallback.

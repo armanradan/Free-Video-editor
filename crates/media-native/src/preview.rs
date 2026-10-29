@@ -46,7 +46,10 @@ pub fn probe_info(path: &Path, cancel: &CancellationToken) -> NativeResult<Previ
     })
 }
 
-fn probe_metadata(path: &Path, cancel: &CancellationToken) -> NativeResult<serde_json::Value> {
+pub(crate) fn probe_metadata(
+    path: &Path,
+    cancel: &CancellationToken,
+) -> NativeResult<serde_json::Value> {
     cancel.check()?;
     if !path.is_file() {
         return Err("preview input is not a file".into());
@@ -57,7 +60,7 @@ fn probe_metadata(path: &Path, cancel: &CancellationToken) -> NativeResult<serde
             "-v",
             "error",
             "-show_entries",
-            "format=duration:stream=codec_type,width,height,start_pts,time_base,sample_aspect_ratio,color_space,color_transfer,color_primaries,color_range:stream_side_data=rotation",
+            "format=duration:stream=codec_type,codec_name,pix_fmt,width,height,start_pts,time_base,sample_aspect_ratio,color_space,color_transfer,color_primaries,color_range:stream_side_data=rotation",
             "-of",
             "json",
         ])

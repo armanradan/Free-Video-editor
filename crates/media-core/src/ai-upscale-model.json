@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "realesr-general-x4v3-strong-fp32-v1",
+  "availability": "numerical-pilot-not-release-accepted",
+  "acquisition": "explicit-local-file-import",
+  "model": {
+    "filename": "model.onnx",
+    "bytes": 4866413,
+    "sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+    "license": "BSD-3-Clause",
+    "license_url": "https://raw.githubusercontent.com/xinntao/Real-ESRGAN/a4abfb2979a7bbff3f69f58f58ae324608821e27/LICENSE",
+    "official_weights_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth",
+    "upstream_commit": "a4abfb2979a7bbff3f69f58f58ae324608821e27",
+    "export_recipe": "tools/ai-upscale/reference.py",
+    "internal_scale": 4,
+    "normalization": "opaque encoded-sRGB RGB/255 FP32 NCHW; unclamped output",
+    "denoise_strength": 1
+  },
+  "browser_runtime": {
+    "package": "onnxruntime-web",
+    "version": "1.30.0",
+    "assets": [
+      {
+        "filename": "ort.webgpu.min.mjs",
+        "bytes": 66349,
+        "sha256": "3dffff71811bc13a3a3d9591c57ca5ee5735b8f5f3eaf789510b02bb040ae3a0",
+        "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs"
+      },
+      {
+        "filename": "ort-wasm-simd-threaded.asyncify.mjs",
+        "bytes": 53057,
+        "sha256": "3d1c85995364bb643302fc6fd877a0c3ba5ae72401815e0f24828a53d9191e28",
+        "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.asyncify.mjs"
+      },
+      {
+        "filename": "ort-wasm-simd-threaded.asyncify.wasm",
+        "bytes": 26781914,
+        "sha256": "39f9f0894d478800487ed9f7dbe92618498db320cf55c8e3d89adff8dce658da",
+        "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.asyncify.wasm"
+      }
+    ],
+    "license": "MIT",
+    "package_source": "https://www.npmjs.com/package/onnxruntime-web/v/1.30.0"
+  },
+  "native_runtime": {
+    "package": "onnxruntime-directml",
+    "version": "1.23.0",
+    "automatic_install": false
+  },
+  "tile_pilot": {
+    "interior": 128,
+    "clipped_source_halo": 34,
+    "in_flight_tiles": 1,
+    "in_flight_frames": 1,
+    "max_source_width": 577,
+    "max_source_height": 579,
+    "browser_memory_admission": {
+      "budget_bytes": 402653184,
+      "weights_allowance_bytes": 8388608,
+      "workspace_estimate_bytes": 134217728,
+      "scope": "Application tile/source/output/uniform reservations plus caller-supplied downstream and retained-frame bytes. Runtime workspace is an estimate; opaque driver allocations are not strictly capped."
+    }
+  },
+  "limitations": "Pilot envelope only. Browser WebCodecs and fixed-FPS FFmpeg WASM plus native shared-wgpu/software-codec routes have tiny 2x/4x video evidence; 2x is x4-then-shared-downscale. Native NVDEC/NVENC fails its Original-VFR timing gate and remains unavailable. Preview, full lifecycle/quality acceptance and product exposure remain gated. No network acquisition of model graphs or source media uploads."
+}

@@ -1,0 +1,6 @@
+
+running 1 test
+Native renderer AI evidence: D:\Active_Projects\Rust\Diaxus\Video editor\apps\native\../../tmp/ai-upscale/native-ai-renderer-11516
+test preview_gpu::worker::tests::actual_ai_renderer_staging_cache_and_invalidation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 8.74s

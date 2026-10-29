@@ -1,0 +1,28 @@
+{
+  "status": "failed",
+  "context": "main",
+  "cases": [],
+  "ortVersion": "1.30.0",
+  "gpu": {
+    "vendor": "intel",
+    "architecture": "gen-12lp",
+    "device": "",
+    "description": ""
+  },
+  "processingLimits": {
+    "maxStorageBufferBindingSize": 134217728,
+    "maxBufferSize": 268435456,
+    "maxStorageBuffersPerShaderStage": 8
+  },
+  "modelAcquisition": "Imported and verified offline AI model cache; inference remains gated",
+  "runtimeAcquisition": "Verified optional AI runtime cache; runtime is not loaded",
+  "verifiedBlobRuntime": true,
+  "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "loadMs": 1006.1199999973178,
+  "exactDeviceIdentity": true,
+  "boundary": "session.run GPU input 1x1",
+  "error": "Error: The current tensor is not created with a specified data downloader.\n    at _.getData (blob:http://127.0.0.1:12327/dfa45679-4972-4a2d-ab16-1b83dd36fb83:6:15086)\n    at probe (eval at evaluate (:290:30), <anonymous>:169:37)\n    at async <anonymous>:316:30",
+  "sessionReleased": true,
+  "gpuValidationError": null,
+  "browserVersion": "141.0.7390.37"
+}

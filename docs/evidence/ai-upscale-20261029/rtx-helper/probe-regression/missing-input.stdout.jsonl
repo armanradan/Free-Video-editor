@@ -1,0 +1,12 @@
+{"stage":"adapter","dxgi_index":1,"name":"NVIDIA GeForce RTX 3050 Laptop GPU","vendor":4318,"device":9634,"luid_high":0,"luid_low":78108}
+{"stage":"initialize","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"capabilities","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"vsr-available-query","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"vsr-capability","available":1,"needs_update":0,"update_query":"0x00000001","feature_init_query":"0x00000001","feature_init_result":"0x00000001"}
+{"stage":"scratch-size","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"create-vsr","ngx_result":"0x00000001","meaning":"success"}
+{"stage":"evaluate-missing-resources","ngx_result":"0xbad00002","meaning":"platform-error"}
+{"stage":"release-feature","ngx_result":"0x00000001"}
+{"stage":"destroy-parameters","ngx_result":"0x00000001"}
+{"stage":"shutdown-device","ngx_result":"0x00000001"}
+{"status":"failed","error":"evaluate-missing-resources: NGX 0xbad00002"}

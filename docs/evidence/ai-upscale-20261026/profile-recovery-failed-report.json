@@ -1,0 +1,13 @@
+{
+  "status": "failed",
+  "scope": "Ordinary UI and backend commands; optional engine acceptance build; no diagnostic command substitution",
+  "contexts": [],
+  "launch": {
+    "headless": false,
+    "extraArgs": [
+      "--force-high-performance-gpu"
+    ]
+  },
+  "browser": "156.0.4314.42",
+  "error": "TimeoutError: locator.selectOption: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#output-profile')\u001b[22m\n\u001b[2m    - locator resolved to <select disabled=\"true\" id=\"output-profile\" data-dioxus-id=\"38\">…</select>\u001b[22m\n\u001b[2m  - attempting select option action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible and enabled\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying select option action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible and enabled\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying select option action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    59 × waiting for element to be visible and enabled\u001b[22m\n\u001b[2m       - element is not enabled\u001b[22m\n\u001b[2m     - retrying select option action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n"
+}

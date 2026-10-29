@@ -1,0 +1,15 @@
+
+running 4 tests
+test ai_video_tests::ai_nvidia_codec_route_reports_failed_timing_gate_before_inspection ... ok
+test ai_video_tests::ai_pilot_direct_routes_reject_before_inspection ... ok
+test ai_video_tests::ai_packet_endpoint_preserves_b_frame_presentation_tail ... ok
+native AI selected postscale x4/1 + manual controls: max 1 LSB
+native AI selected postscale x4/2 + manual controls: max 1 LSB
+native AI cancel: no published or partial file; native conversion cancelled
+native AI loss: no published or partial file; shared pipeline failed: native GPU device lost (Destroyed): ; decoder: ; encoder: . No implicit CPU codec fallback.
+native AI helper-crash: no published or partial file; shared pipeline failed: ONNX helper failed: failed to fill whole buffer; ; decoder: ; encoder: . No implicit CPU codec fallback.
+native AI budget: no published or partial file; AI upscaling unavailable: AI memory admission requires 152067344 bytes, budget is 1; reduce geometry or downstream retention
+native AI video cancel, actual device destruction and helper crash after one processed frame, and preallocation budget rejection: unpublished partials removed; fresh generation 14 retry passed: D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native\../../tmp/ai-upscale/native-ai-lifecycle-24208
+test ai_video_tests::actual_ai_video_pixels_cancel_device_loss_and_retry ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 51 filtered out; finished in 10.26s

@@ -1,0 +1,9 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.23s
+     Running unittests src\main.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\converter_native-f3ff250108116caa.exe)
+
+running 1 test
+Native renderer AI evidence: D:\Active_Projects\Rust\Diaxus\Video editor\apps\native\../../tmp/ai-upscale/native-onnx-renderer-39628
+test preview_gpu::worker::tests::actual_ai_renderer_staging_cache_and_invalidation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 22.04s

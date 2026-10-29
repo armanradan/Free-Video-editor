@@ -1,0 +1,662 @@
+{
+  "status": "exact-codec-probe-passed-not-ai-acceptance",
+  "context": "worker",
+  "cases": [
+    {
+      "fps": "original",
+      "scale": "off",
+      "width": 320,
+      "height": 180,
+      "options": {
+        "colorAdjustments": "brightness=0, contrast=100%, saturation=100% (encoded RGB)",
+        "avc": 503098,
+        "hevc": 352169,
+        "vp8": 503098,
+        "fpsNumerator": 0,
+        "fpsDenominator": 1,
+        "frameRate": 30
+      },
+      "capabilities": {
+        "mp4Supported": true,
+        "mp4Reason": "Supported for the selected input and exact output configuration.",
+        "hevcSupported": false,
+        "hevcReason": "HEVC encoding is unsupported at 320\u00d7180, 30.000 fps, hardwareAcceleration=no-preference.",
+        "outputWidth": 320,
+        "outputHeight": 180,
+        "source": {
+          "width": 640,
+          "height": 360,
+          "codedWidth": 640,
+          "codedHeight": 360,
+          "visibleX": 0,
+          "visibleY": 0,
+          "visibleWidth": 640,
+          "visibleHeight": 360,
+          "displayWidth": 640,
+          "displayHeight": 360,
+          "rotation": 0,
+          "flip": false,
+          "pixelAspectNumerator": 1,
+          "pixelAspectDenominator": 1,
+          "colorPrimaries": "bt709",
+          "colorTransfer": "bt709",
+          "colorMatrix": "bt709",
+          "colorFullRange": false,
+          "duration": 2,
+          "packetCount": 60,
+          "averagePacketRate": 30,
+          "videoBitrate": 1006196,
+          "variableFrameRate": false,
+          "videoStartUs": 0,
+          "videoEndUs": 2000000,
+          "audioStartUs": -21333,
+          "audioEndUs": 2000000,
+          "audioTracks": 1,
+          "audioCodec": "aac",
+          "audioChannels": 1,
+          "audioSampleRate": 48000,
+          "codec": "avc1.64001e",
+          "size": 279635,
+          "name": "m2-h264-aac.mp4"
+        },
+        "estimates": {
+          "avc": {
+            "bitrateBps": 503098,
+            "estimatedBytes": 179141
+          },
+          "hevc": {
+            "bitrateBps": 352169,
+            "estimatedBytes": 140244
+          },
+          "vp8": {
+            "bitrateBps": 503098,
+            "estimatedBytes": 162647
+          }
+        },
+        "aiAvailable": true
+      }
+    },
+    {
+      "fps": "original",
+      "scale": "2x",
+      "width": 1280,
+      "height": 720,
+      "options": {
+        "colorAdjustments": "brightness=0, contrast=100%, saturation=100% (encoded RGB)",
+        "avc": 2012392,
+        "hevc": 1408675,
+        "vp8": 2012392,
+        "fpsNumerator": 0,
+        "fpsDenominator": 1,
+        "frameRate": 30
+      },
+      "capabilities": {
+        "mp4Supported": true,
+        "mp4Reason": "Supported for the selected input and exact output configuration.",
+        "hevcSupported": false,
+        "hevcReason": "HEVC encoding is unsupported at 1280\u00d7720, 30.000 fps, hardwareAcceleration=no-preference.",
+        "outputWidth": 1280,
+        "outputHeight": 720,
+        "source": {
+          "width": 640,
+          "height": 360,
+          "codedWidth": 640,
+          "codedHeight": 360,
+          "visibleX": 0,
+          "visibleY": 0,
+          "visibleWidth": 640,
+          "visibleHeight": 360,
+          "displayWidth": 640,
+          "displayHeight": 360,
+          "rotation": 0,
+          "flip": false,
+          "pixelAspectNumerator": 1,
+          "pixelAspectDenominator": 1,
+          "colorPrimaries": "bt709",
+          "colorTransfer": "bt709",
+          "colorMatrix": "bt709",
+          "colorFullRange": false,
+          "duration": 2,
+          "packetCount": 60,
+          "averagePacketRate": 30,
+          "videoBitrate": 1006196,
+          "variableFrameRate": false,
+          "videoStartUs": 0,
+          "videoEndUs": 2000000,
+          "audioStartUs": -21333,
+          "audioEndUs": 2000000,
+          "audioTracks": 1,
+          "audioCodec": "aac",
+          "audioChannels": 1,
+          "audioSampleRate": 48000,
+          "codec": "avc1.64001e",
+          "size": 279635,
+          "name": "m2-h264-aac.mp4"
+        },
+        "estimates": {
+          "avc": {
+            "bitrateBps": 2012392,
+            "estimatedBytes": 568116
+          },
+          "hevc": {
+            "bitrateBps": 1408675,
+            "estimatedBytes": 412526
+          },
+          "vp8": {
+            "bitrateBps": 2012392,
+            "estimatedBytes": 551622
+          }
+        },
+        "aiAvailable": false,
+        "aiReason": "Inference release gates remain open; encoder support alone cannot enable AI conversion or preview"
+      }
+    },
+    {
+      "fps": "original",
+      "scale": "4x",
+      "width": 2560,
+      "height": 1440,
+      "options": {
+        "colorAdjustments": "brightness=0, contrast=100%, saturation=100% (encoded RGB)",
+        "avc": 4024784,
+        "hevc": 2817349,
+        "vp8": 4024784,
+        "fpsNumerator": 0,
+        "fpsDenominator": 1,
+        "frameRate": 30
+      },
+      "capabilities": {
+        "mp4Supported": true,
+        "mp4Reason": "Supported for the selected input and exact output configuration.",
+        "hevcSupported": false,
+        "hevcReason": "HEVC encoding is unsupported at 2560\u00d71440, 30.000 fps, hardwareAcceleration=no-preference.",
+        "outputWidth": 2560,
+        "outputHeight": 1440,
+        "source": {
+          "width": 640,
+          "height": 360,
+          "codedWidth": 640,
+          "codedHeight": 360,
+          "visibleX": 0,
+          "visibleY": 0,
+          "visibleWidth": 640,
+          "visibleHeight": 360,
+          "displayWidth": 640,
+          "displayHeight": 360,
+          "rotation": 0,
+          "flip": false,
+          "pixelAspectNumerator": 1,
+          "pixelAspectDenominator": 1,
+          "colorPrimaries": "bt709",
+          "colorTransfer": "bt709",
+          "colorMatrix": "bt709",
+          "colorFullRange": false,
+          "duration": 2,
+          "packetCount": 60,
+          "averagePacketRate": 30,
+          "videoBitrate": 1006196,
+          "variableFrameRate": false,
+          "videoStartUs": 0,
+          "videoEndUs": 2000000,
+          "audioStartUs": -21333,
+          "audioEndUs": 2000000,
+          "audioTracks": 1,
+          "audioCodec": "aac",
+          "audioChannels": 1,
+          "audioSampleRate": 48000,
+          "codec": "avc1.64001e",
+          "size": 279635,
+          "name": "m2-h264-aac.mp4"
+        },
+        "estimates": {
+          "avc": {
+            "bitrateBps": 4024784,
+            "estimatedBytes": 1086750
+          },
+          "hevc": {
+            "bitrateBps": 2817349,
+            "estimatedBytes": 775570
+          },
+          "vp8": {
+            "bitrateBps": 4024784,
+            "estimatedBytes": 1070256
+          }
+        },
+        "aiAvailable": false,
+        "aiReason": "Inference release gates remain open; encoder support alone cannot enable AI conversion or preview"
+      }
+    },
+    {
+      "fps": "60/1",
+      "scale": "off",
+      "width": 320,
+      "height": 180,
+      "options": {
+        "colorAdjustments": "brightness=0, contrast=100%, saturation=100% (encoded RGB)",
+        "avc": 1006196,
+        "hevc": 704338,
+        "vp8": 1006196,
+        "fpsNumerator": 60,
+        "fpsDenominator": 1,
+        "frameRate": 60
+      },
+      "capabilities": {
+        "mp4Supported": true,
+        "mp4Reason": "Supported for the selected input and exact output configuration.",
+        "hevcSupported": false,
+        "hevcReason": "HEVC encoding is unsupported at 320\u00d7180, 60.000 fps, hardwareAcceleration=no-preference.",
+        "outputWidth": 320,
+        "outputHeight": 180,
+        "source": {
+          "width": 640,
+          "height": 360,
+          "codedWidth": 640,
+          "codedHeight": 360,
+          "visibleX": 0,
+          "visibleY": 0,
+          "visibleWidth": 640,
+          "visibleHeight": 360,
+          "displayWidth": 640,
+          "displayHeight": 360,
+          "rotation": 0,
+          "flip": false,
+          "pixelAspectNumerator": 1,
+          "pixelAspectDenominator": 1,
+          "colorPrimaries": "bt709",
+          "colorTransfer": "bt709",
+          "colorMatrix": "bt709",
+          "colorFullRange": false,
+          "duration": 2,
+          "packetCount": 60,
+          "averagePacketRate": 30,
+          "videoBitrate": 1006196,
+          "variableFrameRate": false,
+          "videoStartUs": 0,
+          "videoEndUs": 2000000,
+          "audioStartUs": -21333,
+          "audioEndUs": 2000000,
+          "audioTracks": 1,
+          "audioCodec": "aac",
+          "audioChannels": 1,
+          "audioSampleRate": 48000,
+          "codec": "avc1.64001e",
+          "size": 279635,
+          "name": "m2-h264-aac.mp4"
+        },
+        "estimates": {
+          "avc": {
+            "bitrateBps": 1006196,
+            "estimatedBytes": 308800
+          },
+          "hevc": {
+            "bitrateBps": 704338,
+            "estimatedBytes": 231005
+          },
+          "vp8": {
+            "bitrateBps": 1006196,
+            "estimatedBytes": 292305
+          }
+        },
+        "aiAvailable": true
+      }
+    },
+    {
+      "fps": "60/1",
+      "scale": "2x",
+      "width": 1280,
+      "height": 720,
+      "options": {
+        "colorAdjustments": "brightness=0, contrast=100%, saturation=100% (encoded RGB)",
+        "avc": 4024784,
+        "hevc": 2817349,
+        "vp8": 4024784,
+        "fpsNumerator": 60,
+        "fpsDenominator": 1,
+        "frameRate": 60
+      },
+      "capabilities": {
+        "mp4Supported": true,
+        "mp4Reason": "Supported for the selected input and exact output configuration.",
+        "hevcSupported": false,
+        "hevcReason": "HEVC encoding is unsupported at 1280\u00d7720, 60.000 fps, hardwareAcceleration=no-preference.",
+        "outputWidth": 1280,
+        "outputHeight": 720,
+        "source": {
+          "width": 640,
+          "height": 360,
+          "codedWidth": 640,
+          "codedHeight": 360,
+          "visibleX": 0,
+          "visibleY": 0,
+          "visibleWidth": 640,
+          "visibleHeight": 360,
+          "displayWidth": 640,
+          "displayHeight": 360,
+          "rotation": 0,
+          "flip": false,
+          "pixelAspectNumerator": 1,
+          "pixelAspectDenominator": 1,
+          "colorPrimaries": "bt709",
+          "colorTransfer": "bt709",
+          "colorMatrix": "bt709",
+          "colorFullRange": false,
+          "duration": 2,
+          "packetCount": 60,
+          "averagePacketRate": 30,
+          "videoBitrate": 1006196,
+          "variableFrameRate": false,
+          "videoStartUs": 0,
+          "videoEndUs": 2000000,
+          "audioStartUs": -21333,
+          "audioEndUs": 2000000,
+          "audioTracks": 1,
+          "audioCodec": "aac",
+          "audioChannels": 1,
+          "audioSampleRate": 48000,
+          "codec": "avc1.64001e",
+          "size": 279635,
+          "name": "m2-h264-aac.mp4"
+        },
+        "estimates": {
+          "avc": {
+            "bitrateBps": 4024784,
+            "estimatedBytes": 1086750
+          },
+          "hevc": {
+            "bitrateBps": 2817349,
+            "estimatedBytes": 775570
+          },
+          "vp8": {
+            "bitrateBps": 4024784,
+            "estimatedBytes": 1070256
+          }
+        },
+        "aiAvailable": false,
+        "aiReason": "Inference release gates remain open; encoder support alone cannot enable AI conversion or preview"
+      }
+    },
+    {
+      "fps": "60/1",
+      "scale": "4x",
+      "width": 2560,
+      "height": 1440,
+      "options": {
+        "colorAdjustments": "brightness=0, contrast=100%, saturation=100% (encoded RGB)",
+        "avc": 8049568,
+        "hevc": 5634698,
+        "vp8": 8049568,
+        "fpsNumerator": 60,
+        "fpsDenominator": 1,
+        "frameRate": 60
+      },
+      "capabilities": {
+        "mp4Supported": true,
+        "mp4Reason": "Supported for the selected input and exact output configuration.",
+        "hevcSupported": false,
+        "hevcReason": "HEVC encoding is unsupported at 2560\u00d71440, 60.000 fps, hardwareAcceleration=no-preference.",
+        "outputWidth": 2560,
+        "outputHeight": 1440,
+        "source": {
+          "width": 640,
+          "height": 360,
+          "codedWidth": 640,
+          "codedHeight": 360,
+          "visibleX": 0,
+          "visibleY": 0,
+          "visibleWidth": 640,
+          "visibleHeight": 360,
+          "displayWidth": 640,
+          "displayHeight": 360,
+          "rotation": 0,
+          "flip": false,
+          "pixelAspectNumerator": 1,
+          "pixelAspectDenominator": 1,
+          "colorPrimaries": "bt709",
+          "colorTransfer": "bt709",
+          "colorMatrix": "bt709",
+          "colorFullRange": false,
+          "duration": 2,
+          "packetCount": 60,
+          "averagePacketRate": 30,
+          "videoBitrate": 1006196,
+          "variableFrameRate": false,
+          "videoStartUs": 0,
+          "videoEndUs": 2000000,
+          "audioStartUs": -21333,
+          "audioEndUs": 2000000,
+          "audioTracks": 1,
+          "audioCodec": "aac",
+          "audioChannels": 1,
+          "audioSampleRate": 48000,
+          "codec": "avc1.64001e",
+          "size": 279635,
+          "name": "m2-h264-aac.mp4"
+        },
+        "estimates": {
+          "avc": {
+            "bitrateBps": 8049568,
+            "estimatedBytes": 2124017
+          },
+          "hevc": {
+            "bitrateBps": 5634698,
+            "estimatedBytes": 1501657
+          },
+          "vp8": {
+            "bitrateBps": 8049568,
+            "estimatedBytes": 2107523
+          }
+        },
+        "aiAvailable": false,
+        "aiReason": "Inference release gates remain open; encoder support alone cannot enable AI conversion or preview"
+      }
+    }
+  ],
+  "mode": "exact-enlarged-codec-probe-no-inference",
+  "unsupportedExactCodec": {
+    "mp4Supported": false,
+    "mp4Reason": "AVC encoding is unsupported at 999998\u00d7999998, 60.000 fps, hardwareAcceleration=no-preference.",
+    "hevcSupported": false,
+    "hevcReason": "HEVC encoding is unsupported at 999998\u00d7999998, 60.000 fps, hardwareAcceleration=no-preference."
+  },
+  "actualEncoderProbeConfigs": [
+    {
+      "codec": "avc1.64000d",
+      "width": 320,
+      "height": 180,
+      "bitrate": 503098,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 30,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "avc": {
+        "format": "avc"
+      }
+    },
+    {
+      "codec": "hev1.1.6.L60.B0",
+      "width": 320,
+      "height": 180,
+      "bitrate": 352169,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 30,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "hevc": {
+        "format": "hevc"
+      }
+    },
+    {
+      "codec": "avc1.64001f",
+      "width": 1280,
+      "height": 720,
+      "bitrate": 2012392,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 30,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "avc": {
+        "format": "avc"
+      }
+    },
+    {
+      "codec": "hev1.1.6.L93.B0",
+      "width": 1280,
+      "height": 720,
+      "bitrate": 1408675,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 30,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "hevc": {
+        "format": "hevc"
+      }
+    },
+    {
+      "codec": "avc1.640032",
+      "width": 2560,
+      "height": 1440,
+      "bitrate": 4024784,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 30,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "avc": {
+        "format": "avc"
+      }
+    },
+    {
+      "codec": "hev1.1.6.L150.B0",
+      "width": 2560,
+      "height": 1440,
+      "bitrate": 2817349,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 30,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "hevc": {
+        "format": "hevc"
+      }
+    },
+    {
+      "codec": "avc1.640014",
+      "width": 320,
+      "height": 180,
+      "bitrate": 1006196,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "avc": {
+        "format": "avc"
+      }
+    },
+    {
+      "codec": "hev1.1.6.L60.B0",
+      "width": 320,
+      "height": 180,
+      "bitrate": 704338,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "hevc": {
+        "format": "hevc"
+      }
+    },
+    {
+      "codec": "avc1.64001f",
+      "width": 1280,
+      "height": 720,
+      "bitrate": 4024784,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "avc": {
+        "format": "avc"
+      }
+    },
+    {
+      "codec": "hev1.1.6.L93.B0",
+      "width": 1280,
+      "height": 720,
+      "bitrate": 2817349,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "hevc": {
+        "format": "hevc"
+      }
+    },
+    {
+      "codec": "avc1.640032",
+      "width": 2560,
+      "height": 1440,
+      "bitrate": 8049568,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "avc": {
+        "format": "avc"
+      }
+    },
+    {
+      "codec": "hev1.1.6.L150.B0",
+      "width": 2560,
+      "height": 1440,
+      "bitrate": 5634698,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "hevc": {
+        "format": "hevc"
+      }
+    },
+    {
+      "codec": "avc1.64003e",
+      "width": 999998,
+      "height": 999998,
+      "bitrate": 120000000,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "avc": {
+        "format": "avc"
+      }
+    },
+    {
+      "codec": "hev1.1.6.H186.B0",
+      "width": 999998,
+      "height": 999998,
+      "bitrate": 120000000,
+      "bitrateMode": "variable",
+      "alpha": "discard",
+      "framerate": 60,
+      "latencyMode": "quality",
+      "hardwareAcceleration": "no-preference",
+      "hevc": {
+        "format": "hevc"
+      }
+    }
+  ],
+  "unavailableConversionPreviewRejected": true,
+  "deviceRequests": 0,
+  "browserVersion": "155.0.4283.62"
+}

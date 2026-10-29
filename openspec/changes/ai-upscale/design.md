@@ -9,7 +9,7 @@ See proposal.md for motivation and specs/ai-upscaling/spec.md for behavior. Curr
 - Native conversion is composed in `media-native`; direct FFmpeg subprocesses do not expose their CUDA surfaces. Shared software/NVIDIA routes currently stage RGBA through CPU memory. A GPU descriptor is not a portable inference device handle.
 - Processing uses wgpu 30.0.1. Blitz preview uses wgpu 26.0.1 via `media-gpu-blitz`, compiling shared processor sources for that ABI. Preview and conversion devices are independent; no textures can cross them by Rust type conversion or assumption.
 - CLAHE uses source-PTS-aware, finite 100 ms preroll; its statistics depend on selected output geometry before manual sliders. Existing preview workers retain a current image/latest request rather than full raw histories.
-- No AI backend is implemented or measured. ONNX import/operator support and shared-device inference are unresolved compatibility gates, not established facts. The extracted RTX 1.1 SDK has native DX11/DX12/CUDA/Vulkan APIs and Windows runtime DLLs. Its sample README requires R550.50+ drivers, R570.20+ for CUDA, and CUDA 12.8+ for the relevant samples; package requirements must be rechecked during evaluation.
+- At proposal time no AI backend was implemented or measured. Subsequent task-group-1 evidence in docs/interop-report.md establishes numerical pilots for Web ONNX Runtime 1.30.0 and native DirectML 1.23.0, plus version-specific ONNX/Burn failures; bounded concrete inference adapters and diagnostic browser/native software-codec video composition now have pilot evidence. Native AI NVDEC/NVENC fails its Original-VFR timing gate and remains unavailable; preview, full lifecycle/quality and release acceptance remain open. The extracted RTX 1.1 SDK has native DX11/DX12/CUDA/Vulkan APIs and Windows runtime DLLs. Its sample README requires R550.50+ drivers, R570.20+ for CUDA, and CUDA 12.8+ for the relevant samples; package requirements were inspected, but runtime evaluation remains pending prerequisites.
 
 ## Goals / Non-Goals
 
@@ -81,6 +81,17 @@ Browser preview remains in its existing execution context. Native preview requir
 Playback independently samples positions and coalesces into one latest pending command; preserve active progress rather than starving every inference through cancellation. Explicit source/seek invalidation prevents stale publication. Pause always pauses its clock even after an AI error. Conversion uses immutable settings and an independent preserve-all-frames source timeline.
 
 ### 8. Gate assets, product controls and acceptance
+
+Provisioning decision confirmed by the user during implementation (2026-10-22):
+the exact validated ONNX graph is imported from a local file, not fetched from an
+invented/unverified model URL. Official upstream PyTorch weights plus the pinned
+export recipe remain provenance, not browser-executable model assets. Verify exact
+byte count/hash before model cache publication on either platform. Browser runtime
+assets have their own explicit acquisition action with pinned 1.30.0 byte hashes;
+cached code is verified before execution through module blobs and a verified WASM
+binary. Off/startup invokes neither acquisition nor runtime loading. Native runtime
+installation remains separate and never automatic. Cache removal is explicit;
+removing persistent assets does not claim to unload active compiled runtime code.
 
 A small allowlisted manifest records official source URL, model/export hashes, native/internal scale, normalization, precision, tile policy, attribution/license, runtime compatibility and byte sizes. Acquire only after an explicit action; verify before cache publication, cancel downloads safely, handle quota/offline/corruption, and reuse valid cached assets offline. Burn generated artifacts belong to the build, weights can remain separately provisioned. Optional runtime code/assets should not inflate Off startup unnecessarily; do not download proprietary SDK components automatically.
 

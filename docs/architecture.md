@@ -2,6 +2,562 @@
 
 Status: design researched 2026-09-15; M3.1 through M3.6 pass their acceptance gates in the available Firefox/Chromium environments as of 2026-09-25. Configurable output, bounded streaming, named sizes, source metadata, capability-gated HEVC, controlled recovery, storage fallback/cleanup, explicit limit checks, and long-run stress are implemented. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations. Safari, non-Windows systems, other GPUs/drivers, spontaneous process/driver loss, and HEVC output on a supporting browser remain untested compatibility coverage rather than claims of support.
 
+### Native RTX performance identified — 2026-10-30
+
+A same-NVIDIA-GPU release comparison now covers RTX High3, DirectML Real-ESRGAN
+and a diagnostic shared-wgpu bilinear baseline at identical output geometry,
+CLAHE/manual controls, software codecs and FPS policy. Seventy-two full-matrix
+files plus24 isolated Original-FPS repeats pass independent timing/audio/decode.
+Contact sheets and selected details expose model-dependent reconstruction and
+limited tiny-source fidelity; no general superiority or flicker claim follows.
+
+For the three64-frame192x80 clips, RTX external wall time is5.18–6.19s, including
+2.99–3.56s helper startup. The64-frame inference/IO interval is0.164–0.335s.
+DirectML's total is5.10–5.66s and bilinear1.81–2.07s; these are different models,
+not matching-weight speedup evidence. New CPU wall intervals separate startup,
+decode waits, inference/IO, downstream processing/encoder-pipe work and drain;
+pure GPU/codec execution remains unknown. RTX's existing final helper DXGI sample
+is now surfaced after successful shutdown (about60.9/104.9MiB at2x/4x here),
+separately from shared-device usage and conservative application admission.
+
+The reference-only bilinear entry point is feature/test gated. It cannot weaken
+ordinary Off enlargement checks or become a UI/transport option. Its actual
+2x/4x pixels match a scalar sampler at1LSB; all inference remains absent there.
+The production staged data paths and renderer ABI boundary are unchanged.
+
+Fresh SDK initialization per seek remains an identified preview bottleneck;
+session reuse is not implemented or claimed. The192x108 RTX source envelope is
+unchanged. Ordinary native window/runtime/capability/consent/exposure acceptance
+remains open, so controls stay unavailable. The user selected a fresh session
+with desktop tools to finish those checks. Progress remains24/32; task8.2 has
+substantial native evidence but not its complete joined acceptance matrix.
+
+### Ordinary native AI configuration and handoff — 2026-10-30
+
+An explicit local NativeAiConfiguration carries one ONNX/RTX helper config and
+an exact processing adapter key for both preview and conversion. Its bounded
+strict JSON reader performs actual Vulkan identity matching without loading an
+inference runtime, accepting SDK terms or granting release capabilities. The
+ordinary native panel imports/clears it; asset/configuration changes return AI
+to Off and retire preview caches. Browser controls cannot select RTX.
+
+NativeSession::convert_configured_job requires separate exact accepted settings,
+matches the session's explicitly selected adapter after serialized job admission,
+and checks accepted source/output limits against the actual inspected input
+before partial creation. A rejected adapter releases session admission too.
+Ordinary UI dispatch freezes settings, configuration and acceptance metadata
+before retiring preview work and starting conversion. It requires an explicit
+Shared GPU software-codec route; no route/device/runtime substitution occurs.
+Off ignores configured AI assets and preserves existing conversion behavior.
+
+Actual opt-in RTX and ONNX2x/4x handoff tests pass retirement/stale-work rejection,
+cancelled-output cleanup, real verified export, and identical paused preview
+restoration through the configured entry point. Four files independently pass
+full A/V decode and source timing/endpoints. Tests inject acceptance metadata;
+the ordinary app still grants none. Actual RTX JSON import also passes without
+execution or enabling pending settings. Ordinary-window interaction/theme/layout,
+SDK consent/provisioning UX and representative release gates remain open.
+Tasks6.2/6.4/7.1–7.3 remain partial; progress24/32.
+
+### RTX preview bridge evaluated — 2026-10-29
+
+The native preview policy now carries an explicit ONNX or RTX helper config;
+backend/config mismatch fails rather than substituting a runtime. RTX uses its
+native selected2x/4x geometry, then shared selected-size CLAHE/manual processing
+and final display fitting. Source SDR tags are validated before normalization;
+HDR/Main10 stay rejected. RTX retains the192x108 input cap. Enhanced selected
+pixels and finite CLAHE history support cached downstream edits and Before/After.
+
+Actual RTX service/renderer tests pass55 independent display comparisons within
+1LSB (pinned2LSB), plus latest-only playback samples, replacement, cold Before
+without helper, error-state Pause, missing-helper retry, retirement and controlled
+renderer loss/fresh generation. The processing wgpu30 RTX3050 and renderer wgpu26
+IntelUHD devices share no resources: counted bounded host display pixels cross
+the boundary. Diagnostic readbacks are separate verification, not throughput.
+Fresh preparation still starts a new SDK session; seek/playback performance is
+not accepted. The opt-in preview window accepts explicit RTX settings, but its
+window has not been inspected. Ordinary-launch parity and UI conversion handoff
+remain pending; tasks6.2/6.4 are partial, progress stays24/32.
+
+### RTX effects and active lifecycle accepted — 2026-10-29
+
+Task5.3 passes the explicit staged RTX -> selected-resolution CLAHE -> manual
+color -> output-FPS path. Both native scales and strengths0/50/100 match the
+independent scalar manual-after-CLAHE reference at1LSB (pinned2LSB); zero bypass
+and increasing CLAHE strength are separately checked. Six actual effect exports
+pass Original/15/60FPS timing/audio and full independent decode. Direct effect
+routes, Main10/HDR and the failed AI NVDEC/NVENC route remain rejected.
+
+Seven actual lifecycle cases pass partial cleanup and healthy explicit retries:
+both directions of blocked helper-pipe cancel/timeout, helper crash, controlled
+downstream wgpu device destruction and client budget rejection. Test-only fault
+controls use a separate diagnostic C++ build and cfg(test) Rust; normal binaries
+exclude them and ignore their environment. Actual pipe stages and OS PID absence
+are verified. Test deadlines are shortened3s; production remains60s. Killing a
+helper is process retirement, not an orderly SDK shutdown or interruption inside
+its opaque GPU kernel. Normal shutdown/sample regression and DirectML regression
+also pass; physical OOM/spontaneous driver loss remain unverified.
+
+SDK1.1/driver621.01/API/license/deployment inventory is pinned in the latest
+interop evidence. Consent covers local evaluation, not redistribution; no install
+or proprietary Git content follows. Input remains<=192x108; native preview,
+ordinary UI/exposure, full release quality/performance and packaging review are
+still open. Browser work remains paused by user direction.
+
+### RTX native staged export accepted — 2026-10-29
+
+Task5.2 now connects the source-only RTX helper to the feature-gated native export
+pilot. Reuse source timestamps/audio, fixed-FPS resampling, software libx264/AAC,
+shared wgpu processing and independent output verification. RTX generates the
+selected native2x/native4x; portable inference retains internalx4 then downscale.
+The shared bounded child owner checks protocol completion as well as process exit;
+SDK/quality/color/PID/DXGI/LUID and downstream NVIDIA device identity are explicit.
+No SDK ABI/resource handle enters Rust and no surface sharing is assumed.
+
+Three actual six-file matrices pass both scales x Original/15/60FPS on the tiny
+64x36 VFR/audio fixture. Four source frames invoke inference four times per file;
+4/5/17 output frames follow existing FPS policy. Independent full A/V decode and
+grids pass; corresponding repeated MP4s and decoded pixels are byte-identical.
+Actual Rust sample hashes and neutral native preencoder pixels pass (0LSB).
+Input remains capped at192x108. Wrong identity/oversize/failed NVDEC-NVENC routes
+and unaccepted effects reject. Main10/HDR remain unavailable.
+
+Count helper upload/readback separately from downstream wgpu staging. The helper
+samples its own local DXGI budget; unavailable Rust-side peak telemetry is flagged
+explicitly rather than reported as zero allocation. Shared-ledger allowances are
+conservative, not a strict opaque SDK VRAM measurement. RTX effects/active lifecycle
+(task5.3), preview/UI and full release quality/performance remain open. Ordinary
+RTX controls remain gated; no browser work or proprietary redistribution follows.
+See the newest interop section and helper guide for evidence and reproduction.
+
+### RTX bounded helper accepted — 2026-10-29
+
+Task5.1 now has a source-only optional C++ helper with an explicit version1
+RGBA8 frame protocol, binary startup identity, exact NVIDIA DXGI/LUID audit,
+fixed generation/increasing IDs, one synchronous frame in flight and a sampled
+DXGI memory-admission guard. Twelve outputs at2x/4x (including odd geometry)
+match a separately compiled unmodified NVIDIA SDK sample bit-for-bit at pinned
+zero-byte tolerance. Seventeen process runs cover protocol/startup rejection,
+shutdown/EOF, cleanup and fresh retry. Compact evidence is in the latest interop
+section. The existing probe shares only concrete SDK/D3D11 utility functions.
+
+The helper accepts full-range encoded RGB with BT.709 primaries/sRGB transfer,
+opaque RGBA8 only, currently bounded to192x108 source; HDR/10-bit are unavailable.
+Host upload/output readback are explicit; there is no foreign-device resource
+sharing. SDK libraries/runtime remain external and separately licensed; source
+builds require no automatic installation. Rust video timestamp/audio/encoder and
+preview integration are the next gates. Native RTX controls remain unavailable
+with an updated reason naming the actual remaining integration work.
+
+### RTX D3D11 feasibility accepted — 2026-10-29
+
+Local evaluation is authorized and the user-installed MSVC19.51/tools14.51 plus
+existing Windows SDK build/link the standalone probe successfully. Actual SDK1.1
+VSR initializes on explicitly selected RTX3050Laptop/DXGI1, returns opaque SDR
+2x/4x outputs for two known patterns and cleans up successfully. SDK High differs
+from SDK Bicubic. Two complete repeat/failure/retry suites pass strict output
+hash equality after explicitly clearing each output texture before evaluation;
+the initial Bicubic variation is retained as evidence. Module paths/hashes prove
+the explicit SDK VSR DLL; raw SDK platform errors are preserved on invalid input.
+
+This completes task1.5, not product acceptance. The native baseline remains a
+separate bounded C++ helper with explicit host staging, since no codec/processing/
+SDK/renderer device-sharing route has passed. No new Rust FFI or proprietary
+binaries enter the application. SDK sample equivalence, frame protocol, video,
+CLAHE/manual processing, preview and lifecycle/native UI gates remain next.
+Native/RTX controls stay gated. See the latest interop report for exact build,
+GPU, failure, repeatability, copies and licensing/deployment limits.
+
+### Native-first RTX priority — 2026-10-29
+
+The user prioritizes native and RTX; further browser work is deferred. Local
+SDK evaluation is explicitly authorized after acceptance of the installed terms.
+The next gate is the standalone D3D11 RTX probe, with exact NVIDIA identity,
+explicit SDR host staging and raw NGX statuses. It is currently an uncompiled
+draft blocked by missing MSVC compiler/CRT/STL prerequisites, not an SDK/device
+failure. Existing LLVM and Windows SDK do not establish a usable SDK toolchain.
+Minimal v143 C++ installation is pending user choice; no installation or SDK
+runtime initialization has occurred. Product capabilities remain unchanged.
+
+### Browser NVIDIA performance route — 2026-10-26
+
+Browser ONNX exposure now additionally accepts the evaluated NVIDIA Ampere family
+on Windows Edge 156, with the same secure isolated origin, exact model/runtime,
+source bounds and shared device ownership. Ordinary requests already ask for
+HighPerformance, but this Windows/Edge configuration still returns Intel. A
+separate Edge process launched with `--force-high-performance-gpu` and D3D11
+selects NVIDIA. The source-only launcher uses its own ignored profile and changes
+no OS/default-profile settings. It does not provision assets automatically.
+
+Five FP32 shapes, six tiled shapes, ordinary main/worker/light/dark UI, independent
+H.264 Original/15/60 exports, fixed-FPS FFmpeg WASM, active preview/device loss and
+handoff/retry pass their actual scopes. The same three 64-frame clips convert in
+3.26–3.68 seconds on NVIDIA versus 37.53–46.92 seconds on Intel in the isolated
+comparison. Browser GPU identity is vendor/family; no driver or universal Ampere
+support claim. Model and quality limits remain unchanged; this is ONNX, not the
+unverified RTX Video SDK route.
+
+NVIDIA WebM remains gated after its independent verifier cannot read packet
+presentation durations; no duration is invented. The UI carries that explicit
+profile reason while keeping preview available, and backend conversion rejects
+the unaccepted profile. AI profile changes re-probe selection. A profile with a
+failed acceptance reason leaves the selector usable when another probed profile
+is available, so users can explicitly recover to H.264. Original failed test
+reports are preserved. See the newest interop record for precise evidence.
+
+### Browser AI product exposure — 2026-10-25
+
+The normal web app opts into `media-web/ai-upscale`; source-only diagnostic APIs
+remain behind `gpu-setup-diagnostic`. Ordinary ONNX commands share the bounded
+processing implementation and enforce the actual processing GPU's capability.
+Availability is scoped to secure cross-origin-isolated Windows Edge 156 / Intel
+gen-12lp, exact hash-pinned Real-ESRGAN FP32 model and ORT Web 1.30.0, opaque
+8-bit SDR up to 577×579. Unknown contexts, Burn, browser RTX and AI HEVC remain
+unavailable. UI eligibility also checks inspected source geometry/format; it
+cannot bypass backend policy. Asset setup remains explicit and Off stays lazy.
+
+Ordinary main/worker and both themes pass 2x/4x preview/control/recovery checks;
+eight actual UI exports pass independent decode. Default-compiler FP32 and tiled
+reference gates pass. Three 64-frame clips provide limited temporal inspection,
+192-frame matching-weight reference and isolated same-size bilinear comparisons.
+The measured Intel path is slower than bilinear and can smooth/reconstruct
+texture/text; no real-time or improved-fidelity claim. Timers overlap and resource
+counts exclude opaque driver allocations. See the newest interop section for
+exact scope, commands, compiler qualifications, copies and evidence.
+
+Preview values are snapshotted before awaiting, avoiding reactive read guards
+across asynchronous processing. The real UI borrow panic and its passing
+regressions are retained. A private diagnostic bilinear comparator bypasses only
+inference at the same output geometry; it is not an ordinary enlargement route.
+Native ordinary controls stay gated pending their own window/setup/preview/export
+acceptance; no native runtime or helper is inferred from browser support.
+
+### AI upscaling feasibility — 2026-10-22
+
+Browser invalidation continuation (2026-10-25): explicit source/seek/changed AI
+identity invalidates preview admission independently of conversion/profile work.
+Only an active preview receives cancellation. Playback samples and downstream
+edits preserve active progress; superseded seek errors do not stop the clock.
+Processing checks generation before final presentation/capture. Actual sampled
+AI preview cancellation/runtime-error/device-destruction, differing source
+replacement, exact pixel restoration and released ownership pass both scales
+and contexts. Cancel/runtime failure preserves displayed canvas pixels in
+separate readback diagnostics; lost-device contents are not asserted. Ordinary
+Off UI seek bursts pass; ordinary On/coalescing/release acceptance remain open.
+
+Browser lifecycle continuation (2026-10-25): preview producers and audio play
+attempts carry current-owner tokens, so retired responses cannot stop resumed
+playback or publish errors. Conversion saves the paused clock position and
+retires the producer. Preview cleanup attempts drain and session release,
+propagates errors before conversion startup and destroys/removes a failed
+context; a lost conversion context retires before explicit retry. Actual AI
+2x/4x implicit handoff, exact restored preview pixels and injected release-response
+failure/fresh-context retry pass main/worker diagnostics. Ordinary AI Off UI
+playback/error/replacement/handoff also passes; ordinary AI On and full release
+acceptance remain open. Counts exclude opaque runtime/driver allocations.
+
+Native handoff continuation (2026-10-24): ordinary conversion reserves the
+preview service, stops playback and pending seeks, suspends renderer-worker
+admission and waits on the conversion thread for preparation/cache retirement.
+Stale paint requests cannot requeue work while reserved. All conversion exits
+release admission; a still-visible source reopens paused. Actual 2x/4x diagnostic
+AI preview-to-conversion-to-preview, cancelled output, fresh pixel equality and
+ordinary AI Off window success/error return now have evidence. Ordinary AI On and
+the full browser lifecycle matrix remain unaccepted. AI output verification now
+uses exact packet presentation coverage, matching input planning: a valid cut
+output's 200-ms decode-duration header omitted its 266.667-ms presentation tail.
+The same 1-ms tolerance remains, with checked arithmetic and independent endpoint
+checks. Ordinary Off keeps its prior header policy; the tiny cut fixture fails
+that route's final-duration calculation and is explicitly recorded as a limitation.
+
+Release short-clip continuation (2026-10-24): the same three tiny licensed film
+excerpts now pass 18 native DirectML/shared-wgpu and 36 browser main/worker ONNX
+release exports with both scales, Original/15/60, CLAHE/manual effects and full
+independent decode. Another 18 browser Off exports pass without provisioning or
+AI sessions. Real-content CPU PyTorch/DirectML FP32 parity passes all 24 source
+frames; actual node placement is DML only. Native uses NVIDIA while browser
+reports Intel WebGPU, so the timings are not a same-GPU comparison. Explicit
+browser diagnostic readbacks exclude those job times from throughput claims.
+Native/browsers retain their measured stream/packet AAC priming policies; the
+paired video/audio onset remains aligned on these samples. Text deformation and
+fine-detail smoothing are observed model limits. Longer temporal quality,
+component timing and ordinary preview/lifecycle/UI acceptance remain open.
+No production availability or task-8.2 completion follows from this matrix.
+
+Selection/settings continuation (recorded 2026-10-24): both apps now carry an
+Off-default AI selection into preview requests, immutable conversion snapshots,
+output geometry/bitrate estimates and profile checks. The shared selector and
+both parent command handlers require an exact validated capability for the
+requested backend/model/scale; defaults grant none. Ordinary entry points still
+reject unaccepted On. Setup/import cannot grant capability. Resize values remain
+stored while AI would make their controls inactive; Off restores old validation.
+Before is separate request metadata and preserves saved AI/color state. Reset
+color does not mutate AI. Browser Pause is handled before readiness/error guards.
+A rejected AI profile cannot silently select a replacement profile. These wiring
+changes have event-handler and actual AI Off UI evidence; ordinary On, full
+lifecycle and release quality remain pending, so tasks 7.1/7.2 remain partial.
+
+Native comparison/window continuation (2026-10-23): the native service retains
+one selected original texture on its existing processing device alongside the
+enhanced result/statistics. Before renders that original directly at the same
+display framing and bypasses AI/color without disturbing the cache. Cold Before
+uses bounded original decoding/display processing without loading a model/helper.
+Its upload is reported separately. Both scales now fit the 640x360 display box
+after selected-size processing; small inputs no longer appear centered at native
+pixel size. Shared native readback retires its map on cancellation/error as well
+as success. No processing handle crosses into the wgpu-26 renderer.
+
+`converter-native --ai-preview-check` explicitly exercises the real app window
+with the tiny CC0 cut fixture and required local asset/device/scale configuration.
+It disables export in both UI and handler and grants no product capability.
+Actual window Before/After/edits/seek/Play-Pause and 55 independent service/renderer
+pixel checks pass their recorded scope. The worker preserves active preparation
+under 100 playback samples, retires invalidated caches, reports helper failure,
+and passes actual renderer loss/fresh-generation retry. Ordinary-launch AI
+selection, full lifecycle/conversion handoff and release quality remain pending.
+See the latest interop section and tools/ai-upscale/README.md for exact limits.
+
+Guarded AI setup UI continuation (2026-10-23): both apps expose collapsed
+AI Upscaling setup with Off and unavailable 2x/4x reasons; selection callbacks are now release-gated as described above, with no
+production capability grant. Ordinary processing handlers continue rejecting On.
+Browser setup imports a local hash-pinned model and explicitly acquires/removes
+verified runtime assets through existing media-web APIs. The DOM file boundary
+stays in media-web. Native setup runs cache IO/read-only runtime inspection on
+bounded user-triggered workers and returns only metadata to UI state. It requires
+an explicitly chosen cache/runtime directory, loads no runtime DLL and installs
+nothing. Native setup uses a dedicated retained-state view: nested fixed overlays
+failed actual Blitz layout; the selected view fits both themes without adding
+scroll to the default window. Opening pauses preview/relinquishes player keys;
+Done restores the source/settings. Model import/check/remove and initial error
+recovery have ordinary-window evidence. Successful setup never enables inference;
+remaining preview/playback, snapshots/Before and quality gates still govern On.
+
+Native AI preview bridge continuation (2026-10-23): `media-native::ai_preview`
+now owns a concrete optional service on the selected native wgpu-30 processor.
+It reuses the cancellable, 64-KiB metadata probe and exact finite source preroll,
+runs the validated DirectML helper and shared x4/2x/CLAHE/manual processing,
+then stages only a <=640x360 RGBA8 display image to the existing wgpu-26 worker.
+The worker creates/uploads its own renderer texture; it never registers a
+processing texture or casts ABI/device handles. The assessed default renderer
+is Intel Vulkan, while inference/downstream processing are the selected NVIDIA
+DirectML/Vulkan devices. Model/tensor staging, x4 processing uploads, display
+readbacks and each renderer upload are counted separately; Vello atlas copies
+and opaque runtime allocations remain outside these counters.
+
+The helper closes after finite preparation; one selected x4 result and bounded
+statistics support downstream edits without further inference. Source/seek/scale/
+configuration/device invalidation clears the cache. Latest-command replacement
+and generation guards prevent stale publication. Renderer loss is linked as a
+read-only external stop into request cancellation, retiring active preparation
+without making ordinary seek cancellation mutate renderer health. Explicit retry
+uses a fresh renderer generation. Preview admission includes retained x4/source,
+selected targets, CLAHE scratch and bounded padded display readback. Full ordinary
+window/Before/playback/UI and release acceptance remain pending; this source-only
+adapter does not enable AI on app startup or in normal controls.
+
+Browser paused-preview continuation (2026-10-23): diagnostic commands reuse the
+concrete same-device AI conversion stage at selected 2x/4x geometry before
+CLAHE/manual and bounded display scaling. A single source-PTS result is retained
+under source/AI/device identity; downstream edits and Before/After reuse it.
+Before bypasses retained selected-size color resources to resize the neutral
+original directly. Off and asynchronous preview clearing retire the cache/stage.
+Admission includes cached/display-adjusted targets and the internal x4 texture
+retained for 2x (24 bytes per selected pixel versus 8 for 4x). Actual main/worker
+pixel/export parity passes on small, display-limited and oriented fixtures.
+Exact finite AI preroll now passes main/worker selected-size chronological parity,
+backward seeks, a synthetic cut, expiry, scale changes and Before/After. Unvalidated
+model changes reject; there is only one allowlisted model. Playback, native preview
+and UI/release gates remain open.
+
+Failure continuation (2026-10-23): concrete browser inference consumes setup/tile
+OOM and validation scopes, destroys caller buffers on failed setup/release, and
+observes device loss once per device without replacing wgpu's callback or retaining
+released sessions. GPU submission/capture and settled-job publication also check
+loss. Actual active-dispatch cancellation, runtime input error, injected OOM scope
+responses and real device destruction pass main/worker ownership and retry checks.
+Feature-only diagnostics count Rust leases/pending submissions/AI credit independently
+of JS sessions/tensors and explicitly destroyed AI resources; driver/pool memory
+remains outside that claim. Native helper crash and checked budget rejection now
+also pass full-video partial cleanup and retry. Physical driver OOM and spontaneous
+loss are not claimed. See the latest interop section for exact scope and evidence.
+
+Integration continuation (2026-10-23): the concrete native dispatcher now owns an
+optional source-only DirectML 1.23.0 child, explicit runtime/model paths and exact
+DXGI identity. Rust retains shared-core tile policy and explicit CPU staging;
+the v2 pipe carries one bounded FP32 tile at a time, never GPU handles. The
+child verifies C API/model identity, disables CPU fallback and owns its session.
+Mutable single-frame ownership, bounded channels, deadlines and kill/reap/join
+retirement prevent raw-frame queues or implicit retry. The actual 25-tile
+577x579 frame and reference/provider/lifecycle checks pass. Native diagnostic
+shared-wgpu/software-codec 2x/4x video now passes Original/15/60, CLAHE/manual,
+independent decode and cancellation/device-loss retry checks. Its AI NVDEC/NVENC
+route fails Original-VFR timestamps and rejects before inspection/output; no
+software-codec fallback is added. The newer staged preview adapter above has
+separate headless evidence; ordinary-window acceptance remains open and the renderer
+ABI remains independent. Native AI-only endpoint planning scans exact integer
+packet PTS+duration instead of the MP4 decode-duration header; Off keeps its prior
+policy. The explicit 2x RGBA8 post-downscale occurs before CLAHE/manual processing.
+
+The browser diagnostic conversion route composes orientation normalization ->
+shared GPU tensor packing/ONNX x4 -> RGBA8 clamp/quantization -> optional shared
+2x final downscale -> CLAHE/manual controls -> existing FPS/encode/mux. Downstream
+scratch/retention is included in admission, and processed AI surfaces survive
+their submitted GPU/encoder lifetimes. Main/worker WebCodecs H.264/AAC tiny
+Original/15/60, WebM audio/video-only, fixed-FPS FFmpeg WASM, manual/CLAHE,
+orientation, independent pre-encoder CPU pixels and controlled device-loss/retry
+have evidence. FFmpeg WASM retains its explicitly counted CPU encoder readback
+and 4 MiB live ring; it never repeats inference. This supersedes earlier x2/video
+unimplemented notes below only for the tested diagnostic routes. Browser paused
+preview now has the limited evidence above; native preview, full lifecycle
+and release/UI gates remain open. Neither ordinary
+app accepts AI On. See the newest report sections for exact measurements and limits.
+
+Native discovery continuation (2026-10-23): `media-native::ai_runtime` accepts
+explicit optional runtime/SDK directories or their documented environment variables.
+It does not guess an absolute developer path, load DLLs, install dependencies or
+accept SDK terms. Bounded safe-Rust PE/resource inspection checks x64 DLL identity
+and assessed product-version metadata. The native CLI exposes this report while
+keeping inference unavailable. ONNX's assessed PE version 1.23.25.924 is build
+metadata for the separately evaluated ONNX Runtime 1.23.0; DirectML is 1.15.4.0.
+The SDK 1.1.0 package's VSR DLL reports 1.6.0.0; those are different version domains.
+Matching them is inventory evidence only. Actual C API/device/model initialization,
+SDK license/toolchain readiness and video/preview acceptance remain separate gates.
+
+Codec-policy continuation (2026-10-23): probing consumes AI's requested enlarged
+dimensions independently of inference availability. Browser probes pass those
+dimensions, source-aware bitrate and the selected FPS to the existing exact codec
+checks, and report estimates from the same output geometry and unchanged source
+coverage. Native SourceInfo offers the corresponding AI-aware estimate method;
+legacy calls delegate with Off. A successful encoder query cannot enable AI:
+probe metadata reports unavailable inference explicitly, and conversion/preview
+entry points still reject unaccepted On settings before output creation. Pure
+format policy rejects unknown/non-8-bit, nonopaque/non-SDR and Main 10 AI requests.
+This separation permits preparing codec recommendations without pretending that
+an arbitrary geometry, model or route has passed inference/video release gates.
+
+Shared-boundary continuation: `media-gpu::ai_tile` packs normalized RGBA8 unorm
+into FP32 RGB NCHW and crops/clamps ORT x4 output back to RGBA8 on the same device.
+`media-web::ai_inference` wraps the concrete cached ORT runtime with caller-owned
+Rust input/output buffers; wgpu never imports a foreign buffer. Its source-only
+pilot owner acquires the existing GpuSession's single AI session credit. Mutable
+processing supplies one inference-frame credit, and each tile drains before the
+one buffer pair is reused. Immutable uniforms survive submission and are explicitly
+destroyed after completion. Errors/cancellation retire the session; explicit close
+releases runtime/buffers without destroying the shared device.
+
+Core `AiMemoryPlan` checks source/output/tensor/uniform reservations plus platform
+weight/workspace estimates and downstream/retained-frame costs before allocation.
+The browser pilot pins 384 MiB admission, 8 MiB weight allowance and 128 MiB estimated
+workspace. At 577x579, its reservation is 173,162,444 bytes before downstream or
+retention. Main/worker requested-resource peak with diagnostic IO is 106,569,740
+bytes; counters return to the processing baseline after explicit cleanup. Estimates
+and visible counters do not bound opaque driver memory. Composition must supply
+actual downstream/retention costs and run video acceptance before release exposure.
+The pilot still supports only the measured 128-interior/34-halo, <=577x579, x4
+envelope. Both Burn candidates remain unavailable; native inference is not added
+by sharing this GPU module or compiling it against the renderer's separate ABI.
+
+Provisioning continuation: the user chose explicit local-file import of the pinned
+ONNX export. Core's embedded asset manifest is shared by browser/native caches.
+Model bytes are checked before publication and again on reads. Browser runtime
+assets are acquired only by a separate explicit action; verified cached module
+blobs plus verified WASM bytes load lazily, with no network fallback on cache reads.
+Main/worker numerical/device probes pass with that loader. Native cache helpers
+use sha2 0.10.9, bounded reads and temporary-file publication; they install no
+runtime. Cache APIs do not enable product capabilities or imply that code unloads
+when persistent assets are removed. The UI and inference adapters must serialize
+these explicit actions with their own active-job/session lifecycle.
+
+Tile/memory continuation selects 128-pixel interiors with clipped radius-34 halos,
+one tile/frame in flight, for the next ONNX integration pilot only. Main/worker
+Web 1.30.0 on Intel gen-12lp and native DirectML 1.23.0 on the selected RTX 3050 pass
+577x579 -> 2308x2316 reference, seam and order checks at both 128/256 interiors.
+The provisional integration envelope is source dimensions <=577x579 with x4 only;
+it is not a production capability or a claim about arbitrary larger video.
+Browser visible requested-resource peaks are 169,927,488 bytes at 128 and
+367,059,776 after testing both sizes, under a 384 MiB pre-allocation guard including
+diagnostic assembly/readback and an RGBA8 output reservation. Native sampled
+process-local/nonlocal peaks are 126,369,792/43,761,664 at 128 and
+244,858,880/72,237,056 bytes across both sizes. Browser driver/internal allocations
+are unknown; native 25 ms sampling can miss peaks and session release does not
+return all sampled memory to zero. These are different measurement scopes, not
+comparable total-memory budgets. Full downstream/codec/preview retention and actual
+RGBA packing must be calibrated during integration before any product capability.
+See the latest interop section and pinned evaluation lockfiles for exact evidence.
+
+`media-core::ai_upscale` contains only immutable job intent, allowlisted model/hash
+identity and capability/geometry policy. VideoSettings defaults its new `ai` field
+to Off for old payloads. A numeric pilot cannot satisfy a validated capability;
+On requires an exact matching backend/model/configuration/scale capability plus
+source/output/pixel limits. Geometry consumes an already normalized source and
+does not invoke ordinary resize before AI; Off restores the caller's retained
+ResizeSpec without weakening its guards. Runtime handles, asset acquisition and
+device generation remain platform responsibilities. No AI engine is enabled here.
+
+Browser worker and main execution share a pure checked command encoder/parser in
+`media-web::commands`, retaining old envelopes and appending an optional AI identity
+after equalization. Missing identity defaults Off; invalid/excess fields reject.
+NativeJob copies immutable AiSettings; existing constructors choose Off. Browser
+execute_job and native convert_job reject On before media processing/output until
+the concrete inference adapters are integrated and release-gated. Numerical pilot
+records are not supplied as validated product capabilities.
+
+Continuation: ONNX Runtime Web **1.30.0** now passes the unchanged x4 export on the
+actual processing device in both main and worker contexts, with CPU fallback
+disabled, all 73 optimized nodes on WebGPU, GPU-buffer IO and post-session-release
+device reuse. This supersedes the no-browser-pilot conclusion below; 1.23 remains
+a recorded failed version. Browser Burn 0.22.1 was independently executed on that
+device contract and fails its first copy kernel: 1024 workgroup invocations exceed
+the requested device limit of 256. Its browser result is now failed, not untested.
+Choose Web 1.30.0 and native DirectML 1.23.0 as **numerical feasibility pilots**.
+Production tensor/texture packing, total GPU-memory calibration, video/preview and
+lifecycle acceptance remain open; no user-selectable AI backend is enabled. Details
+and reproducible dependency locks are in the current interop continuation and tools.
+
+`ai-upscale` implementation starts with isolated probes in `tools/ai-upscale`, not
+application settings or controls. The allowlisted candidate is official
+`realesr-general-x4v3`, strong denoise 1 without weight blending, SRVGG compact
+64-feature/32-body-convolution, RGB encoded-sRGB FP32 NCHW. It internally produces
+x4; x2 via a final shared downscale remains unvalidated and unavailable. The
+opset-17 export has 34 Conv, 33 PRelu, CRD DepthToSpace(4), asymmetric/floor nearest
+Resize, and Add. Export and upstream hashes are pinned in the evaluation manifest;
+no model weights or proprietary SDK assets enter the application/source bundle.
+
+CPU PyTorch 2.8.0+cpu / ONNX 1.19.0 / NumPy 2.2.6 establish independent unclamped
+references at 1x1, 3x5, 17x19, 33x31 and 257x259. A radius-34 clipped halo follows
+the 34 padded stride-1 convolutions. Interiors 128/256, source edges, tile seams,
+reverse ordering and cross-size equivalence pass the unchanged numeric thresholds
+on this fixture. Whole-process CPU peak working set is recorded separately from
+unknown GPU/runtime allocations; this is not a calibrated production memory budget.
+
+Native ONNX Runtime DirectML 1.23.0 passes the five exact reference shapes on the
+explicit DXGI NVIDIA adapter 1, with CPU fallback disabled and only DirectML node
+events in its profile. This is a numerical GPU pilot with counted FP32 host staging,
+not an integrated processing/preview/export route. Maximum evaluated geometry is
+257x259 -> 1028x1036, not a safe upper limit or permission to enable arbitrary
+2x/4x video. No shipping pilot or total-VRAM envelope is selected yet.
+
+Browser ONNX Runtime Web 1.23.0 with Playwright 1.56.1 / Chromium 141 initially
+fails D3D12 device creation (`dxil.dll`, error 87). An isolated FXC diagnostic flag
+reaches the real processing wgpu device on Intel gen-12lp; explicit provider-option
+device injection preserves object identity, but GPU-buffer inference fails on the
+first 1x1 case. No browser numeric pilot passes. Burn ONNX 0.22.0 imports this exact
+graph; Burn 0.22.1 / CubeCL 0.11.2 resolves wgpu 30.0.1, while Blitz stays on 26.0.1.
+Import/ABI compatibility alone does not prove browser same-device execution. The
+explicit-FP32 native Burn/Vulkan probe selects the NVIDIA device and loads generated
+weights, then fails on the first 1x1 Conv2d's contiguous-copy kernel compilation:
+CubeCL IR expects `cube.f32` to implement `MaybeVectorizedType`. No Burn numeric pilot
+passes and browser Burn remains untested; the native failure is not proof of an
+identical failure in a browser.
+
+RTX SDK 1.1.0 remains an optional untested candidate. Its local package was inspected
+through a configurable evaluation argument; driver discovery is not initialization
+or enhancement evidence. Missing registered C++ tools block the documented sample
+build, and no SDK terms are accepted automatically. See the [interop evidence](interop-report.md#ai-upscale-feasibility-gates--2026-10-22)
+and [reproduction guide](../tools/ai-upscale/README.md). Application policy, device
+ownership and non-AI conversion remain unchanged; further integration must respect
+the change's stop/review gate when a requested platform has no portable pilot.
+
 ## 1. Architecture
 
 ### Core decisions

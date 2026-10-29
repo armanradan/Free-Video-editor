@@ -71,7 +71,9 @@ let startupDurationMs;
 let startupStages = [];
 let nextId = 0;
 let cancelGeneration = 0;
+let previewGeneration = 0;
 let runningId = null;
+let runningOperation = null;
 let downloadUrl;
 let tail = Promise.resolve();
 const pending = new Map();
@@ -119,15 +121,16 @@ function stopWorker(error) {
   for (const entry of pending.values()) entry.reject(error);
   pending.clear();
   runningId = null;
+  runningOperation = null;
 }
 
 function request(operation, fields = {}, status = () => {}, transfer = []) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject, status });
-    if (operation !== "init") runningId = id;
+    if (operation !== "init") { runningId = id; runningOperation = operation; }
     try { worker.postMessage({ id, operation, ...fields }, transfer); }
-    catch (error) { pending.delete(id); runningId = null; reject(error); }
+    catch (error) { pending.delete(id); runningId = null; runningOperation = null; reject(error); }
   });
 }
 
@@ -164,7 +167,7 @@ async function initialize() {
         if (!entry) return; // Ignore stale messages from retired jobs.
         if (data.type === "progress") { entry.status(data.status); return; }
         pending.delete(data.id);
-        if (runningId === data.id) runningId = null;
+        if (runningId === data.id) { runningId = null; runningOperation = null; }
         if (data.type === "result") entry.resolve(data.result);
         else entry.reject(Error(data.error));
       };
@@ -198,8 +201,23 @@ export function cancelRemote() {
   if (worker && runningId !== null) worker.postMessage({ operation: "cancel", id: runningId });
 }
 
+const isPreview = operation => operation === "preview" || operation === "preview-ai-pilot" || operation === "preview-ai-before-pilot";
+
+// Explicit source/seek invalidation only. Automatic playback samples and
+// downstream edits preserve active progress instead of starving inference.
+export function invalidatePreview() {
+  previewGeneration++;
+  if (!isPreview(runningOperation)) return false;
+  if (worker && runningId !== null) {
+    worker.postMessage({ operation: "cancel", id: runningId });
+    return false;
+  }
+  return !worker; // The window-owned Rust instance cancels its local preview.
+}
+
 export function dispatchJob(file, operation, profile, acceleration, resize, status, local) {
   const generation = cancelGeneration;
+  const previewRevision = previewGeneration;
   const parameters = new URL(location.href).searchParams;
   const verify = parameters.get("verify") === "full";
   const outputMode = parameters.get("output") === "memory" ? "memory" : "auto";
@@ -213,7 +231,7 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
   const task = tail.then(async () => {
     const reusedExecutionContext = Boolean(initialization);
     const useWorker = await initialize();
-    const cancelled = () => generation !== cancelGeneration;
+    const cancelled = () => generation !== cancelGeneration || isPreview(operation) && previewRevision !== previewGeneration;
     if (cancelled()) throw Error("CANCELLED: stopped before job startup");
     if (operation === "convert" && downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
@@ -230,7 +248,10 @@ export function dispatchJob(file, operation, profile, acceleration, resize, stat
       if (cancelled()) throw Error("CANCELLED: stopped before codec startup");
       globalThis.__DIAXUS_BACKEND__ = backend;
       globalThis.__DIAXUS_PARITY_FRAMES__ = parityFrames;
-      result = await local(file, operation, profile, acceleration, resize, `${outputMode}:${verify ? 1 : 0}:${failureMode}`, report);
+      runningOperation = operation;
+      try {
+        result = await local(file, operation, profile, acceleration, resize, `${outputMode}:${verify ? 1 : 0}:${failureMode}`, report);
+      } finally { runningOperation = null; }
     }
     if (cancelled()) throw Error("CANCELLED: completed work discarded after cancellation");
     if (result.blob) {

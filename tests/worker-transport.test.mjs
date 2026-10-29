@@ -58,6 +58,29 @@ const until = async predicate => {
   throw Error("test transport did not reach expected state");
 };
 
+test('AI identity survives both contexts and cancelled worker results cannot publish', async () => {
+  const command='percent:50~recommended~original~0/100/100~0/50~onnx-runtime/realesr-general-x4v3-strong-fp32-v1/4x';
+  const worker=await fixture({hold:true});
+  const pending=worker.module.dispatchJob(null,'convert','','',command,()=>{},()=>assert.fail('fallback'));
+  const rejected=assert.rejects(pending,/CANCELLED/);
+  await until(()=>worker.sent.some(x=>x.message.operation==='convert'));
+  const sent=worker.sent.find(x=>x.message.operation==='convert').message;
+  assert.equal(sent.resize,command);
+  worker.module.cancelRemote();
+  await rejected;
+  const originalCreate=URL.createObjectURL;
+  URL.createObjectURL=()=>assert.fail('cancelled AI output was published');
+  try {
+    worker.workers[0].reply(sent.id,'result',{summary:'stale AI result',blob:new Blob(['stale'])});
+  } finally { URL.createObjectURL=originalCreate; }
+  const main=await fixture({mode:'main'});
+  let received;
+  await main.module.dispatchJob(null,'convert','','',command,()=>{},async(...args)=>{
+    received=args[4];return {summary:'test transport only'};
+  });
+  assert.equal(received,command);
+});
+
 test("developer parity selection crosses the worker command boundary only when requested", async () => {
   const enabled = await fixture({parity:"0,7,35"});
   await enabled.module.dispatchJob(null,"convert","","","original",()=>{},()=>{});
@@ -65,6 +88,50 @@ test("developer parity selection crosses the worker command boundary only when r
   const disabled = await fixture();
   await disabled.module.dispatchJob(null,"convert","","","original",()=>{},()=>{});
   assert.equal(disabled.sent.find(x=>x.message.operation==="convert").message.parityFrames,"");
+});
+
+test('preview invalidation retires active and queued previews, preserves a queued probe and admits latest', async () => {
+  const {module,sent,workers}=await fixture({hold:true});
+  const run=operation=>module.dispatchJob(null,operation,'','','original',()=>{},()=>assert.fail('fallback'));
+  const active=run('preview'),queued=run('preview'),probe=run('probe');
+  const rejected=[assert.rejects(active,/CANCELLED/),assert.rejects(queued,/CANCELLED/)];
+  await until(()=>sent.some(x=>x.message.operation==='preview'));
+  assert.equal(module.invalidatePreview(),false);
+  module.invalidatePreview();
+  const latest=run('preview');
+  await Promise.all(rejected);
+  await until(()=>sent.some(x=>x.message.operation==='probe'));
+  const p=sent.find(x=>x.message.operation==='probe').message;
+  workers[0].reply(p.id,'result',{summary:'profile remains valid'});await probe;
+  await until(()=>sent.filter(x=>x.message.operation==='preview').length===2);
+  workers[0].reply(sent.at(-1).message.id,'result',{summary:'latest preview'});
+  assert.match((await latest).summary,/latest preview/);
+  assert.equal(workers.length,1);
+});
+
+test('preview invalidation cannot cancel an active conversion', async () => {
+  const {module,sent,workers}=await fixture({hold:true});
+  const conversion=module.dispatchJob(null,'convert','','','original',()=>{},()=>assert.fail('fallback'));
+  await until(()=>sent.some(x=>x.message.operation==='convert'));
+  assert.equal(module.invalidatePreview(),false);
+  assert.equal(sent.filter(x=>x.message.operation==='cancel').length,0);
+  workers[0].reply(sent.at(-1).message.id,'result',{summary:'conversion preserved'});
+  assert.match((await conversion).summary,/conversion preserved/);
+});
+
+test('main preview invalidation requests local cancellation and suppresses stale completion only', async () => {
+  const {module}=await fixture({mode:'main'});
+  let finish,entered=false;
+  const active=module.dispatchJob(null,'preview','','','original',()=>{},async()=>{
+    entered=true;return await new Promise(resolve=>{finish=resolve;});
+  });
+  const rejected=assert.rejects(active,/CANCELLED/);
+  await until(()=>entered);
+  assert.equal(module.invalidatePreview(),true);
+  finish({summary:'stale preview'});await rejected;
+  await module.dispatchJob(null,'convert','','','original',()=>{},async()=>{
+    assert.equal(module.invalidatePreview(),false);return {summary:'conversion remains current'};
+  });
 });
 
 test("worker transports commands and metadata; queued jobs are serialized", async () => {

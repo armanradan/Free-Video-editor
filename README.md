@@ -4,6 +4,144 @@ Resize, compress and adjust videos using a native Windows app or a browser app. 
 
 The native app uses installed FFmpeg and can use NVIDIA hardware codecs. The browser app uses WebCodecs by default, with an optional FFmpeg WASM encoder. Codec availability depends on your machine, browser and selected video.
 
+## Experimental AI model setup
+
+Both apps have a collapsed **AI Upscaling** section and start with AI **Off**.
+The normal browser build enables ONNX Runtime **2x/4x** on the tested Windows
+Edge 156 / Intel gen-12lp or NVIDIA Ampere WebGPU routes, using a secure, cross-origin-isolated
+origin. Other browser/GPU combinations show an unvalidated reason. Native
+2x/4x remain disabled pending ordinary-window preview/export acceptance.
+
+For browser AI, inspect an opaque 8-bit SDR source no larger than **577×579**,
+import the exact model below, explicitly download the runtime, then select
+**2x** or **4x**. AI determines output size; **Off** restores your saved ordinary
+resize. **Reset color** keeps AI selected, and **Before** affects preview only.
+H.264/AAC exports have evidence on both GPUs. NVIDIA AI WebM remains unavailable
+pending independent endpoint verification; the earlier Intel VP8 evidence is
+unchanged. AI HEVC is unavailable. Codec probes
+still apply, and FFmpeg WASM retains its fixed-FPS/temporary-storage limits.
+2x uses the model's 4x result followed by shared GPU downscaling.
+
+This image model can smooth fine detail, reconstruct text/texture and flicker.
+On the evaluated Intel GPU, 64-frame, 192×80, 5.33-second clips took roughly
+38–47 seconds with AI in the isolated diagnostic comparison. Preview is sampled
+and may be slow. No real-time, fidelity improvement or zero-copy claim is made.
+See [the acceptance record](docs/interop-report.md#browser-ai-controls-enabled--2026-10-25).
+
+For faster AI on this evaluated machine, start the local server, then run:
+
+```powershell
+& ./tools/ai-upscale/launch-nvidia-browser.ps1
+```
+
+This opens a separate Edge profile with an explicit high-performance GPU launch
+option; it changes no Windows graphics settings or default browser profile.
+Load a source and confirm **Selected GPU: nvidia / ampere**, then explicitly
+choose **MP4/H.264/AAC** and 2x/4x. The launcher downloads nothing. Model/runtime
+setup belongs to this separate profile; existing verified cache is reused.
+The evaluated NVIDIA route converted the same 64-frame 192×80 clips in
+**3.26–3.68 seconds**, compared with **37.53–46.92 seconds** on Intel (about
+10–14× faster in those tests). Cold model setup adds roughly 0.6 seconds.
+This result is specific to these clips and launch configuration, not a speed or
+real-time playback guarantee for larger inputs. Edge's normal high-performance
+adapter request still selected Intel; the launcher uses a separate process so
+its GPU argument takes effect.
+
+In the browser, choose the validated ONNX file and click **Import model**.
+**Check stored model** rechecks its hash. **Download runtime** explicitly
+acquires the pinned ONNX Runtime Web assets; it supports cancellation and retry.
+Separate removal buttons clear the stored model/runtime. Startup and AI Off
+perform no automatic acquisition; videos are never uploaded by these actions.
+
+In native, open AI Upscaling, choose a local cache folder, then import/check/remove
+the model. Setup uses a dedicated view; **Done** returns to the retained source
+and settings. Preview pauses while setup is open. **Inspect runtime folder** reads
+architecture/version metadata from an existing installation and loads no DLL.
+Native runtime/helper configuration and AI controls remain gated. No SDK, runtime,
+driver or toolchain installation or license acceptance is automatic.
+
+Browser/native inference, video and preview adapters have separate diagnostic
+evidence. Native preview uses a counted bounded display image between independent
+processing and renderer devices. Native runtime paths can also be inspected from
+the command line without loading a library:
+
+```powershell
+cargo run --locked -p media-native --bin native-convert -- ai-runtime-status --ort-directory PATH_TO_ORT_DIRECTORY --rtx-sdk PATH_TO_SDK
+```
+
+With the evaluated local assets, developers can explicitly launch
+`converter-native --ai-preview-check` to test real 2x/4x preview in the native
+window on the tiny CC0 fixture. Before/After, color edits and the player work in
+that diagnostic; export is disabled. Required asset/device/scale variables and
+test commands are documented in [the diagnostic runner guide](tools/ai-upscale/README.md#native-window-preview-diagnostic).
+The diagnostic also accepts an explicitly configured local RTX SDK helper via
+`DIAXUS_AI_PREVIEW_BACKEND=rtx`. Actual staged RTX service/renderer pixel and
+lifecycle tests pass on the evaluated machine; an RTX window inspection and
+ordinary-launch preview/export acceptance remain pending. Fresh seeks restart
+the SDK helper, so interactive performance is not yet accepted.
+Ordinary native launch still starts with AI Off and grants no AI capability.
+Its AI panel now imports an explicit local configuration for either backend and
+shows the corresponding model/runtime description. Import does not execute a
+runtime or enable controls. Native preview-to-export handoff tests pass for RTX
+and ONNX at both scales through the shared configuration entry point; ordinary
+window and release acceptance remain pending. See the runner guide above for
+the configuration example and independently verified handoff tests.
+The native release comparison now has96 independently verified RTX/ONNX/bilinear
+exports. On the three5.33-second192×80 clips, total RTX time is5.18–6.19seconds,
+including roughly3seconds of helper startup. Fresh seeks currently repeat that
+startup; it remains a preview bottleneck. These measurements do not establish
+real-time preview or support above the192×108 RTX input cap. See
+[the measured comparison](docs/interop-report.md#native-rtx-qualityperformance-comparison--2026-10-30).
+
+Both paths are optional. `DIAXUS_ORT_DIRECTORY` and `DIAXUS_RTX_SDK` are explicit
+environment alternatives; command arguments take precedence. Discovery checks x64
+PE architecture/version metadata and the assessed SDK layout, reports missing or
+incompatible components, and keeps inference unavailable. It installs nothing and
+does not accept SDK terms. File-version metadata is not proof of API/provider or
+GPU support. The standalone RTX SDK D3D11 feasibility probe now passes 2x/4x
+on the evaluated RTX 3050 after explicit local-evaluation consent. The optional
+bounded native helper also passes exact NVIDIA sample equivalence at2x/4x.
+The explicit native export pilot now passes both scales with Original/15/60 FPS,
+VFR/audio verification and byte-identical repeats. Input is currently capped at
+192x108. The staged RTX CLAHE/manual bridge and active pipe cancellation,
+timeout/crash cleanup and retry gates also pass. Native preview/UI acceptance,
+full release quality/performance and redistribution review remain pending;
+ordinary RTX controls are unavailable. See [the helper guide](tools/ai-upscale/native-rtx-helper/README.md).
+
+The validated model setup uses **explicit local file import**, chosen during the
+feasibility work. Import the exact 4,866,413-byte `model.onnx` generated by the
+[pinned reference recipe](tools/ai-upscale/README.md); arbitrary models reject.
+The shared manifest records the source, BSD-3-Clause license and SHA-256.
+
+Developer-only native cache commands (these do not enable inference):
+
+```powershell
+cargo run --locked -p media-native --bin native-convert -- import-ai-model --model tmp/ai-upscale/reference/model.onnx --cache tmp/ai-upscale/model-cache
+cargo run --locked -p media-native --bin native-convert -- ai-model-status --cache tmp/ai-upscale/model-cache
+cargo run --locked -p media-native --bin native-convert -- remove-ai-model --cache tmp/ai-upscale/model-cache
+```
+
+Native cache reads recheck integrity, valid entries work offline, and corrupt cache
+entries require explicit removal/reimport. The caller chooses the cache directory;
+no inference runtime, SDK, toolchain or driver is installed automatically.
+
+Browser provisioning APIs likewise import the local model into CacheStorage.
+Optional ONNX Runtime Web 1.30.0 assets total **26,901,320 bytes**, under MIT, and
+require a separate explicit acquisition action showing their URLs/license/size.
+Startup and AI Off do not acquire/load these assets. Model/runtime cache reads
+verify hashes; valid caches work offline. Quota/network/corruption errors require
+explicit recovery. Model and runtime caches can be removed separately; removal
+does not unload active compiled code. Source video is never uploaded by these APIs.
+Browser setup, ordinary controls and the limited route above are accepted;
+ordinary native AI preview/export acceptance remains pending.
+The developer-only native `ai-upscale-pilot` feature adds `ai-video-pilot` for
+DirectML inference plus shared-wgpu/software-codec conversion, with explicit
+helper/runtime/cache/GPU configuration. Its NVDEC/NVENC AI route is unavailable:
+the actual Original-VFR test failed timestamp preservation. Build/protocol and
+reproduction are in [the helper guide](tools/ai-upscale/native-onnx-helper/README.md).
+No AI controls or normal conversion capability are enabled by that feature. See
+[verified results and limitations](docs/interop-report.md).
+
 ## Get the source
 
 If you do not already have a checkout:
@@ -101,9 +239,15 @@ npm run build:ffmpeg-worker
 dx serve --web --locked --addr 127.0.0.1 --port 8084 --cross-origin-policy
 ```
 
+For a stable test of an existing build, stop `dx serve`, build once with
+`dx build --web --locked --package converter-web` from the repository root,
+then run `node tools/serve-web-build.mjs <built-public-directory> 8084`.
+It serves only that build with isolation and no-store headers. Avoid running a
+separate `dx build` against the same output while `dx serve` is building it.
+
 Open `http://127.0.0.1:8084` in your browser. Localhost is suitable for browser GPU access; deployed sites need HTTPS. Serve the app over HTTP/HTTPS, not by opening its HTML file directly. Stop the development server with Ctrl+C.
 
-The cross-origin policy flag enables the optional FFmpeg WASM backend. It is not required for the default WebCodecs backend.
+The cross-origin policy flag is required for AI and the optional FFmpeg WASM backend. Ordinary AI Off WebCodecs does not require it.
 
 ### Build for hosting
 

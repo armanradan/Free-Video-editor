@@ -121,3 +121,18 @@ button[data-selected="true"] { background: var(--selected); border-color: var(--
 .job-panel .job-status { flex: 1; min-height: 0; }
 .job-panel .note { flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 footer { color: var(--muted); text-align: center; font-size: 11px; padding: 0; }
+
+.ai-panel .color-toggle { display:flex; width:100%; align-items:center; justify-content:space-between; gap:8px; }
+.ai-scales, .ai-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.ai-setup { margin-top:8px; }
+.ai-setup input { max-width:100%; }
+#ai-setup-status { overflow-wrap:anywhere; }
+
+
+
+
+
+.native-root[data-ai-setup="true"] .files, .native-root[data-ai-setup="true"] .settings-grid, .native-root[data-ai-setup="true"] .workspace-row, .native-root[data-ai-setup="true"] footer { display:none; }
+
+.ai-panel a { color:var(--accent-ink); text-decoration:underline; }
+.ai-setup .note { overflow-wrap:anywhere; }

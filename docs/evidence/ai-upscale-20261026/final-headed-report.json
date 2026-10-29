@@ -1,0 +1,142 @@
+{
+  "status": "passed",
+  "scope": "Ordinary UI and backend commands; optional engine acceptance build; no diagnostic command substitution",
+  "contexts": [
+    {
+      "mode": "worker",
+      "theme": "dark",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "2x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=1; renders=7; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=19; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x unaccepted NVIDIA WebM export rejected with preview available",
+          "status": "Selected AI output profile is unavailable: NVIDIA AI WebM endpoint verification is pending. Select H.264/AAC explicitly; preview remains available.. Choose a supported profile explicitly.",
+          "preview": "Paused source preview: cache loads=7; renders=21; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=3; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history reused for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x preview-only controls acceptance",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=22; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=3; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history reused for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=26; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=5; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=10; renders=30; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=5; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x unaccepted NVIDIA WebM export rejected with preview available",
+          "status": "Selected AI output profile is unavailable: NVIDIA AI WebM endpoint verification is pending. Select H.264/AAC explicitly; preview remains available.. Choose a supported profile explicitly.",
+          "preview": "Paused source preview: cache loads=10; renders=32; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history reused for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x preview-only controls acceptance",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=10; renders=33; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history reused for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "Off restores retained ordinary resize",
+          "status": "Ready. Output resolves to 96×40. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=10; renders=34; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=7; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 96×40, display 96×40; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 96×40 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "missing model fails explicitly and stops its clock",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Source preview unavailable: AI model is not cached; explicitly import the validated model.onnx",
+          "error": "Preview playback failed: AI model is not cached; explicitly import the validated model.onnx",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "explicit asset repair and selection retry restore preview without automatic playback",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=16; renders=38; frame time=1.166666 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=11; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 1.19,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "over-envelope source disables both scales while ordinary preview remains usable",
+          "status": "Ready. Output resolves to 320×180. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=17; renders=40; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=13; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 320×180, display 320×180; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 423.8 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 320×180 (codec-safe)",
+          "estimate": "0.50 Mbps video · Estimated ~0.2 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "launch": {
+    "headless": false,
+    "extraArgs": [
+      "--force-high-performance-gpu"
+    ]
+  },
+  "browser": "156.0.4314.42"
+}

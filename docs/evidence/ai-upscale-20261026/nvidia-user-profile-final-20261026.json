@@ -1,0 +1,9 @@
+{
+  "status": "Ready. Output resolves to 384×160. Supported profiles: MP4/H.264/AAC.",
+  "server": "Existing clean build static server with isolation/no-store headers",
+  "launch": "headed persistent profile, no unsafe WebGPU flag",
+  "externalRequests": [],
+  "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)",
+  "preview": "Paused source preview: cache loads=1; renders=2; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=0; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 302.7 ms once; reused for this command=true.",
+  "sourceControls": 1
+}

@@ -1,0 +1,1 @@
+AI preview diagnostic displayed: 640x360, comparison_before=true, transfers=Some(Transfers { source_frames: 0, inference_upload_bytes: 0, inference_readback_bytes: 0, processing_upload_bytes: 0, original_upload_bytes: 9216, display_readback_bytes: 921600, renderer_upload_bytes: 921600, admission_bytes: 3704832 })

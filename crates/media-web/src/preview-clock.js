@@ -6,8 +6,10 @@ let url;
 let origin = 0;
 let length = 0;
 let failure = "";
+let attempt = 0;
 
 export function releasePreviewClock() {
+  attempt++;
   if (audio) {
     audio.pause();
     audio.onerror = null;
@@ -37,14 +39,17 @@ export function startPreviewClock(file, seconds, start, duration, muted) {
   seekPreviewClock(seconds >= length - .001 ? 0 : seconds);
   // Called directly from the user gesture, before any worker initialization.
   const owner = audio;
+  const currentAttempt = ++attempt;
   return owner.play().catch(error => {
-    owner.pause();
-    if (audio === owner) failure = `Preview playback unavailable: ${error.message}`;
+    if (audio === owner && attempt === currentAttempt) {
+      owner.pause();
+      failure = `Preview playback unavailable: ${error.message}`;
+    }
     throw error;
   });
 }
 
-export function pausePreviewClock() { audio?.pause(); }
+export function pausePreviewClock() { attempt++; audio?.pause(); }
 export function seekPreviewClock(seconds) {
   if (audio) audio.currentTime = origin + Math.max(0, Math.min(seconds, length));
 }

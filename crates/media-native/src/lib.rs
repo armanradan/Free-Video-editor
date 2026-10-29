@@ -1,9 +1,20 @@
 #![forbid(unsafe_code)]
 
+pub mod ai_assets;
+pub mod ai_configuration;
+pub mod ai_inference;
+pub mod ai_preview;
+pub mod ai_runtime;
+#[cfg(test)]
+mod ai_video_tests;
 pub mod color;
 #[cfg(test)]
 mod color_tests;
+pub mod rtx_inference;
+#[cfg(test)]
+mod rtx_tests;
 
+use media_core::ai_upscale::AiSettings;
 use media_core::equalization::Equalization;
 use media_core::{
     BitrateSource, ColorAdjustments, FrameGeometry, FrameRateSpec, OutputProfileId, Rect,
@@ -33,15 +44,31 @@ pub mod preview;
 use inspection::InspectionCache;
 
 #[derive(Clone, Default)]
-pub struct CancellationToken(Arc<AtomicBool>);
+pub struct CancellationToken {
+    requested: Arc<AtomicBool>,
+    external_stop: Option<Arc<AtomicBool>>,
+}
 
 impl CancellationToken {
     pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release);
+        self.requested.store(true, Ordering::Release);
     }
 
     pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
+        self.requested.load(Ordering::Acquire)
+            || self
+                .external_stop
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Acquire))
+    }
+
+    /// Link a service-owned stop flag without allowing request cancellation to
+    /// mutate that owner (for example, a renderer's device-loss notification).
+    pub fn with_external_stop(&self, flag: Arc<AtomicBool>) -> Self {
+        Self {
+            requested: self.requested.clone(),
+            external_stop: Some(flag),
+        }
     }
 
     fn check(&self) -> NativeResult<()> {
@@ -258,6 +285,7 @@ pub enum JobStage {
     Publishing,
 }
 
+#[derive(Clone, Copy)]
 pub struct NativeJob<'a> {
     pub input: &'a Path,
     pub output: &'a Path,
@@ -269,6 +297,7 @@ pub struct NativeJob<'a> {
     pub frame_rate: FrameRateSpec,
     pub color: ColorAdjustments,
     pub equalization: Equalization,
+    pub ai: AiSettings,
 }
 
 #[derive(Debug, Deserialize)]
@@ -385,7 +414,20 @@ impl SourceInfo {
         bitrate: VideoBitrate,
         frame_rate: FrameRateSpec,
     ) -> NativeResult<(u32, Option<u64>)> {
-        let size = resize.output_size(Size::new(self.display_width, self.display_height)?)?;
+        self.output_estimate_with_ai(resize, profile, bitrate, frame_rate, AiSettings::Off)
+    }
+
+    /// Estimate/probe intent only; this does not grant inference availability.
+    pub fn output_estimate_with_ai(
+        &self,
+        resize: ResizeSpec,
+        profile: OutputProfileId,
+        bitrate: VideoBitrate,
+        frame_rate: FrameRateSpec,
+        ai: AiSettings,
+    ) -> NativeResult<(u32, Option<u64>)> {
+        let size =
+            ai.requested_output_size(Size::new(self.display_width, self.display_height)?, resize)?;
         let bps = self.resolve_bitrate(size, profile, bitrate, frame_rate)?;
         let video_end = self
             .video_duration_us
@@ -461,6 +503,8 @@ impl AdapterDescriptor {
 
 #[derive(Debug, Serialize)]
 pub struct ConversionReport {
+    pub ai: NativeAiStats,
+    pub gpu_wall_times: Option<NativeGpuWallTimes>,
     pub color: ColorAdjustments,
     pub equalization: Equalization,
     pub equalization_gpu_scratch_bytes: u64,
@@ -729,6 +773,7 @@ impl NativeSession {
                 frame_rate: FrameRateSpec::Original,
                 color: ColorAdjustments::default(),
                 equalization: Equalization::default(),
+                ai: AiSettings::Off,
             },
             cancel,
             |_| {},
@@ -769,6 +814,123 @@ impl NativeSession {
         cancel: &CancellationToken,
         on_stage: impl Fn(JobStage),
     ) -> NativeResult<SessionConversionReport> {
+        self.convert_job_inner(job, NativeRunOptions::default(), cancel, &on_stage)
+    }
+
+    /// Ordinary job entry point with explicit immutable assets and exact release
+    /// metadata. Configuration import or successful setup is not acceptance.
+    pub fn convert_configured_job(
+        &self,
+        job: NativeJob<'_>,
+        config: &ai_configuration::NativeAiConfiguration,
+        capability: &media_core::ai_upscale::AiCapability,
+        cancel: &CancellationToken,
+        on_stage: impl Fn(JobStage),
+    ) -> NativeResult<SessionConversionReport> {
+        if job.ai == AiSettings::Off {
+            return self.convert_job(job, cancel, on_stage);
+        }
+        config.validate_selection(job.ai, capability)?;
+        let (onnx, rtx) = match &config.helper {
+            ai_preview::PreviewHelper::Onnx(c) => (Some(c), None),
+            ai_preview::PreviewHelper::Rtx(c) => (None, Some(c)),
+        };
+        self.convert_job_inner(
+            job,
+            NativeRunOptions {
+                ai_helper: onnx,
+                rtx_helper: rtx,
+                ai_capability: Some(capability),
+                adapter_key: Some(&config.processing_adapter),
+                ..Default::default()
+            },
+            cancel,
+            &on_stage,
+        )
+    }
+
+    /// Explicit diagnostic entry point; ordinary app jobs remain release gated.
+    #[cfg(any(test, feature = "ai-upscale-pilot"))]
+    pub fn convert_ai_pilot(
+        &self,
+        job: NativeJob<'_>,
+        config: &ai_inference::OnnxHelperConfig,
+        cancel: &CancellationToken,
+        on_stage: impl Fn(JobStage),
+    ) -> NativeResult<SessionConversionReport> {
+        if !matches!(job.ai, AiSettings::OnnxRuntime { .. }) {
+            return Err("Native AI video pilot requires the validated ONNX candidate".into());
+        }
+        self.convert_job_inner(
+            job,
+            NativeRunOptions {
+                ai_helper: Some(config),
+                ..Default::default()
+            },
+            cancel,
+            &on_stage,
+        )
+    }
+
+    /// Explicit local RTX evaluation; ordinary jobs remain release gated.
+    #[cfg(any(test, feature = "ai-upscale-pilot"))]
+    pub fn convert_rtx_pilot(
+        &self,
+        job: NativeJob<'_>,
+        config: &rtx_inference::RtxHelperConfig,
+        cancel: &CancellationToken,
+        on_stage: impl Fn(JobStage),
+    ) -> NativeResult<SessionConversionReport> {
+        if !matches!(job.ai, AiSettings::RtxVideo { .. }) {
+            return Err("RTX video pilot requires explicit RTX settings".into());
+        }
+        self.convert_job_inner(
+            job,
+            NativeRunOptions {
+                rtx_helper: Some(config),
+                ..Default::default()
+            },
+            cancel,
+            &on_stage,
+        )
+    }
+
+    /// Diagnostic same-size comparator only. Ordinary Off jobs cannot request
+    /// enlargement and no transport/UI flag can select this reference path.
+    #[cfg(any(test, feature = "ai-upscale-pilot"))]
+    pub fn convert_bilinear_pilot(
+        &self,
+        job: NativeJob<'_>,
+        scale: media_core::ai_upscale::AiScale,
+        cancel: &CancellationToken,
+        on_stage: impl Fn(JobStage),
+    ) -> NativeResult<SessionConversionReport> {
+        if job.ai != AiSettings::Off
+            || job.route != ProcessingRoute::SharedWgpu
+            || job.resize != ResizeSpec::Original
+        {
+            return Err(
+                "Bilinear reference requires AI Off and explicit Shared GPU software codecs".into(),
+            );
+        }
+        self.convert_job_inner(
+            job,
+            NativeRunOptions {
+                reference_scale: Some(scale),
+                ..Default::default()
+            },
+            cancel,
+            &on_stage,
+        )
+    }
+
+    fn convert_job_inner(
+        &self,
+        job: NativeJob<'_>,
+        configuration: NativeRunOptions<'_>,
+        cancel: &CancellationToken,
+        on_stage: &dyn Fn(JobStage),
+    ) -> NativeResult<SessionConversionReport> {
         let NativeJob {
             input,
             output,
@@ -779,9 +941,24 @@ impl NativeSession {
             frame_rate,
             color,
             equalization,
+            ai,
         } = job;
+        if ai != AiSettings::Off
+            && configuration.ai_helper.is_none()
+            && configuration.rtx_helper.is_none()
+        {
+            return Err(media_core::MediaError::AiUnavailable(
+                "native inference integration has not passed its release gates".into(),
+            )
+            .into());
+        }
         let (generation, adapter_key, token) = self.begin_job(cancel)?;
         let _active_job = ActiveSessionJob { session: self };
+        if configuration.ai_capability.is_some()
+            && adapter_key.as_deref() != configuration.adapter_key
+        {
+            return Err("Select the configured AI processing GPU explicitly; no fallback".into());
+        }
         let conversion = convert_with_control_inner(
             input,
             output,
@@ -789,6 +966,7 @@ impl NativeSession {
             profile,
             route,
             NativeRunOptions {
+                ai,
                 bitrate,
                 frame_rate,
                 color,
@@ -797,7 +975,7 @@ impl NativeSession {
                 adapter_key: adapter_key.as_deref(),
                 inspection: Some(&self.inspection),
                 on_stage: Some(&on_stage),
-                ..Default::default()
+                ..configuration
             },
             &token,
         )?;
@@ -1311,11 +1489,107 @@ impl CfrPlan {
                 .unsigned_abs()
                 > 1_000
             {
-                return Err(format!("CFR output frame {index} timestamp mismatch: expected {expected}µs, got {pts}µs").into());
+                return Err(format!("CFR output frame {index} timestamp mismatch: expected {expected}ط·آ¢ط¢آµs, got {pts}ط·آ¢ط¢آµs").into());
             }
         }
         Ok(())
     }
+}
+
+fn scan_presentation_duration(
+    path: &Path,
+    source: &SourceInfo,
+    cancel: &CancellationToken,
+) -> NativeResult<i64> {
+    let mut command = Command::new("ffprobe");
+    command
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "packet=pts,duration",
+            "-of",
+            "csv=p=0",
+        ])
+        .arg(path)
+        .stdout(Stdio::piped());
+    let mut child = ChildGuard::spawn(&mut command)?;
+    let _watch = CancellationWatch::new(cancel, &[&child]);
+    let mut first = i64::MAX;
+    let mut end = i64::MIN;
+    let mut count = 0u64;
+    for line in BufReader::new(child.take_stdout()?).lines() {
+        cancel.check()?;
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let mut fields = line.split(',');
+        let pts = fields
+            .next()
+            .ok_or("Missing presentation PTS")?
+            .parse::<i64>()?;
+        let duration = fields
+            .next()
+            .ok_or("Missing presentation duration")?
+            .parse::<i64>()?;
+        if duration <= 0 || pts < 0 {
+            return Err("Invalid presentation packet interval".into());
+        }
+        first = first.min(pts);
+        end = end.max(
+            pts.checked_add(duration)
+                .ok_or("Presentation endpoint overflow")?,
+        );
+        count += 1;
+        if count > source.frame_count {
+            return Err("Presentation packet count exceeds inspected frame count".into());
+        }
+    }
+    if !child.wait_cancellable(cancel)?.success() || count != source.frame_count {
+        return Err("AI presentation packet inspection failed/count mismatch".into());
+    }
+    let (num, den) = parse_rational(
+        source
+            .video_time_base
+            .as_deref()
+            .ok_or("Missing source time base")?,
+    )?;
+    if num <= 0 || den <= 0 {
+        return Err("Invalid presentation time base".into());
+    }
+    let first_us = (i128::from(first) * num * 1_000_000 + den / 2) / den;
+    if first_us.abs_diff(source.video_start_us) > 1 {
+        return Err("Presentation packet/frame origin mismatch".into());
+    }
+    end.checked_sub(first)
+        .filter(|ticks| *ticks > 0)
+        .ok_or_else(|| "Invalid presentation coverage".into())
+}
+
+fn use_presentation_coverage(
+    path: &Path,
+    source: &mut SourceInfo,
+    cancel: &CancellationToken,
+) -> NativeResult<()> {
+    let ticks = scan_presentation_duration(path, source, cancel)?;
+    let (num, den) = parse_rational(
+        source
+            .video_time_base
+            .as_deref()
+            .ok_or("Missing AI time base")?,
+    )?;
+    let duration = i128::from(ticks)
+        .checked_mul(num)
+        .and_then(|n| n.checked_mul(1_000_000))
+        .and_then(|n| n.checked_add(den / 2))
+        .ok_or("AI presentation duration overflow")?
+        / den;
+    source.video_duration_ticks = Some(ticks);
+    source.video_duration_us = Some(duration);
+    Ok(())
 }
 
 fn append_fps_filter(filter: &mut String, plan: Option<CfrPlan>) -> NativeResult<()> {
@@ -1361,7 +1635,7 @@ fn verify_output_timeline(
             > 1_000
         {
             return Err(format!(
-                "native output changed frame {index} timing: expected {expected}µs, got {after}µs"
+                "native output changed frame {index} timing: expected {expected}ط·آ¢ط¢آµs, got {after}ط·آ¢ط¢آµs"
             )
             .into());
         }
@@ -1390,7 +1664,7 @@ fn verify_track_coverage(
             > 25_000
         {
             return Err(format!(
-                "native output changed audio start: expected {expected}µs, got {after}µs"
+                "native output changed audio start: expected {expected}ط·آ¢ط¢آµs, got {after}ط·آ¢ط¢آµs"
             )
             .into());
         }
@@ -1405,7 +1679,7 @@ fn verify_track_coverage(
             .unsigned_abs()
             > 1_000
         {
-            return Err("native output changed video duration by more than 1 ms".into());
+            return Err(format!("native output changed video duration by more than 1 ms: expected {before} us, got {after} us").into());
         }
     }
     if let Some(before) = input.audio_duration_us {
@@ -1630,6 +1904,12 @@ pub fn convert_with_control(
 
 #[derive(Clone, Copy, Default)]
 struct NativeRunOptions<'a> {
+    #[cfg(any(test, feature = "ai-upscale-pilot"))]
+    reference_scale: Option<media_core::ai_upscale::AiScale>,
+    ai: AiSettings,
+    ai_helper: Option<&'a ai_inference::OnnxHelperConfig>,
+    rtx_helper: Option<&'a rtx_inference::RtxHelperConfig>,
+    ai_capability: Option<&'a media_core::ai_upscale::AiCapability>,
     color: ColorAdjustments,
     equalization: Equalization,
     device_generation: u64,
@@ -1641,14 +1921,25 @@ struct NativeRunOptions<'a> {
     inject_device_loss_after_frames: Option<u64>,
     #[cfg(test)]
     inject_cancel_after_frames: Option<u64>,
+    #[cfg(test)]
+    inject_ai_helper_crash_after_frames: Option<u64>,
+    #[cfg(test)]
+    ai_test_budget_bytes: Option<u64>,
     inspection: Option<&'a InspectionCache>,
     on_stage: Option<&'a dyn Fn(JobStage)>,
     hardware_gpu: Option<&'a NvidiaGpu>,
 }
 
 impl NativeRunOptions<'_> {
+    fn enlarged(self) -> bool {
+        #[cfg(any(test, feature = "ai-upscale-pilot"))]
+        if self.reference_scale.is_some() {
+            return true;
+        }
+        self.ai != AiSettings::Off
+    }
     fn color_active(self) -> bool {
-        !self.color.is_neutral() || self.equalization.active()
+        !self.color.is_neutral() || self.equalization.active() || self.enlarged()
     }
     fn stage(self, stage: JobStage) {
         if let Some(callback) = self.on_stage {
@@ -1668,6 +1959,14 @@ fn convert_with_control_inner(
 ) -> NativeResult<ConversionReport> {
     let total_started = Instant::now();
     cancel.check()?;
+    if options.ai != AiSettings::Off && route == ProcessingRoute::SharedWgpuNvidia {
+        return Err("Native AI NVDEC/NVENC route unavailable: the actual Original-VFR encoder test shifted the first video PTS from 22000 us to 0 us; no software codec fallback".into());
+    }
+    if options.ai != AiSettings::Off
+        && (!route.uses_wgpu() || (options.ai_helper.is_none() && options.rtx_helper.is_none()))
+    {
+        return Err("Native AI requires an explicitly configured shared-wgpu pilot route".into());
+    }
     if options.equalization.active() && !route.uses_wgpu() {
         return Err("CLAHE is not supported on direct FFmpeg routes; explicitly choose a shared-wgpu route. No automatic route or CPU fallback.".into());
     }
@@ -1699,8 +1998,20 @@ fn convert_with_control_inner(
         .inspection
         .unwrap_or(&local_cache)
         .load(input, cancel)?;
-    let source = inspected.source.clone();
+    let mut source = inspected.source.clone();
+    options.ai.validate_format(
+        if matches!(source.pixel_format.as_str(), "yuv420p" | "nv12") {
+            8
+        } else {
+            0
+        },
+        true,
+        profile,
+    )?;
     let input_timeline = &inspected.timeline;
+    if options.enlarged() {
+        use_presentation_coverage(input, &mut source, cancel)?;
+    }
     if !allow_10bit && matches!(source.pixel_format.as_str(), "yuv420p10le" | "p010le") {
         return Err(format!(
             "native 8-bit output has unsupported pixel format: {}",
@@ -1744,7 +2055,36 @@ fn convert_with_control_inner(
     } else {
         Size::new(source.width, source.height)?
     };
-    let output_size = resize.output_size(input_size)?;
+    let output_size = if let Some(capability) = options.ai_capability {
+        options.ai.output_size(input_size, resize, capability)?
+    } else {
+        options.ai.requested_output_size(input_size, resize)?
+    };
+    #[cfg(any(test, feature = "ai-upscale-pilot"))]
+    let output_size = if let Some(scale) = options.reference_scale {
+        if input_size.width > 192 || input_size.height > 108 {
+            return Err("Bilinear evaluation input exceeds the 192x108 comparison envelope".into());
+        }
+        // Both reference scale factors are even, so checked multiplication also
+        // yields codec-safe even dimensions without changing ordinary sizing.
+        Size::new(
+            input_size
+                .width
+                .checked_mul(scale.factor())
+                .ok_or("Reference width overflow")?,
+            input_size
+                .height
+                .checked_mul(scale.factor())
+                .ok_or("Reference height overflow")?,
+        )?
+    } else {
+        output_size
+    };
+    if matches!(options.ai, AiSettings::RtxVideo { .. }) {
+        rtx_inference::validate_source(input_size)?;
+    } else if options.ai != AiSettings::Off {
+        media_core::ai_upscale::pilot_tiles(input_size, 128)?;
+    }
     let cfr_plan = CfrPlan::for_source(&source, input_timeline, options.frame_rate)?;
     let video_bitrate_bps = options
         .bitrate
@@ -1804,6 +2144,8 @@ fn convert_with_control_inner(
         ),
     };
     let GpuConversionStats {
+        ai,
+        gpu_wall_times,
         adapter,
         uploaded,
         downloaded,
@@ -1813,7 +2155,14 @@ fn convert_with_control_inner(
     let conversion_elapsed = started.elapsed().as_millis();
     let verification_started = Instant::now();
     options.stage(JobStage::Verifying);
-    let (verified, output_timeline) = inspect_source(&partial.path, false, allow_10bit, cancel)?;
+    let (mut verified, output_timeline) =
+        inspect_source(&partial.path, false, allow_10bit, cancel)?;
+    if options.enlarged() {
+        // The encoder can also produce an MP4 decode-duration header shorter
+        // than presentation coverage. Compare exact packet endpoints on both
+        // sides; never accept a shortened presentation tail or relax tolerance.
+        use_presentation_coverage(&partial.path, &mut verified, cancel)?;
+    }
     cancel.check()?;
     if verified.width != output_size.width
         || verified.height != output_size.height
@@ -1886,6 +2235,8 @@ fn convert_with_control_inner(
     options.stage(JobStage::Publishing);
     let size = finish_output(&mut partial, output)?;
     Ok(ConversionReport {
+        ai,
+        gpu_wall_times,
         color: options.color,
         equalization: options.equalization,
         equalization_gpu_scratch_bytes,
@@ -2080,11 +2431,38 @@ fn convert_direct(
 
 #[derive(Default)]
 struct GpuConversionStats {
+    ai: NativeAiStats,
+    gpu_wall_times: Option<NativeGpuWallTimes>,
     adapter: Option<AdapterDescriptor>,
     uploaded: u64,
     downloaded: u64,
     fallback: Option<String>,
     equalization_gpu_scratch_bytes: u64,
+}
+
+/// CPU wall intervals, not pure GPU/codec execution. Decode/encode run
+/// concurrently; inference includes helper IO/transfers and downstream includes
+/// GPU uploads, queue completion, readback and encoder pipe backpressure.
+#[derive(Debug, Default, Serialize)]
+pub struct NativeGpuWallTimes {
+    pub processing_setup_us: u128,
+    pub helper_startup_us: u128,
+    pub decode_pipe_wait_us: u128,
+    pub inference_roundtrip_us: u128,
+    pub postprocess_and_encoder_pipe_us: u128,
+    pub codec_drain_us: u128,
+    pub helper_shutdown_us: u128,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct NativeAiStats {
+    pub identity: Option<ai_inference::HelperIdentity>,
+    pub source_frames: u64,
+    pub host_to_gpu_bytes: u64,
+    pub gpu_to_host_bytes: u64,
+    pub sampled_helper_local_peak: u64,
+    pub helper_memory_sampling_available: bool,
+    pub memory_admission_bytes: u64,
 }
 
 fn convert_gpu(
@@ -2097,11 +2475,96 @@ fn convert_gpu(
     cancel: &CancellationToken,
 ) -> NativeResult<GpuConversionStats> {
     cancel.check()?;
-    let mut gpu = GpuProcessor::new(
-        Size::new(source.width, source.height)?,
-        output,
-        options.adapter_key,
-    )?;
+    let source_size = Size::new(source.width, source.height)?;
+    let ai_on = options.ai != AiSettings::Off;
+    let processing_input = if ai_on {
+        let factor = match options.ai {
+            AiSettings::RtxVideo { scale, .. } => scale.factor(),
+            _ => 4,
+        };
+        Size::new(
+            source
+                .width
+                .checked_mul(factor)
+                .ok_or("AI width overflow")?,
+            source
+                .height
+                .checked_mul(factor)
+                .ok_or("AI height overflow")?,
+        )?
+    } else {
+        source_size
+    };
+    let mut ai_stats = NativeAiStats::default();
+    if ai_on {
+        // Core includes source/output/tensor/weight/workspace allowances. Add
+        // native CPU full frames, padded readback, downstream surfaces/scratch.
+        let output_bytes = u64::from(output.width) * u64::from(output.height) * 4;
+        let x4_bytes = u64::from(processing_input.width) * u64::from(processing_input.height) * 4;
+        let row = (u64::from(output.width) * 4 + 255) & !255;
+        let downstream = output_bytes * 2
+            + row * u64::from(output.height)
+            + if options.equalization.active() {
+                EqualizationStage::estimated_scratch_bytes(output)?
+            } else {
+                0
+            };
+        let retention = x4_bytes + u64::from(source.width) * u64::from(source.height) * 4;
+        #[cfg(test)]
+        let budget = options.ai_test_budget_bytes.unwrap_or(384 << 20);
+        #[cfg(not(test))]
+        let budget = 384 << 20;
+        ai_stats.memory_admission_bytes = media_core::ai_upscale::AiMemoryPlan::new(
+            source_size,
+            8 << 20,
+            128 << 20,
+            downstream,
+            retention,
+            budget,
+        )?
+        .total;
+    }
+    let mut gpu_wall_times = NativeGpuWallTimes::default();
+    let setup_started = Instant::now();
+    let mut gpu = GpuProcessor::new(processing_input, output, options.adapter_key)?;
+    gpu_wall_times.processing_setup_us = setup_started.elapsed().as_micros();
+    let helper_started = Instant::now();
+    let mut ai_processor = if matches!(options.ai, AiSettings::RtxVideo { .. }) {
+        ai_inference::NativeAiProcessor::new_rtx(
+            options.ai,
+            options
+                .rtx_helper
+                .ok_or("Explicit RTX helper configuration is missing")?,
+            source_size,
+            options.device_generation,
+            cancel,
+        )?
+    } else {
+        ai_inference::NativeAiProcessor::new(
+            options.ai,
+            options.ai_helper,
+            source_size,
+            options.device_generation,
+            cancel,
+        )?
+    };
+    if ai_on {
+        gpu_wall_times.helper_startup_us = helper_started.elapsed().as_micros();
+    }
+    if let Some(identity) = ai_processor.identity() {
+        if identity.adapter_name != gpu.adapter.name
+            || identity.vendor_id != gpu.adapter.vendor
+            || identity.device_id != gpu.adapter.device
+        {
+            return Err(
+                "Native AI and downstream processing GPU identity mismatch; no fallback".into(),
+            );
+        }
+        ai_stats.identity = Some(identity.clone());
+        ai_stats.helper_memory_sampling_available =
+            matches!(options.ai, AiSettings::OnnxRuntime { .. });
+    }
+    gpu.prepare_ai_postscale(ai_on);
     if options.equalization.active() {
         gpu.equalization = Some(NativeEqualization::new(
             &gpu.device,
@@ -2300,6 +2763,7 @@ fn convert_gpu(
         loop {
             cancel.check()?;
             gpu.check_device_lost()?;
+            let decode_started = Instant::now();
             let mut filled = 0;
             while filled < frame.len() {
                 cancel.check()?;
@@ -2317,6 +2781,7 @@ fn convert_gpu(
                 }
                 filled += read;
             }
+            gpu_wall_times.decode_pipe_wait_us += decode_started.elapsed().as_micros();
             if filled == 0 {
                 gpu.check_device_lost()?;
                 break;
@@ -2353,11 +2818,36 @@ fn convert_gpu(
             } else {
                 0
             };
-            if let Err(error) = gpu.process(&frame, source_pts, &mut writer, cancel) {
+            let enhanced = if ai_on {
+                let inference_started = Instant::now();
+                let enhanced =
+                    ai_processor.process_frame(frame.clone(), options.device_generation, cancel)?;
+                gpu_wall_times.inference_roundtrip_us += inference_started.elapsed().as_micros();
+                ai_stats.source_frames += 1;
+                ai_stats.host_to_gpu_bytes += enhanced.host_to_gpu_bytes;
+                ai_stats.gpu_to_host_bytes += enhanced.gpu_to_host_bytes;
+                ai_stats.sampled_helper_local_peak = ai_stats
+                    .sampled_helper_local_peak
+                    .max(enhanced.sampled_process_local_peak);
+                Some(enhanced)
+            } else {
+                None
+            };
+            let pixels = enhanced
+                .as_ref()
+                .map_or(frame.as_slice(), |value| value.rgba.as_slice());
+            let postprocess_started = Instant::now();
+            if let Err(error) = gpu.process(pixels, source_pts, &mut writer, cancel) {
                 cancel.check()?;
                 return Err(error);
             }
+            gpu_wall_times.postprocess_and_encoder_pipe_us +=
+                postprocess_started.elapsed().as_micros();
             count += 1;
+            #[cfg(test)]
+            if options.inject_ai_helper_crash_after_frames == Some(count) {
+                ai_processor.crash_owned_child_for_test()?;
+            }
             #[cfg(test)]
             if options.inject_cancel_after_frames == Some(count) {
                 cancel.cancel();
@@ -2384,16 +2874,30 @@ fn convert_gpu(
     if let Err(error) = result {
         return Err(format!("shared pipeline failed: {error}; decoder: {}; encoder: {}. No implicit CPU codec fallback.", decoder.diagnostic().trim(), encoder.diagnostic().trim()).into());
     }
+    let drain_started = Instant::now();
     let decode_status = decoder.wait_cancellable(cancel)?;
     let encode_status = encoder.wait_cancellable(cancel)?;
+    gpu_wall_times.codec_drain_us = drain_started.elapsed().as_micros();
+    let shutdown_started = Instant::now();
+    ai_processor.close()?;
+    if let Some(peak) = ai_processor.closed_sampled_local_peak() {
+        ai_stats.sampled_helper_local_peak = ai_stats.sampled_helper_local_peak.max(peak);
+        ai_stats.helper_memory_sampling_available = true;
+    }
+    if ai_on {
+        gpu_wall_times.helper_shutdown_us = shutdown_started.elapsed().as_micros();
+    }
     cancel.check()?;
     if !decode_status.success() || !encode_status.success() {
         return Err(format!(
-            "native pipeline failed: decoder={decode_status}, encoder={encode_status}"
+            "native pipeline failed: decoder={decode_status}, encoder={encode_status}; decoder: {}; encoder: {}. No implicit CPU codec fallback.",
+            decoder.diagnostic().trim(), encoder.diagnostic().trim()
         )
         .into());
     }
     Ok(GpuConversionStats {
+        ai: ai_stats,
+        gpu_wall_times: Some(gpu_wall_times),
         adapter: Some(gpu.adapter),
         uploaded: gpu.uploaded,
         downloaded: gpu.downloaded,
@@ -2431,6 +2935,8 @@ impl NativeEqualization {
 }
 
 struct GpuProcessor {
+    preview_display: Option<(wgpu::Texture, wgpu::Buffer, Size)>,
+    ai_downscale: Option<(wgpu::Texture, wgpu::Buffer)>,
     equalization: Option<NativeEqualization>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -2498,7 +3004,9 @@ impl GpuProcessor {
         );
         let target = make_texture(
             output,
-            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
         );
         let pipeline = ResizePipeline::new(&device, format);
         let transform = pipeline.create_transform_buffer(&device, &queue, Rotation::Deg0, false);
@@ -2516,6 +3024,8 @@ impl GpuProcessor {
             mapped_at_creation: false,
         });
         Ok(Self {
+            preview_display: None,
+            ai_downscale: None,
             equalization: None,
             device,
             queue,
@@ -2534,6 +3044,67 @@ impl GpuProcessor {
             device_lost,
             device_lost_signal,
         })
+    }
+
+    // Native preview alone stages this bounded display image across renderer ABIs.
+    fn prepare_preview_display(&mut self, size: Size) -> NativeResult<()> {
+        if size.width > 640 || size.height > 360 {
+            return Err("AI preview display exceeds 640x360".into());
+        }
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("native AI bounded display staging"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let neutral =
+            self.pipeline
+                .create_transform_buffer(&self.device, &self.queue, Rotation::Deg0, false);
+        self.padded_bytes_per_row = (size.width * 4 + 255) & !255;
+        self.readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("bounded AI preview display readback"),
+            size: u64::from(self.padded_bytes_per_row) * u64::from(size.height),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        self.preview_display = Some((texture, neutral, size));
+        Ok(())
+    }
+
+    fn prepare_ai_postscale(&mut self, enabled: bool) {
+        if enabled && self.input_size != self.output_size {
+            self.ai_downscale = Some((
+                self.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("AI x4 to selected output before effects"),
+                    size: wgpu::Extent3d {
+                        width: self.output_size.width,
+                        height: self.output_size.height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
+                    view_formats: &[],
+                }),
+                self.pipeline.create_transform_buffer(
+                    &self.device,
+                    &self.queue,
+                    Rotation::Deg0,
+                    false,
+                ),
+            ));
+        }
     }
 
     fn check_device_lost(&self) -> NativeResult<()> {
@@ -2591,11 +3162,28 @@ impl GpuProcessor {
                 label: Some("native resize"),
             });
         let source_view = self.source.create_view(&Default::default());
-        if let Some(effect) = &mut self.equalization {
-            let equalized = effect.stage.record(
+        let selected_view = self.ai_downscale.as_ref().map(|(texture, transform)| {
+            let view = texture.create_view(&Default::default());
+            self.pipeline.record_resize(
                 &self.device,
                 &mut encoder,
                 &source_view,
+                transform,
+                &view,
+                self.output_size,
+            );
+            view
+        });
+        let source_view = selected_view.as_ref().unwrap_or(&source_view);
+        if let Some(effect) = self
+            .equalization
+            .as_mut()
+            .filter(|effect| effect.settings.active())
+        {
+            let equalized = effect.stage.record(
+                &self.device,
+                &mut encoder,
+                source_view,
                 source_pts,
                 effect.settings,
                 effect.generation,
@@ -2612,15 +3200,47 @@ impl GpuProcessor {
             self.pipeline.record_resize(
                 &self.device,
                 &mut encoder,
-                &source_view,
+                source_view,
                 &self.transform,
                 &self.target.create_view(&Default::default()),
                 self.output_size,
             );
         }
+        let (capture, capture_size) = if let Some((display, neutral, size)) = &self.preview_display
+        {
+            self.pipeline.record_resize(
+                &self.device,
+                &mut encoder,
+                &self.target.create_view(&Default::default()),
+                neutral,
+                &display.create_view(&Default::default()),
+                *size,
+            );
+            (display, *size)
+        } else {
+            (&self.target, self.output_size)
+        };
+        let capture = capture.clone();
+        self.capture_preview_or_output(encoder, &capture, capture_size, output, cancel)?;
+        self.uploaded = self
+            .uploaded
+            .checked_add(input_len)
+            .ok_or("upload byte counter overflow")?;
+        Ok(())
+    }
+
+    /// Shared drain/readback for conversion and the explicitly staged preview.
+    fn capture_preview_or_output(
+        &mut self,
+        mut encoder: wgpu::CommandEncoder,
+        capture: &wgpu::Texture,
+        capture_size: Size,
+        output: &mut impl Write,
+        cancel: &CancellationToken,
+    ) -> NativeResult<()> {
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture: &self.target,
+                texture: capture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -2630,12 +3250,12 @@ impl GpuProcessor {
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(self.padded_bytes_per_row),
-                    rows_per_image: Some(self.output_size.height),
+                    rows_per_image: Some(capture_size.height),
                 },
             },
             wgpu::Extent3d {
-                width: self.output_size.width,
-                height: self.output_size.height,
+                width: capture_size.width,
+                height: capture_size.height,
                 depth_or_array_layers: 1,
             },
         );
@@ -2645,57 +3265,59 @@ impl GpuProcessor {
         slice.map_async(wgpu::MapMode::Read, move |result| {
             let _ = sender.send(result);
         });
-        let wait_started = Instant::now();
-        loop {
-            cancel.check()?;
-            self.check_device_lost()?;
-            match receiver.try_recv() {
-                Ok(result) => {
-                    if let Err(error) = result {
+        let result = (|| -> NativeResult<()> {
+            let wait_started = Instant::now();
+            loop {
+                cancel.check()?;
+                self.check_device_lost()?;
+                match receiver.try_recv() {
+                    Ok(result) => {
+                        if let Err(error) = result {
+                            self.check_device_lost()?;
+                            return Err(error.into());
+                        }
+                        break;
+                    }
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        return Err("GPU map callback disconnected".into());
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {}
+                }
+                if wait_started.elapsed() > Duration::from_secs(30) {
+                    return Err("GPU readback timed out".into());
+                }
+                match self.device.poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(Duration::from_millis(100)),
+                }) {
+                    Ok(_) | Err(wgpu::PollError::Timeout) => {}
+                    Err(error) => {
                         self.check_device_lost()?;
                         return Err(error.into());
                     }
-                    break;
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    return Err("GPU map callback disconnected".into());
-                }
-                Err(mpsc::TryRecvError::Empty) => {}
-            }
-            if wait_started.elapsed() > Duration::from_secs(30) {
-                return Err("GPU readback timed out".into());
-            }
-            match self.device.poll(wgpu::PollType::Wait {
-                submission_index: None,
-                timeout: Some(Duration::from_millis(100)),
-            }) {
-                Ok(_) | Err(wgpu::PollError::Timeout) => {}
-                Err(error) => {
-                    self.check_device_lost()?;
-                    return Err(error.into());
                 }
             }
-        }
-        cancel.check()?;
-        self.check_device_lost()?;
-        let write_result = {
-            let mapped = slice.get_mapped_range()?;
-            let row_bytes = usize::try_from(self.output_size.width * 4)?;
-            mapped
-                .chunks_exact(self.padded_bytes_per_row as usize)
-                .take(self.output_size.height as usize)
-                .try_for_each(|row| output.write_all(&row[..row_bytes]))
-        };
+            cancel.check()?;
+            self.check_device_lost()?;
+            let write_result = {
+                let mapped = slice.get_mapped_range()?;
+                let row_bytes = usize::try_from(capture_size.width * 4)?;
+                mapped
+                    .chunks_exact(self.padded_bytes_per_row as usize)
+                    .take(capture_size.height as usize)
+                    .try_for_each(|row| output.write_all(&row[..row_bytes]))
+            };
+            self.check_device_lost()?;
+            write_result?;
+            Ok(())
+        })();
+        // Unmap also retires an outstanding map on cancel/loss/error. A cache
+        // must never retain a mapped buffer after an interrupted display read.
         self.readback.unmap();
-        self.check_device_lost()?;
-        write_result?;
-        self.uploaded = self
-            .uploaded
-            .checked_add(input_len)
-            .ok_or("upload byte counter overflow")?;
+        result?;
         self.downloaded = self
             .downloaded
-            .checked_add(u64::from(self.output_size.width) * u64::from(self.output_size.height) * 4)
+            .checked_add(u64::from(capture_size.width) * u64::from(capture_size.height) * 4)
             .ok_or("readback byte counter overflow")?;
         Ok(())
     }
@@ -2705,6 +3327,130 @@ impl GpuProcessor {
 mod tests {
     use super::*;
     use media_core::estimate_output_bytes;
+
+    #[test]
+    fn ai_enlarged_estimates_use_inspected_source_and_preserve_timing() {
+        use media_core::ai_upscale::{AiModel, AiScale};
+        let source = probe_source(&fixture("m2-h264-aac.mp4")).unwrap();
+        let snapshot = serde_json::to_value(&source).unwrap();
+        for fps in [
+            FrameRateSpec::Original,
+            FrameRateSpec::Constant {
+                numerator: 60,
+                denominator: 1,
+            },
+        ] {
+            let mut previous = (0, 0);
+            for ai in [
+                AiSettings::Off,
+                AiSettings::OnnxRuntime {
+                    model: AiModel::RealEsrGeneralX4v3StrongFp32V1,
+                    scale: AiScale::Two,
+                },
+                AiSettings::OnnxRuntime {
+                    model: AiModel::RealEsrGeneralX4v3StrongFp32V1,
+                    scale: AiScale::Four,
+                },
+            ] {
+                let (rate, bytes) = source
+                    .output_estimate_with_ai(
+                        ResizeSpec::Percent(50),
+                        OutputProfileId::Mp4H264Aac,
+                        VideoBitrate::Recommended,
+                        fps,
+                        ai,
+                    )
+                    .unwrap();
+                let size = ai
+                    .requested_output_size(
+                        Size::new(source.display_width, source.display_height).unwrap(),
+                        ResizeSpec::Percent(50),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    rate,
+                    source
+                        .resolve_bitrate(
+                            size,
+                            OutputProfileId::Mp4H264Aac,
+                            VideoBitrate::Recommended,
+                            fps
+                        )
+                        .unwrap()
+                );
+                assert!(rate > previous.0 && bytes.unwrap() > previous.1);
+                if ai == AiSettings::Off {
+                    assert_eq!(
+                        (rate, bytes),
+                        source
+                            .output_estimate_with_rate(
+                                ResizeSpec::Percent(50),
+                                OutputProfileId::Mp4H264Aac,
+                                VideoBitrate::Recommended,
+                                fps
+                            )
+                            .unwrap()
+                    );
+                }
+                previous = (rate, bytes.unwrap());
+            }
+        }
+        assert_eq!(serde_json::to_value(&source).unwrap(), snapshot);
+    }
+
+    #[test]
+    fn ai_snapshot_rejects_before_source_inspection_or_output_creation() {
+        use media_core::ai_upscale::{AiModel, AiScale};
+        let session = NativeSession::new(None).unwrap();
+        let input = std::env::temp_dir().join("diaxus-ai-source-not-present.mp4");
+        let output =
+            std::env::temp_dir().join(format!("diaxus-ai-rejected-{}.mp4", std::process::id()));
+        assert!(!output.exists());
+        let mut selected = NativeJob {
+            input: &input,
+            output: &output,
+            resize: ResizeSpec::Original,
+            profile: OutputProfileId::Mp4H264Aac,
+            route: ProcessingRoute::DirectFfmpeg,
+            bitrate: None,
+            frame_rate: FrameRateSpec::Original,
+            color: ColorAdjustments::default(),
+            equalization: Equalization::default(),
+            ai: AiSettings::OnnxRuntime {
+                model: AiModel::RealEsrGeneralX4v3StrongFp32V1,
+                scale: AiScale::Four,
+            },
+        };
+        let snapshot = selected;
+        selected.ai = AiSettings::Off;
+        assert_ne!(snapshot.ai, selected.ai);
+        for route in [
+            ProcessingRoute::DirectFfmpeg,
+            ProcessingRoute::NvidiaFfmpeg,
+            ProcessingRoute::SharedWgpu,
+            ProcessingRoute::SharedWgpuNvidia,
+        ] {
+            for profile in [
+                OutputProfileId::Mp4H264Aac,
+                OutputProfileId::Mp4H265Main10Aac,
+            ] {
+                let error = session
+                    .convert_job(
+                        NativeJob {
+                            route,
+                            profile,
+                            ..snapshot
+                        },
+                        &CancellationToken::default(),
+                        |_| panic!("rejected AI job started"),
+                    )
+                    .err()
+                    .unwrap();
+                assert!(error.to_string().contains("AI upscaling unavailable"));
+                assert!(!output.exists());
+            }
+        }
+    }
 
     #[test]
     fn cfr_plan_checks_full_grid_coverage_and_fractional_rates() {
@@ -2808,6 +3554,7 @@ mod tests {
                     frame_rate: FrameRateSpec::Original,
                     color: ColorAdjustments::default(),
                     equalization: Equalization::default(),
+                    ai: AiSettings::Off,
                 },
                 &token,
                 |stage| stages.borrow_mut().push(stage),

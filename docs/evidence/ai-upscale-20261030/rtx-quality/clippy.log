@@ -1,0 +1,23 @@
+    Checking media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+error: called `Iterator::last` on a `DoubleEndedIterator`; this will needlessly iterate the entire iterator
+   --> crates\media-native\src\ai_inference.rs:148:9
+    |
+148 | /         String::from_utf8_lossy(&log)
+149 | |             .lines()
+150 | |             .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+151 | |             .filter(|item| item["stage"] == "closed")
+152 | |             .last()
+    | |___________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#double_ended_iterator_last
+    = note: `-D clippy::double-ended-iterator-last` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::double_ended_iterator_last)]`
+help: try
+    |
+152 -             .last()
+152 +             .next_back()
+    |
+
+error: could not compile `media-native` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `media-native` (lib test) due to 1 previous error

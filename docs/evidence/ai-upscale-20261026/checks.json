@@ -1,0 +1,60 @@
+{
+  "change": "ai-upscale",
+  "progress": {
+    "complete": 20,
+    "total": 32
+  },
+  "accepted": "Scoped Windows Edge 156 NVIDIA Ampere ONNX browser H264 route; native ordinary AI and RTX SDK not accepted",
+  "verification": [
+    {
+      "command": "cargo clippy --locked --target wasm32-unknown-unknown -p media-web -p converter-web --all-targets -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo check --locked -p converter-native",
+      "result": "passed after shared selector recovery change"
+    },
+    {
+      "command": "cargo test --locked -p ui",
+      "result": "2 passed"
+    },
+    {
+      "command": "node --test tests/worker-transport.test.mjs tests/browser-preview-clock.test.mjs tests/preview-history.test.mjs",
+      "result": "16 passed"
+    },
+    {
+      "command": "cargo fmt --all --check; openspec validate ai-upscale --strict; git -c core.safecrlf=false diff --check",
+      "result": "passed"
+    },
+    {
+      "command": "node --check tests/ai-enabled-ui.mjs; node --check tools/serve-web-build.mjs; PowerShell launcher AST parse",
+      "result": "passed"
+    },
+    {
+      "command": "dx build --web --locked --package converter-web",
+      "result": "passed; duplicate generated bindings preserved and cleanly regenerated without running dev server; one bootstrap block confirmed"
+    },
+    {
+      "command": "tools/ai-upscale/launch-nvidia-browser.ps1",
+      "result": "executed; local static server HTTP 200, COOP same-origin, COEP require-corp, no-store"
+    }
+  ],
+  "runtime": {
+    "fp32": "5 shapes x2 contexts passed, maxAbs 6.318092346191406e-6",
+    "tiles": "6 shapes x2 contexts passed <=1 RGBA8 LSB",
+    "isolated_benchmark": "24 exports independently verified; NVIDIA 3.256-3.678 seconds conversion versus earlier Intel 37.533-46.923 seconds; same model/inputs/effects, different explicit GPU/compiler configurations",
+    "ordinary_ui": "main/worker/light/dark, 8 actual exports independently verified",
+    "lifecycle": "8 handoff/retry exports independently verified; 12 active failures and 40 successful previews across both contexts",
+    "h264_fps": "12 Original/15/60 exports independently verified; real subset of the preserved broader codec run",
+    "ffmpeg": "8 fixed-FPS H264/AAC exports independently verified",
+    "final_headed": "worker/dark, no unsafe WebGPU flag; unsupported WebM blocks Convert with working preview and recoverable H264 selection; both scales, missing assets/retry/Off/oversized-source passed",
+    "user_profile": "Actual normal static server, headed persistent profile, one source control, NVIDIA preview and zero external requests; launcher then opened this profile"
+  },
+  "known_failures": [
+    "Initial nonexistent webm-vp8-video id was a harness error",
+    "Broader WebM verification fails because FFprobe omits packet durations; NVIDIA WebM remains unavailable, no invented endpoint",
+    "Profile selector initially locked after rejected profile; real UI regression fixed and passing",
+    "Repeated generated bootstrap mounted two apps in late debug runs; failed reports preserved, generated bindings rebuilt with server stopped. Exact cause inside dx not proved."
+  ],
+  "storage": "Only bounded metadata and selected screenshots in evidence. Videos/raw frames/contact sheets/model/runtime and dedicated Edge profile remain ignored; duplicate generated wasm preserved inside external Cargo build output."
+}

@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "contexts": [
+    {
+      "mode": "main",
+      "status": "passed",
+      "cases": [
+        "VFR Original export rejected, paused source preview available",
+        "CLAHE preview works independently of rejected FFmpeg export",
+        "play/pause works while export remains unavailable",
+        "fixed-FPS export becomes available without removing preview",
+        "returning to rejected Original FPS keeps preview available",
+        "Before/After request scope preserves saved CLAHE",
+        "AI Off optional caches remain empty"
+      ],
+      "errors": []
+    },
+    {
+      "mode": "worker",
+      "status": "passed",
+      "cases": [
+        "VFR Original export rejected, paused source preview available",
+        "CLAHE preview works independently of rejected FFmpeg export",
+        "worker display contains nonblack decoded fixture pixels (test-only readback)",
+        "play/pause works while export remains unavailable",
+        "fixed-FPS export becomes available without removing preview",
+        "returning to rejected Original FPS keeps preview available",
+        "Before/After request scope preserves saved CLAHE",
+        "AI Off optional caches remain empty"
+      ],
+      "errors": []
+    }
+  ],
+  "browser": "156.0.4314.42"
+}

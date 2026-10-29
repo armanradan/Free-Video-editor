@@ -1,0 +1,10 @@
+[package]
+name = "ai-upscale-burn-import-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+burn-onnx = "=0.22.0"

@@ -1,0 +1,47 @@
+{
+  "status": "passed",
+  "date": "2026-10-25",
+  "scope": "Active sampled AI preview command diagnostics plus ordinary AI Off seek UI; ordinary AI On UI/playback coalescing and full release acceptance remain open.",
+  "environment": {
+    "os": "Windows",
+    "browser": "Edge 155.0.4283.62",
+    "gpu": "intel / gen-12lp (BrowserWebGpu)",
+    "gpuDriver": "not exposed by browser",
+    "ORT": "Web 1.30.0",
+    "Rust": "1.98.1 GNU"
+  },
+  "results": {
+    "activePreviewFailures": 12,
+    "successfulDiagnosticPreviews": 40,
+    "unchangedCanvasRgbaComparisons": 8,
+    "freshDeviceRequestsPerContext": 3,
+    "uiCasesPerContext": 7,
+    "independentlyVerifiedAiExports": 8,
+    "ordinaryExportsIndependentlyDecoded": 2,
+    "clockHistoryTransportTestsPassed": 16
+  },
+  "commands": [
+    "cargo build --locked --offline --manifest-path tools/ai-upscale/tile-browser/Cargo.toml --target wasm32-unknown-unknown --release; matching wasm-bindgen 0.2.128",
+    "dx build --web --locked (apps/web)",
+    "browser.mjs with VIDEO=1 PREVIEW=1 PREVIEW_ACTIVE=1 VIDEO_CASES=[] and existing local pinned ORT assets; main/worker",
+    "browser-preview-lifecycle-ui.mjs with built ordinary app; main/worker",
+    "browser.mjs with VIDEO=1 PREVIEW=1 PREVIEW_LIFECYCLE=1 VIDEO_CASES=[]; verify_video.mjs: 8 passed",
+    "node --test tests/worker-transport.test.mjs tests/browser-preview-clock.test.mjs tests/preview-history.test.mjs: 16 passed",
+    "cargo clippy --locked --target wasm32-unknown-unknown -p media-web -p converter-web --all-targets -- -D warnings",
+    "cargo clippy --locked --target wasm32-unknown-unknown -p media-web --features gpu-setup-diagnostic --all-targets -- -D warnings",
+    "cargo check --locked -p media-core -p media-gpu",
+    "cargo fmt --all --check; JS syntax; strict OpenSpec validation; git diff --check"
+  ],
+  "limitations": [
+    "Raw snapshots are diagnostic CPU readbacks, excluded from throughput.",
+    "Active cancellation uses actual inference dispatch; runtime failure uses the real missing-input error; device destruction occurs during actual inference submission.",
+    "Destroyed-device canvas contents are not asserted; failed command returns no output and explicit fresh-generation pixels match the reference.",
+    "Application leases/tensors/session/explicit resource counters do not measure total driver or opaque runtime memory.",
+    "The sampled playback command flag is not an ordinary AI On audio-clock/UI acceptance test."
+  ],
+  "newDownloadsOrInstalls": false,
+  "progress": {
+    "complete": 20,
+    "total": 32
+  }
+}

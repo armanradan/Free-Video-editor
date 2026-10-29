@@ -1,0 +1,95 @@
+{
+  "status": "passed",
+  "gate_max_rgba8_lsb": 2,
+  "scope": "first pre-encoder frame; independent CPU PyTorch x4, optional post-downscale, orientation and manual color; CLAHE excluded",
+  "cases": [
+    {
+      "context": "main",
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": false,
+        "color": "10/115/80"
+      },
+      "rotation": 0,
+      "flip": false,
+      "index": 0,
+      "max_rgba8_lsb": 2,
+      "mae_rgba8_lsb": 0.1685474537037037
+    },
+    {
+      "context": "main",
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": false,
+        "color": "10/115/80"
+      },
+      "rotation": 0,
+      "flip": false,
+      "index": 0,
+      "max_rgba8_lsb": 2,
+      "mae_rgba8_lsb": 0.0016547309027777778
+    },
+    {
+      "context": "main",
+      "request": {
+        "fixture": "ai-upscale-rotated.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": false
+      },
+      "rotation": 90,
+      "flip": true,
+      "index": 0,
+      "max_rgba8_lsb": 1,
+      "mae_rgba8_lsb": 0.001103153935185185
+    },
+    {
+      "context": "worker",
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": false,
+        "color": "10/115/80"
+      },
+      "rotation": 0,
+      "flip": false,
+      "index": 0,
+      "max_rgba8_lsb": 2,
+      "mae_rgba8_lsb": 0.1685474537037037
+    },
+    {
+      "context": "worker",
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": false,
+        "color": "10/115/80"
+      },
+      "rotation": 0,
+      "flip": false,
+      "index": 0,
+      "max_rgba8_lsb": 2,
+      "mae_rgba8_lsb": 0.0016547309027777778
+    },
+    {
+      "context": "worker",
+      "request": {
+        "fixture": "ai-upscale-rotated.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": false
+      },
+      "rotation": 90,
+      "flip": true,
+      "index": 0,
+      "max_rgba8_lsb": 1,
+      "mae_rgba8_lsb": 0.001103153935185185
+    }
+  ]
+}

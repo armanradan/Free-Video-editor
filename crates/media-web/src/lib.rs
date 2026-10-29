@@ -3,14 +3,26 @@
 pub use media_core::VideoSettings;
 
 #[cfg(target_arch = "wasm32")]
+pub mod ai_inference;
+#[cfg(all(
+    target_arch = "wasm32",
+    any(feature = "ai-upscale", feature = "gpu-setup-diagnostic")
+))]
+mod ai_video;
+
+#[cfg(any(test, target_arch = "wasm32"))]
+mod commands;
+
+#[cfg(target_arch = "wasm32")]
 mod browser {
+    use crate::commands::{decode, encode, resize_command};
     use js_sys::{Function, Promise, Reflect};
     use media_core::equalization::Equalization;
     use media_core::{
         BitrateSource, CodecAcceleration, ColorAdjustments, FrameGeometry, FrameRateGrid,
         FrameRateSpec, INPUT_SIZE, MediaError, OUTPUT_SIZE, OutputProfileId, Rect, ResizeSpec,
-        Rotation, Size, TrackCoverage, VideoBitrate, VideoCodec, VideoSettings,
-        estimate_output_coverage, validate_input_size,
+        Rotation, Size, TrackCoverage, VideoCodec, VideoSettings, estimate_output_coverage,
+        validate_input_size,
     };
     use media_gpu::ResizePipeline;
     use media_gpu::equalization::{EqualizationStage, PreviewColorStage};
@@ -56,6 +68,9 @@ mod browser {
 
     #[derive(Clone, Debug)]
     pub struct OutputProfileCapabilities {
+        pub ai_available: bool,
+        pub ai_reason: String,
+        pub webm_reason: String,
         pub mp4_supported: bool,
         pub mp4_reason: String,
         pub hevc_supported: bool,
@@ -66,6 +81,7 @@ mod browser {
 
     #[derive(Clone, Debug)]
     pub struct SourceMetadata {
+        pub ai_bit_depth: u8,
         pub video_bitrate_bps: Option<u64>,
         pub variable_frame_rate: bool,
         pub video_start_us: i64,
@@ -171,7 +187,8 @@ mod browser {
         export function previewHistory(file, processFrame, windowUs) { return globalThis.__DIAXUS_MEDIA_WEB__.previewHistory(file, processFrame, windowUs); }
         export function clearPreview() { globalThis.__DIAXUS_MEDIA_WEB__.clearPreview(); }
         export function previewDiagnosticsEnabled() {
-            return new URL(globalThis.location.href).searchParams.get('diagnostic-preview') === '1';
+            return new URL(globalThis.location.href).searchParams.get('diagnostic-preview') === '1'
+                || globalThis.__DIAXUS_AI_INGRESS_PARITY__ === true;
         }
         async function diagnosticIngress(device, texture, width, height, bitmap) {
             if (!globalThis.__DIAXUS_PREVIEW_DIAGNOSTIC_ACTIVE__) return bitmap;
@@ -328,10 +345,105 @@ mod browser {
         ) -> Result<Promise, JsValue>;
         #[wasm_bindgen(js_name = cancelRemote)]
         fn cancel_remote();
+        #[wasm_bindgen(js_name = invalidatePreview)]
+        fn invalidate_preview_js() -> bool;
     }
 
     pub fn setup_runtime(m1: &str, pipeline: &str) {
         setup_runtime_js(m1, pipeline, &runtime_module_url());
+    }
+
+    #[wasm_bindgen(module = "/src/ai-assets.js")]
+    extern "C" {
+        #[wasm_bindgen(js_name = importAiModel, catch)]
+        fn import_ai_model_js(
+            file: &File,
+            manifest: &str,
+            cancelled: &Function,
+        ) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = readAiModel, catch)]
+        fn read_ai_model_js(manifest: &str) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = removeAiModel, catch)]
+        fn remove_ai_model_js(manifest: &str) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = acquireAiRuntime, catch)]
+        fn acquire_ai_runtime_js(manifest: &str, cancelled: &Function) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = loadAiRuntime, catch)]
+        fn load_ai_runtime_js(manifest: &str) -> Result<Promise, JsValue>;
+        #[wasm_bindgen(js_name = removeAiRuntime, catch)]
+        fn remove_ai_runtime_js(manifest: &str) -> Result<Promise, JsValue>;
+    }
+
+    /// Read a model file only after the UI's explicit Import action.
+    pub async fn import_ai_model_from_input(
+        input_id: &str,
+        cancelled: &Function,
+    ) -> Result<String, MediaError> {
+        import_ai_model(&selected_file(input_id)?, cancelled).await
+    }
+
+    /// Explicit setup action only; ordinary startup/Off never calls this API.
+    pub async fn import_ai_model(file: &File, cancelled: &Function) -> Result<String, MediaError> {
+        let result = JsFuture::from(
+            import_ai_model_js(file, media_core::ai_upscale::ASSET_MANIFEST_JSON, cancelled)
+                .map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)?;
+        result
+            .as_string()
+            .ok_or_else(|| platform("AI cache returned no status"))
+    }
+
+    pub async fn read_ai_model() -> Result<js_sys::Uint8Array, MediaError> {
+        let result = JsFuture::from(
+            read_ai_model_js(media_core::ai_upscale::ASSET_MANIFEST_JSON).map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)?;
+        result
+            .dyn_into::<js_sys::Uint8Array>()
+            .map_err(|_| platform("AI cache returned invalid bytes"))
+    }
+
+    pub async fn remove_ai_model() -> Result<bool, MediaError> {
+        let result = JsFuture::from(
+            remove_ai_model_js(media_core::ai_upscale::ASSET_MANIFEST_JSON).map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)?;
+        result
+            .as_bool()
+            .ok_or_else(|| platform("AI cache returned invalid removal status"))
+    }
+
+    pub async fn acquire_ai_runtime(cancelled: &Function) -> Result<String, MediaError> {
+        JsFuture::from(
+            acquire_ai_runtime_js(media_core::ai_upscale::ASSET_MANIFEST_JSON, cancelled)
+                .map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)?
+        .as_string()
+        .ok_or_else(|| platform("AI runtime acquisition returned no status"))
+    }
+
+    /// No network fallback. Called only by an enabled concrete inference adapter.
+    pub async fn load_ai_runtime() -> Result<JsValue, MediaError> {
+        JsFuture::from(
+            load_ai_runtime_js(media_core::ai_upscale::ASSET_MANIFEST_JSON).map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)
+    }
+
+    pub async fn remove_ai_runtime() -> Result<bool, MediaError> {
+        JsFuture::from(
+            remove_ai_runtime_js(media_core::ai_upscale::ASSET_MANIFEST_JSON).map_err(js_error)?,
+        )
+        .await
+        .map_err(js_error)?
+        .as_bool()
+        .ok_or_else(|| platform("AI runtime cache returned invalid removal status"))
     }
 
     pub fn setup_ffmpeg_assets(core: &str, wasm: &str, worker: &str) {
@@ -391,27 +503,7 @@ mod browser {
         settings: Option<VideoSettings>,
         status: Function,
     ) -> Result<JsValue, MediaError> {
-        let mut resize = resize_command(resize);
-        if let Some(settings) = settings {
-            let bitrate = match settings.bitrate {
-                VideoBitrate::Smaller => "smaller".into(),
-                VideoBitrate::Recommended => "recommended".into(),
-                VideoBitrate::Higher => "higher".into(),
-                VideoBitrate::BitsPerSecond(value) => format!("bps={value}"),
-            };
-            let fps = match settings.frame_rate {
-                FrameRateSpec::Original => "original".into(),
-                FrameRateSpec::Constant {
-                    numerator,
-                    denominator,
-                } => format!("{numerator}/{denominator}"),
-            };
-            let (brightness, contrast, saturation) = settings.color.values();
-            resize.push_str(&format!(
-                "~{bitrate}~{fps}~{brightness}/{contrast}/{saturation}~{}",
-                settings.equalization.command()
-            ));
-        }
+        let resize = encode(resize, settings);
         let local = Closure::<
             dyn FnMut(JsValue, String, String, String, String, String, Function) -> Promise,
         >::new(
@@ -476,6 +568,166 @@ mod browser {
         Ok(())
     }
 
+    /// Concrete same-device handles for the opt-in, source-only inference harness.
+    /// This is not enabled in either ordinary application build.
+    #[cfg(feature = "gpu-setup-diagnostic")]
+    pub struct ProcessingGpuDiagnostic {
+        pub instance: wgpu::Instance,
+        pub adapter: wgpu::Adapter,
+        pub device: wgpu::Device,
+        pub queue: wgpu::Queue,
+        pub generation: u32,
+    }
+
+    #[cfg(feature = "gpu-setup-diagnostic")]
+    pub fn processing_ai_ownership_diagnostic() -> String {
+        let leases = PROCESSING_METRICS.with(|metrics| metrics.get().live_leases);
+        let captures = PROCESSING_METRICS.with(|metrics| metrics.get().canvas_captures);
+        GPU_SESSION.with(|slot| {
+            let slot = slot.borrow();
+            let session = slot.as_ref();
+            let pending = session.map_or(0, |gpu| {
+                gpu.configured.borrow().as_ref().map_or(0, |configured| {
+                    configured
+                        .slots
+                        .iter()
+                        .filter(|slot| slot.pending.borrow().is_some())
+                        .count()
+                })
+            });
+            format!(
+                "{{\"liveLeases\":{leases},\"canvasCaptures\":{captures},\"pendingSubmissions\":{pending},\"aiCreditHeld\":{},\"aiVideoRetained\":{},\"aiVideoActive\":{},\"deviceLost\":{},\"deviceGeneration\":{},\"aiProcessedFrames\":{},\"aiPreviewCached\":{}}}",
+                session.is_some_and(|gpu| gpu.ai_pilot_busy.get()),
+                session.is_some_and(|gpu| gpu.ai_video.borrow().is_some()),
+                session.is_some_and(|gpu| gpu.ai_video_active.get()),
+                session.is_some_and(|gpu| gpu.device_lost.load(Ordering::Relaxed)),
+                session.map_or(0, |gpu| gpu.device_generation),
+                session.and_then(|gpu| gpu.ai_video.borrow().as_ref().map(|stage|stage.frames)).unwrap_or(0),
+                session.is_some_and(|gpu|gpu.ai_preview_cache.borrow().is_some()),
+            )
+        })
+    }
+
+    #[cfg(feature = "gpu-setup-diagnostic")]
+    pub async fn initialize_processing_gpu_diagnostic(
+        canvas: OffscreenCanvas,
+        stage: Function,
+    ) -> Result<ProcessingGpuDiagnostic, JsValue> {
+        initialize_worker(canvas, stage).await?;
+        GPU_SESSION.with(|slot| {
+            let slot = slot.borrow();
+            let gpu = slot
+                .as_ref()
+                .ok_or_else(|| JsValue::from_str("missing diagnostic processing session"))?;
+            if gpu.device_lost.load(Ordering::Relaxed) {
+                return Err(JsValue::from_str("diagnostic processing device is lost"));
+            }
+            Ok(ProcessingGpuDiagnostic {
+                instance: gpu.diagnostic_instance.clone(),
+                adapter: gpu.diagnostic_adapter.clone(),
+                device: gpu.device.clone(),
+                queue: gpu.queue.clone(),
+                generation: gpu.device_generation,
+            })
+        })
+    }
+
+    /// One optional AI session credit in the existing processing context. This
+    /// source-only pilot is inaccessible to ordinary application builds/commands.
+    #[cfg(feature = "gpu-setup-diagnostic")]
+    pub struct ProcessingAiPilot {
+        processor: Option<crate::ai_inference::BrowserAiProcessor>,
+        gpu: Rc<GpuSession>,
+    }
+
+    #[cfg(feature = "gpu-setup-diagnostic")]
+    pub async fn create_processing_ai_pilot(
+        size: Size,
+        downstream_bytes: u64,
+        retained_bytes: u64,
+    ) -> Result<ProcessingAiPilot, MediaError> {
+        let gpu = GPU_SESSION
+            .with(|slot| slot.borrow().clone())
+            .ok_or_else(|| platform("missing processing GPU context"))?;
+        if gpu.device_lost.load(Ordering::Relaxed) || gpu.ai_pilot_busy.replace(true) {
+            return Err(platform(
+                "AI processing context is busy or lost; finish cleanup before explicit retry",
+            ));
+        }
+        match crate::ai_inference::BrowserAiProcessor::new(
+            gpu.device.clone(),
+            gpu.queue.clone(),
+            size,
+            u64::from(gpu.device_generation),
+            downstream_bytes,
+            retained_bytes,
+        )
+        .await
+        {
+            Ok(processor) => Ok(ProcessingAiPilot {
+                processor: Some(processor),
+                gpu,
+            }),
+            Err(error) => {
+                gpu.ai_pilot_busy.set(false);
+                Err(error)
+            }
+        }
+    }
+
+    #[cfg(feature = "gpu-setup-diagnostic")]
+    impl ProcessingAiPilot {
+        pub async fn process(
+            &mut self,
+            source: &wgpu::Texture,
+            generation: u64,
+            cancelled: &Function,
+        ) -> Result<wgpu::Texture, MediaError> {
+            if self.gpu.device_lost.load(Ordering::Relaxed) {
+                return Err(platform("AI processing device is lost"));
+            }
+            self.processor
+                .as_mut()
+                .ok_or_else(|| platform("AI pilot is closed"))?
+                .process(source, generation, cancelled)
+                .await
+        }
+        pub fn memory_plan(&self) -> Result<media_core::ai_upscale::AiMemoryPlan, MediaError> {
+            self.processor
+                .as_ref()
+                .map(|p| p.memory_plan())
+                .ok_or_else(|| platform("AI pilot is closed"))
+        }
+        pub fn owned_bytes(&self) -> Result<u64, MediaError> {
+            self.processor
+                .as_ref()
+                .map(|p| p.owned_bytes())
+                .ok_or_else(|| platform("AI pilot is closed"))
+        }
+        pub async fn close(&mut self) -> Result<(), MediaError> {
+            if let Some(mut processor) = self.processor.take() {
+                let result = processor.close().await;
+                self.gpu.ai_pilot_busy.set(false);
+                result
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[cfg(feature = "gpu-setup-diagnostic")]
+    impl Drop for ProcessingAiPilot {
+        fn drop(&mut self) {
+            if let Some(mut processor) = self.processor.take() {
+                let gpu = Rc::clone(&self.gpu);
+                wasm_bindgen_futures::spawn_local(async move {
+                    let _ = processor.close().await;
+                    gpu.ai_pilot_busy.set(false);
+                });
+            }
+        }
+    }
+
     #[wasm_bindgen]
     pub async fn execute_job(
         file: Option<File>,
@@ -486,82 +738,59 @@ mod browser {
         execution_options: String,
         status: Function,
     ) -> Result<JsValue, JsValue> {
-        let mut parts = resize.split('~');
-        let resize = resize_from_command(parts.next().unwrap_or(""))
+        let (resize, settings) =
+            decode(&resize).map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let ai_pilot = cfg!(feature = "gpu-setup-diagnostic")
+            && matches!(
+                operation.as_str(),
+                "convert-ai-pilot"
+                    | "convert-bilinear-pilot"
+                    | "preview-ai-pilot"
+                    | "preview-ai-before-pilot"
+            );
+        if operation != "probe"
+            && !ai_pilot
+            && !cfg!(feature = "ai-upscale")
+            && settings.is_some_and(|s| s.ai != media_core::ai_upscale::AiSettings::Off)
+        {
+            return Err(JsValue::from_str(
+                "AI upscaling unavailable: browser inference integration has not passed its release gates",
+            ));
+        }
+        let mut execution_options = execution_options_from_command(&execution_options)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
-        let settings = match (parts.next(), parts.next(), parts.next()) {
-            (None, None, None) => None,
-            (Some(rate), Some(fps), None) => Some(
-                settings_from_command(rate, fps)
-                    .map_err(|error| JsValue::from_str(&error.to_string()))?,
-            ),
-            (Some(rate), Some(fps), Some(color)) => {
-                let equalization = parts
-                    .next()
-                    .map(str::parse::<Equalization>)
-                    .transpose()
-                    .map_err(|e| JsValue::from_str(&e.to_string()))?
-                    .unwrap_or_default();
-                if parts.next().is_some() {
-                    return Err(JsValue::from_str("invalid video settings"));
-                }
-                let mut values = color.split('/');
-                let parsed = ColorAdjustments::new(
-                    values
-                        .next()
-                        .unwrap_or("")
-                        .parse()
-                        .map_err(|_| JsValue::from_str("invalid brightness"))?,
-                    values
-                        .next()
-                        .unwrap_or("")
-                        .parse()
-                        .map_err(|_| JsValue::from_str("invalid contrast"))?,
-                    values
-                        .next()
-                        .unwrap_or("")
-                        .parse()
-                        .map_err(|_| JsValue::from_str("invalid saturation"))?,
-                )
-                .map_err(|error| JsValue::from_str(&error.to_string()))?;
-                if values.next().is_some() {
-                    return Err(JsValue::from_str("invalid color settings"));
-                }
-                let mut settings = settings_from_command(rate, fps)
-                    .map_err(|error| JsValue::from_str(&error.to_string()))?;
-                settings.color = parsed;
-                settings.equalization = equalization;
-                Some(settings)
-            }
-            _ => return Err(JsValue::from_str("invalid video settings")),
-        };
-        let execution_options = execution_options_from_command(&execution_options)
-            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        execution_options.bilinear_reference = ai_pilot && operation == "convert-bilinear-pilot";
         let result = match operation.as_str() {
-            "preview" => match file {
-                Some(file) => {
-                    preview_file(
-                        file,
-                        &profile,
-                        resize,
-                        settings.unwrap_or_default(),
-                        status,
-                        &execution_options.failure_mode,
-                    )
-                    .await
+            "preview" | "preview-ai-pilot" | "preview-ai-before-pilot"
+                if operation == "preview" || ai_pilot =>
+            {
+                match file {
+                    Some(file) => {
+                        preview_file(
+                            file,
+                            &profile,
+                            resize,
+                            settings.unwrap_or_default(),
+                            status,
+                            &execution_options.failure_mode,
+                            operation == "preview-ai-before-pilot",
+                        )
+                        .await
+                    }
+                    None => Err(platform("no source file")),
                 }
-                None => Err(platform("no source file")),
-            },
-            "clear-preview" => {
-                clear_preview_state();
-                Ok(js_sys::Object::new().into())
             }
+            "clear-preview" => clear_preview_state()
+                .await
+                .map(|()| js_sys::Object::new().into()),
             "m1" => run_m1_local(status).await,
             "probe" => match file {
                 Some(file) => probe_file(file, resize, settings).await,
                 None => Err(platform("no source file")),
             },
-            "convert" => {
+            "convert" | "convert-ai-pilot" | "convert-bilinear-pilot"
+                if operation == "convert" || ai_pilot =>
+            {
                 let profile = match profile.as_str() {
                     "webm-vp8-opus" => OutputProfileId::WebmVp8Opus,
                     "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
@@ -622,6 +851,7 @@ mod browser {
     struct WebCodecsMediabunnyBackend;
 
     struct ExecutionOptions {
+        bilinear_reference: bool,
         output_mode: String,
         verify_output: bool,
         failure_mode: String,
@@ -691,6 +921,55 @@ mod browser {
         GENERATION.with(|value| value.set(value.get().wrapping_add(1)));
     }
 
+    pub fn invalidate_source_preview() {
+        if invalidate_preview_js() {
+            cancel_local();
+        }
+    }
+
+    pub fn onnx_capability(
+        scale: media_core::ai_upscale::AiScale,
+        adapter: &str,
+    ) -> media_core::ai_upscale::AiCapability {
+        use media_core::ai_upscale::{AiCapability, AiGeometryLimits, AiModel, AiSettings};
+        if !cfg!(feature = "ai-upscale") {
+            return AiCapability::PilotOnly {
+                reason: "ONNX app acceptance is pending.".into(),
+            };
+        }
+        if !validated_ai_browser() {
+            return AiCapability::Unavailable { reason: "ONNX is validated on Windows Edge 156 with an isolated secure origin. This browser context is unvalidated.".into() };
+        }
+        if !adapter.contains("intel / gen-12lp") && !adapter.contains("nvidia / ampere") {
+            return AiCapability::Unavailable { reason: "This browser GPU has no completed ONNX acceptance record. Inspect a source to identify its processing GPU.".into() };
+        }
+        AiCapability::Validated {
+            settings: AiSettings::OnnxRuntime {
+                model: AiModel::RealEsrGeneralX4v3StrongFp32V1,
+                scale,
+            },
+            limits: AiGeometryLimits {
+                max_source: Size {
+                    width: 577,
+                    height: 579,
+                },
+                max_output: Size {
+                    width: 2308,
+                    height: 2316,
+                },
+                max_output_pixels: 2308 * 2316,
+            },
+        }
+    }
+
+    #[wasm_bindgen(
+        inline_js = "export function validatedAiBrowser(){return globalThis.isSecureContext===true && globalThis.crossOriginIsolated===true && /Windows/.test(navigator.userAgent) && /Edg\\/156\\./.test(navigator.userAgent);}"
+    )]
+    extern "C" {
+        #[wasm_bindgen(js_name = validatedAiBrowser)]
+        fn validated_ai_browser() -> bool;
+    }
+
     pub fn selected_gpu() -> Option<String> {
         if let Some(label) = REMOTE_GPU.with(|slot| slot.borrow().clone()) {
             return Some(label);
@@ -707,48 +986,56 @@ mod browser {
         string_property(&result, "summary", "probe returned no summary")
     }
 
+    /// One immutable preview request; Before is a presentation scope and keeps
+    /// the saved AI/color identity distinct from its temporary bypass.
+    #[derive(Clone, Copy)]
+    pub struct SourcePreviewSettings {
+        pub resize: ResizeSpec,
+        pub output: VideoSettings,
+        pub before: bool,
+    }
+
     pub async fn preview_source(
         source_key: u64,
         seconds: f64,
-        resize: ResizeSpec,
-        color: ColorAdjustments,
-        equalization: Equalization,
+        settings: SourcePreviewSettings,
     ) -> Result<String, MediaError> {
-        preview_source_mode(source_key, seconds, resize, color, equalization, false).await
+        preview_source_mode(source_key, seconds, settings, false).await
     }
 
     pub async fn preview_playback_source(
         source_key: u64,
         seconds: f64,
-        resize: ResizeSpec,
-        color: ColorAdjustments,
-        equalization: Equalization,
+        settings: SourcePreviewSettings,
     ) -> Result<String, MediaError> {
-        preview_source_mode(source_key, seconds, resize, color, equalization, true).await
+        preview_source_mode(source_key, seconds, settings, true).await
     }
 
     async fn preview_source_mode(
         source_key: u64,
         seconds: f64,
-        resize: ResizeSpec,
-        color: ColorAdjustments,
-        equalization: Equalization,
+        settings: SourcePreviewSettings,
         streaming: bool,
     ) -> Result<String, MediaError> {
         if !seconds.is_finite() || seconds < 0.0 {
             return Err(platform("invalid preview position"));
         }
+        let mut output = settings.output;
+        if settings.before {
+            output.color = ColorAdjustments::default();
+            output.equalization = Equalization::default();
+        }
         let result = dispatch(
             Some(selected_file("source-file")?),
             "preview",
-            &format!("{source_key}@{seconds}@{}", u8::from(streaming)),
+            &format!(
+                "{source_key}@{seconds}@{}@{}",
+                u8::from(streaming),
+                u8::from(settings.before)
+            ),
             "",
-            resize,
-            Some(VideoSettings {
-                color,
-                equalization,
-                ..Default::default()
-            }),
+            settings.resize,
+            Some(output),
             js_sys::Function::new_no_args(""),
         )
         .await?;
@@ -771,13 +1058,37 @@ mod browser {
 
     // Called only at serialized command boundaries after preview submissions
     // drain; the conversion runner owns its own subsequent stage.
-    fn clear_preview_state() {
+    async fn clear_preview_state() -> Result<(), MediaError> {
         clear_preview();
-        GPU_SESSION.with(|slot| {
-            if let Some(gpu) = slot.borrow().as_ref() {
-                *gpu.equalization.borrow_mut() = None;
+        let gpu = GPU_SESSION.with(|slot| slot.borrow().clone());
+        if let Some(gpu) = gpu {
+            let mut errors = Vec::new();
+            if let Err(error) = gpu.drain_pending().await {
+                errors.push(js_error(error).to_string());
             }
-        });
+            *gpu.equalization.borrow_mut() = None;
+            #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+            if let Err(error) = gpu.close_ai_video().await {
+                errors.push(error.to_string());
+            }
+            if gpu.device_lost.load(Ordering::Relaxed) {
+                errors.push("processing device lost".to_string());
+            }
+            if !errors.is_empty() {
+                gpu.retire_failed_context();
+                return Err(platform(format!(
+                    "preview retirement failed; retry requires a fresh GPU context: {}",
+                    errors.join("; ")
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    struct PreviewExecution {
+        generation: u32,
+        inject_device_loss: bool,
+        before: bool,
     }
 
     async fn preview_file(
@@ -787,6 +1098,7 @@ mod browser {
         settings: VideoSettings,
         status: Function,
         failure_mode: &str,
+        before: bool,
     ) -> Result<JsValue, MediaError> {
         let generation = GENERATION.with(Cell::get);
         let inject_device_loss = settings.equalization.active()
@@ -804,9 +1116,12 @@ mod browser {
             key,
             resize,
             settings,
-            generation,
             status,
-            inject_device_loss,
+            PreviewExecution {
+                generation,
+                inject_device_loss,
+                before,
+            },
         )
         .await;
         let result = if GENERATION.with(Cell::get) != generation {
@@ -814,8 +1129,8 @@ mod browser {
         } else {
             result
         };
-        if result.is_err() {
-            clear_preview_state();
+        if let Err(error) = result {
+            let cleanup = clear_preview_state().await;
             if inject_device_loss
                 || GPU_SESSION.with(|slot| {
                     slot.borrow()
@@ -825,6 +1140,12 @@ mod browser {
             {
                 GPU_SESSION.with(|slot| *slot.borrow_mut() = None);
             }
+            return Err(match cleanup {
+                Ok(()) => error,
+                Err(cleanup) => {
+                    platform(format!("{error}; preview cleanup also failed: {cleanup}"))
+                }
+            });
         }
         result
     }
@@ -834,10 +1155,14 @@ mod browser {
         key: &str,
         resize: ResizeSpec,
         settings: VideoSettings,
-        generation: u32,
         status: Function,
-        inject_device_loss: bool,
+        execution: PreviewExecution,
     ) -> Result<JsValue, MediaError> {
+        let PreviewExecution {
+            generation,
+            inject_device_loss,
+            before,
+        } = execution;
         let mut parts = key.split('@');
         let source_key = parts
             .next()
@@ -851,16 +1176,53 @@ mod browser {
             return Err(platform("invalid preview position"));
         }
         let playback = parts.next() == Some("1");
+        let comparison = match parts.next() {
+            None | Some("0") => false,
+            Some("1") => true,
+            _ => return Err(platform("invalid preview comparison flag")),
+        };
+        let before = before || comparison;
+        if parts.next().is_some() {
+            return Err(platform("invalid preview request fields"));
+        }
         // Active CLAHE samples the same bounded exact preroll as paused preview.
         // The separate audio clock continues; no skipped source statistics are
         // approximated by the old low-rate streaming preview cache.
-        let streaming = playback && !settings.equalization.active();
+        let streaming = playback
+            && !settings.equalization.active()
+            && settings.ai == media_core::ai_upscale::AiSettings::Off;
         let inspection =
             JsFuture::from(preview_info(&file, source_key, seconds, streaming).map_err(js_error)?)
                 .await
                 .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
-        let selected = resize.output_size(geometry.display_size())?;
+        let selected = settings
+            .ai
+            .requested_output_size(geometry.display_size(), resize)?;
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        let ai_scale = match settings.ai {
+            media_core::ai_upscale::AiSettings::Off => None,
+            media_core::ai_upscale::AiSettings::OnnxRuntime { scale, .. } => {
+                settings.ai.validate_format(
+                    u32_property(&inspection, "aiBitDepth")? as u8,
+                    true,
+                    OutputProfileId::Mp4H264Aac,
+                )?;
+                crate::ai_video::BrowserAiVideo::reservations(
+                    geometry.display_size(),
+                    selected,
+                    scale,
+                    settings.equalization.active(),
+                    crate::ai_video::BrowserAiVideo::preview_retained_bytes(selected, scale)?,
+                )?;
+                Some(scale)
+            }
+            _ => {
+                return Err(platform(
+                    "AI backend has no passing browser preview adapter",
+                ));
+            }
+        };
         let output = ResizeSpec::Exact {
             width: selected.width.min(640),
             height: selected.height.min(360),
@@ -875,11 +1237,86 @@ mod browser {
             false,
         )
         .await?;
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        {
+            if cfg!(feature = "ai-upscale")
+                && let Some(scale) = settings.ai.scale()
+            {
+                settings.ai.output_size(
+                    geometry.display_size(),
+                    resize,
+                    &onnx_capability(scale, &gpu.adapter_label),
+                )?;
+            }
+            let identity = format!(
+                "{source_key}:{}:{}:{}:{}",
+                file.size(),
+                file.last_modified(),
+                settings.ai.command(),
+                gpu.device_generation
+            );
+            if let Some(scale) = ai_scale {
+                if gpu.ai_preview_key.borrow().as_deref() != Some(&identity) {
+                    gpu.close_ai_video().await?;
+                    if !before {
+                        if gpu.ai_pilot_busy.replace(true) {
+                            return Err(platform("AI context is busy"));
+                        }
+                        match crate::ai_video::BrowserAiVideo::new(
+                            &gpu.device,
+                            &gpu.queue,
+                            geometry.display_size(),
+                            selected,
+                            geometry.rotation,
+                            geometry.flip_horizontal,
+                            u64::from(gpu.device_generation),
+                            scale,
+                            settings.equalization.active(),
+                            generation,
+                            crate::ai_video::BrowserAiVideo::preview_retained_bytes(
+                                selected, scale,
+                            )?,
+                        )
+                        .await
+                        {
+                            Ok(stage) => {
+                                *gpu.ai_video.borrow_mut() = Some(stage);
+                                *gpu.ai_preview_key.borrow_mut() = Some(identity);
+                                if selected != output {
+                                    *gpu.ai_preview_color.borrow_mut() =
+                                        Some(PreviewColorStage::new(&gpu.device, selected, 0)?);
+                                }
+                            }
+                            Err(error) => {
+                                gpu.ai_pilot_busy.set(false);
+                                return Err(error);
+                            }
+                        }
+                    }
+                }
+                gpu.ai_video_active.set(!before);
+                if let Some(stage) = gpu.ai_video.borrow_mut().as_mut() {
+                    stage.job_generation = generation;
+                }
+            } else {
+                gpu.close_ai_video().await?;
+            }
+        }
+        let settings = if before {
+            VideoSettings {
+                color: ColorAdjustments::default(),
+                equalization: Equalization::default(),
+                ..settings
+            }
+        } else {
+            settings
+        };
         let history_key = format!(
-            "{key}:{}:{}:{}",
+            "{key}:{}:{}:{}:{}",
             file.size(),
             file.last_modified(),
-            resize_command(resize)
+            resize_command(resize),
+            settings.ai.command()
         );
         let needs_preroll =
             gpu.prepare_preview_equalization(&history_key, settings.equalization, selected)?;
@@ -910,6 +1347,11 @@ mod browser {
             let result = JsFuture::from(preview_render(process.as_ref().unchecked_ref()).map_err(js_error)?)
                 .await
                 .map_err(js_error)?;
+            if playback && !streaming {
+                let summary = string_property(&result, "summary", "preview returned no summary")?
+                    .replacen("Paused source preview:", "Playing sampled source preview:", 1);
+                Reflect::set(&result, &"summary".into(), &summary.into()).map_err(js_error)?;
+            }
             if settings.equalization.active() {
                 let source_summary = string_property(&result, "summary", "preview returned no summary")?;
                 let source_summary = if playback {
@@ -941,7 +1383,7 @@ mod browser {
     }
 
     async fn run_m1_local(status: Function) -> Result<JsValue, MediaError> {
-        clear_preview_state();
+        clear_preview_state().await?;
         let generation = begin_generation();
         let gpu = configured_gpu(INPUT_SIZE, OUTPUT_SIZE, Rotation::Deg0, false, true).await?;
         let process = process_callback(Rc::clone(&gpu), false, ColorAdjustments::default(), None);
@@ -1013,7 +1455,7 @@ mod browser {
         execution_options: ExecutionOptions,
         status: Function,
     ) -> Result<JsValue, MediaError> {
-        clear_preview_state();
+        clear_preview_state().await?;
         let generation = begin_generation();
         validate_input_size(file.size() as u64)?;
         let backend = WebCodecsMediabunnyBackend;
@@ -1021,7 +1463,40 @@ mod browser {
             .await
             .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
-        let output = resize.output_size(geometry.display_size())?;
+        let ai = settings.unwrap_or_default().ai;
+        if cfg!(feature = "ai-upscale")
+            && ai != media_core::ai_upscale::AiSettings::Off
+            && profile == OutputProfileId::Mp4H265Aac
+        {
+            return Err(platform(
+                "AI HEVC export is unvalidated. Select a validated H.264 or VP8 profile explicitly.",
+            ));
+        }
+        let output = ai.requested_output_size(geometry.display_size(), resize)?;
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        let ai_scale = if execution_options.bilinear_reference {
+            None
+        } else {
+            match ai {
+                media_core::ai_upscale::AiSettings::Off => None,
+                media_core::ai_upscale::AiSettings::OnnxRuntime { scale, .. } => {
+                    ai.validate_format(
+                        u32_property(&inspection, "aiBitDepth")? as u8,
+                        true,
+                        profile,
+                    )?;
+                    crate::ai_video::BrowserAiVideo::reservations(
+                        geometry.display_size(),
+                        output,
+                        scale,
+                        settings.unwrap_or_default().equalization.active(),
+                        0,
+                    )?;
+                    Some(scale)
+                }
+                _ => return Err(platform("AI backend has no passing browser video adapter")),
+            }
+        };
         let options = video_options(&inspection, output, settings)?;
         let grid = frame_rate_callback(settings)?;
         let gpu = configured_gpu(
@@ -1041,42 +1516,121 @@ mod browser {
                     true
                 }
             });
+        if cfg!(feature = "ai-upscale")
+            && let Some(scale) = ai.scale()
+        {
+            if gpu.adapter_label.contains("nvidia / ampere")
+                && profile != OutputProfileId::Mp4H264Aac
+            {
+                return Err(platform(
+                    "NVIDIA AI export is currently accepted for H.264/AAC only. Select that profile explicitly; WebM endpoint verification remains pending.",
+                ));
+            }
+            ai.output_size(
+                geometry.display_size(),
+                resize,
+                &onnx_capability(scale, &gpu.adapter_label),
+            )?;
+        }
         let process = process_callback(
             Rc::clone(&gpu),
             inject_device_loss,
             settings.unwrap_or_default().color,
             None,
         );
-        gpu.start_equalization(settings.unwrap_or_default().equalization)?;
+        let ai_setup_started = performance_now();
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        if let Some(scale) = ai_scale {
+            if gpu.ai_pilot_busy.replace(true) {
+                return Err(platform("AI context is busy"));
+            }
+            let stage = crate::ai_video::BrowserAiVideo::new(
+                &gpu.device,
+                &gpu.queue,
+                geometry.display_size(),
+                output,
+                geometry.rotation,
+                geometry.flip_horizontal,
+                u64::from(gpu.device_generation),
+                scale,
+                settings.unwrap_or_default().equalization.active(),
+                generation,
+                0,
+            )
+            .await;
+            match stage {
+                Ok(stage) => {
+                    *gpu.ai_video.borrow_mut() = Some(stage);
+                    gpu.ai_video_active.set(true);
+                }
+                Err(error) => {
+                    gpu.ai_pilot_busy.set(false);
+                    return Err(error);
+                }
+            }
+        }
+        let ai_setup_ms = performance_now() - ai_setup_started;
+        let equalization_setup = gpu.start_equalization(settings.unwrap_or_default().equalization);
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        if equalization_setup.is_err() {
+            let _ = gpu.close_ai_video().await;
+        }
+        equalization_setup?;
         let bitmap_ingress_required = bitmap_ingress_callback();
         let cancelled = cancellation_callback(generation);
-        let job_result = JsFuture::from(
-            backend
-                .run(
-                    &file,
-                    ConversionRequest {
-                        output,
-                        profile,
-                        acceleration,
-                        output_mode: &execution_options.output_mode,
-                        verify_output: execution_options.verify_output,
-                        failure_mode: &execution_options.failure_mode,
-                        options: &options,
-                        grid: grid.as_ref().unchecked_ref(),
-                    },
-                    process.as_ref().unchecked_ref(),
-                    bitmap_ingress_required.as_ref().unchecked_ref(),
-                    &status,
-                    cancelled.as_ref().unchecked_ref(),
-                )
-                .map_err(js_error)?,
-        )
-        .await;
+        let pending = backend.run(
+            &file,
+            ConversionRequest {
+                output,
+                profile,
+                acceleration,
+                output_mode: &execution_options.output_mode,
+                verify_output: execution_options.verify_output,
+                failure_mode: &execution_options.failure_mode,
+                options: &options,
+                grid: grid.as_ref().unchecked_ref(),
+            },
+            process.as_ref().unchecked_ref(),
+            bitmap_ingress_required.as_ref().unchecked_ref(),
+            &status,
+            cancelled.as_ref().unchecked_ref(),
+        );
+        // A synchronous glue error must take the same drain/close path as a
+        // rejected Promise, including an already-created AI session.
+        let job_result = match pending {
+            Ok(promise) => JsFuture::from(promise).await,
+            Err(error) => Err(error),
+        };
         let settled = settle_gpu_job(&gpu, job_result).await;
-        if inject_device_loss {
-            GPU_SESSION.with(|slot| *slot.borrow_mut() = None);
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        let ai_status = gpu.close_ai_video().await;
+        if inject_device_loss || gpu.device_lost.load(Ordering::Relaxed) {
+            gpu.retire_failed_context();
         }
         let result = settled?;
+        let metrics = PROCESSING_METRICS.with(Cell::get);
+        for (key, value) in [
+            ("aiSetupMs", ai_setup_ms),
+            ("aiProcessingMs", metrics.ai_processing_ms),
+            ("gpuCpuBridgeMs", metrics.cpu_submission_ms),
+        ] {
+            Reflect::set(&result, &key.into(), &JsValue::from_f64(value)).map_err(js_error)?;
+        }
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        if let Some((frames, memory)) = ai_status? {
+            Reflect::set(
+                &result,
+                &"aiSourceFrames".into(),
+                &JsValue::from_f64(frames as f64),
+            )
+            .map_err(js_error)?;
+            Reflect::set(
+                &result,
+                &"aiAdmissionBytes".into(),
+                &JsValue::from_f64(memory as f64),
+            )
+            .map_err(js_error)?;
+        }
         let bitmap_copies = BITMAP_COPIES.with(Cell::get);
         let summary = format!(
             "{}\nIngress: {bitmap_copies} additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\n{}",
@@ -1104,6 +1658,15 @@ mod browser {
         )
         .await?;
         Ok(OutputProfileCapabilities {
+            ai_available: bool_property(&capabilities, "aiAvailable")?,
+            ai_reason: Reflect::get(&capabilities, &"aiReason".into())
+                .map_err(js_error)?
+                .as_string()
+                .unwrap_or_default(),
+            webm_reason: Reflect::get(&capabilities, &"webmReason".into())
+                .map_err(js_error)?
+                .as_string()
+                .unwrap_or_default(),
             mp4_supported: bool_property(&capabilities, "mp4Supported")?,
             mp4_reason: string_property(
                 &capabilities,
@@ -1137,7 +1700,10 @@ mod browser {
             .await
             .map_err(js_error)?;
         let geometry = frame_geometry(&inspection)?;
-        let output = resize.output_size(geometry.display_size())?;
+        // Probe exact encoder intent independently of inference availability.
+        // Conversion/preview still reject unaccepted AI before output creation.
+        let ai = settings.unwrap_or_default().ai;
+        let output = ai.requested_output_size(geometry.display_size(), resize)?;
         let options = video_options(&inspection, output, settings)?;
         let capabilities = JsFuture::from(
             backend
@@ -1159,28 +1725,81 @@ mod browser {
         )
         .map_err(js_error)?;
         Reflect::set(&capabilities, &"source".into(), &inspection).map_err(js_error)?;
-        Ok(capabilities)
-    }
-
-    fn settings_from_command(rate: &str, fps: &str) -> Result<VideoSettings, MediaError> {
-        let bitrate = match rate {
-            "smaller" => VideoBitrate::Smaller,
-            "recommended" => VideoBitrate::Recommended,
-            "higher" => VideoBitrate::Higher,
-            value => VideoBitrate::BitsPerSecond(
-                value
-                    .strip_prefix("bps=")
-                    .ok_or_else(|| platform("invalid bitrate policy"))?
-                    .parse()
-                    .map_err(|_| platform("invalid bitrate"))?,
-            ),
+        if let Some(settings) = settings {
+            let source = source_metadata(&inspection)?;
+            let estimates = js_sys::Object::new();
+            for (name, profile) in [
+                ("avc", OutputProfileId::Mp4H264Aac),
+                ("hevc", OutputProfileId::Mp4H265Aac),
+                ("vp8", OutputProfileId::WebmVp8Opus),
+            ] {
+                let (rate, bytes) = source.estimate(output, profile, settings)?;
+                let estimate = js_sys::Object::new();
+                Reflect::set(
+                    &estimate,
+                    &"bitrateBps".into(),
+                    &JsValue::from_f64(f64::from(rate)),
+                )
+                .map_err(js_error)?;
+                Reflect::set(
+                    &estimate,
+                    &"estimatedBytes".into(),
+                    &bytes.map_or(JsValue::NULL, |v| JsValue::from_f64(v as f64)),
+                )
+                .map_err(js_error)?;
+                Reflect::set(&estimates, &name.into(), &estimate).map_err(js_error)?;
+            }
+            Reflect::set(&capabilities, &"estimates".into(), &estimates).map_err(js_error)?;
+        }
+        if cfg!(feature = "ai-upscale") && ai != media_core::ai_upscale::AiSettings::Off {
+            Reflect::set(&capabilities, &"hevcSupported".into(), &JsValue::FALSE)
+                .map_err(js_error)?;
+            Reflect::set(
+                &capabilities,
+                &"hevcReason".into(),
+                &"AI HEVC export has no acceptance evidence; source preview remains available."
+                    .into(),
+            )
+            .map_err(js_error)?;
+        }
+        let ai_availability = if let Some(scale) = ai.scale() {
+            let adapter = GPU_SESSION
+                .with(|slot| slot.borrow().as_ref().map(|g| g.adapter_label.clone()))
+                .unwrap_or_default();
+            if cfg!(feature = "ai-upscale") && adapter.contains("nvidia / ampere") {
+                Reflect::set(&capabilities, &"webmReason".into(),
+                    &"NVIDIA AI WebM endpoint verification is pending. Select H.264/AAC explicitly; preview remains available.".into()).map_err(js_error)?;
+            }
+            ai.output_size(
+                geometry.display_size(),
+                resize,
+                &onnx_capability(scale, &adapter),
+            )
+            .and_then(|_| {
+                ai.validate_format(
+                    u32_property(&inspection, "aiBitDepth")? as u8,
+                    true,
+                    OutputProfileId::Mp4H264Aac,
+                )
+            })
+        } else {
+            Ok(())
         };
-        let frame_rate = fps.parse()?;
-        Ok(VideoSettings {
-            bitrate,
-            frame_rate,
-            ..Default::default()
-        })
+        Reflect::set(
+            &capabilities,
+            &"aiAvailable".into(),
+            &JsValue::from_bool(ai_availability.is_ok()),
+        )
+        .map_err(js_error)?;
+        if let Err(error) = ai_availability {
+            Reflect::set(
+                &capabilities,
+                &"aiReason".into(),
+                &JsValue::from_str(&error.to_string()),
+            )
+            .map_err(js_error)?;
+        }
+        Ok(capabilities)
     }
 
     fn video_options(
@@ -1190,6 +1809,25 @@ mod browser {
     ) -> Result<JsValue, MediaError> {
         let source = source_metadata(inspection)?;
         let options = js_sys::Object::new();
+        if settings.is_some_and(|s| s.ai != media_core::ai_upscale::AiSettings::Off) {
+            Reflect::set(
+                &options,
+                &"aiExpectedBitDepth".into(),
+                &JsValue::from_f64(8.),
+            )
+            .map_err(js_error)?;
+            let scale = settings
+                .unwrap_or_default()
+                .ai
+                .scale()
+                .ok_or_else(|| platform("missing AI scale"))?;
+            Reflect::set(
+                &options,
+                &"aiScale".into(),
+                &JsValue::from_f64(f64::from(scale.factor())),
+            )
+            .map_err(js_error)?;
+        }
         let (brightness, contrast, saturation) = settings.unwrap_or_default().color.values();
         Reflect::set(&options, &"colorAdjustments".into(),
             &format!("brightness={brightness}, contrast={contrast}%, saturation={saturation}% (encoded RGB)").into())
@@ -1281,44 +1919,6 @@ mod browser {
         ))
     }
 
-    fn resize_command(resize: ResizeSpec) -> String {
-        match resize {
-            ResizeSpec::Original => "original".to_string(),
-            ResizeSpec::Percent(percent) => format!("percent:{percent}"),
-            ResizeSpec::Exact {
-                width,
-                height,
-                preserve_aspect_ratio,
-            } => format!("exact:{width}:{height}:{}", u8::from(preserve_aspect_ratio)),
-        }
-    }
-
-    fn resize_from_command(command: &str) -> Result<ResizeSpec, MediaError> {
-        let fields = command.split(':').collect::<Vec<_>>();
-        match fields.as_slice() {
-            ["original"] => Ok(ResizeSpec::Original),
-            ["percent", percent] => Ok(ResizeSpec::Percent(
-                percent
-                    .parse()
-                    .map_err(|_| platform("resize percentage is invalid"))?,
-            )),
-            ["exact", width, height, preserve] => Ok(ResizeSpec::Exact {
-                width: width
-                    .parse()
-                    .map_err(|_| platform("exact resize width is invalid"))?,
-                height: height
-                    .parse()
-                    .map_err(|_| platform("exact resize height is invalid"))?,
-                preserve_aspect_ratio: match *preserve {
-                    "1" => true,
-                    "0" => false,
-                    _ => return Err(platform("exact resize aspect-ratio flag is invalid")),
-                },
-            }),
-            _ => Err(platform("unknown resize command")),
-        }
-    }
-
     fn execution_options_from_command(command: &str) -> Result<ExecutionOptions, MediaError> {
         let mut parts = command.split(':');
         let output_mode = match parts.next() {
@@ -1338,6 +1938,7 @@ mod browser {
             return Err(platform("invalid execution options"));
         }
         Ok(ExecutionOptions {
+            bilinear_reference: false,
             output_mode: output_mode.to_string(),
             verify_output,
             failure_mode: failure_mode.to_string(),
@@ -1400,12 +2001,21 @@ mod browser {
                     }
                     let count = processed.get() + 1;
                     processed.set(count);
-                    if inject_device_loss && count == if preview.is_some() { 2 } else { 5 } {
+                    if inject_device_loss
+                        && count
+                            == if preview.is_some() || gpu.ai_video_enabled() {
+                                2
+                            } else {
+                                5
+                            }
+                    {
                         gpu.device.destroy();
                         gpu.device_lost.store(true, Ordering::Relaxed);
                         frame.close();
                         return Err(JsValue::from_str(if preview.is_some() {
                             "INJECTED: WebGPU preview device loss after 1 prepared frame"
+                        } else if gpu.ai_video_enabled() {
+                            "INJECTED: WebGPU AI device loss after 1 completed frame"
                         } else {
                             "INJECTED: WebGPU device loss after 4 completed frames"
                         }));
@@ -1507,6 +2117,8 @@ mod browser {
         pending: RefCell<Option<PendingSubmission>>,
     }
     struct PendingSubmission {
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        _ai_frame: Option<Rc<crate::ai_video::AiProcessedFrame>>,
         completion: futures_channel::oneshot::Receiver<f64>,
         error: Pin<Box<dyn Future<Output = Option<wgpu::Error>>>>,
         _lease: ProcessingLease,
@@ -1514,6 +2126,22 @@ mod browser {
         _bitmap: OwnedBitmap,
     }
     struct GpuSession {
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        ai_preview_key: RefCell<Option<String>>,
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        ai_preview_cache: RefCell<Option<(i64, Rc<crate::ai_video::AiProcessedFrame>)>>,
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        ai_preview_color: RefCell<Option<PreviewColorStage>>,
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        ai_video: RefCell<Option<crate::ai_video::BrowserAiVideo>>,
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        ai_video_active: Cell<bool>,
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        ai_pilot_busy: Cell<bool>,
+        #[cfg(feature = "gpu-setup-diagnostic")]
+        diagnostic_instance: wgpu::Instance,
+        #[cfg(feature = "gpu-setup-diagnostic")]
+        diagnostic_adapter: wgpu::Adapter,
         device_lost: Arc<AtomicBool>,
         equalization: RefCell<Option<BrowserEqualization>>,
         device_generation: u32,
@@ -1547,6 +2175,7 @@ mod browser {
         peak_leases: u32,
         texture_reuses: u64,
         cpu_submission_ms: f64,
+        ai_processing_ms: f64,
         gpu_completion_latency_ms: f64,
         pool_wait_ms: f64,
         final_drain_wait_ms: f64,
@@ -1561,6 +2190,7 @@ mod browser {
             peak_leases: 0,
             texture_reuses: 0,
             cpu_submission_ms: 0.0,
+            ai_processing_ms: 0.0,
             gpu_completion_latency_ms: 0.0,
             pool_wait_ms: 0.0,
             final_drain_wait_ms: 0.0,
@@ -1650,6 +2280,87 @@ mod browser {
     }
 
     impl GpuSession {
+        fn ai_video_enabled(&self) -> bool {
+            #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+            {
+                self.ai_video_active.get()
+            }
+            #[cfg(not(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic")))]
+            {
+                false
+            }
+        }
+
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        async fn close_ai_video(&self) -> Result<Option<(u64, u64)>, MediaError> {
+            self.ai_preview_key.borrow_mut().take();
+            self.ai_preview_cache.borrow_mut().take();
+            self.ai_preview_color.borrow_mut().take();
+            let stage = self.ai_video.borrow_mut().take();
+            self.ai_video_active.set(false);
+            if let Some(mut stage) = stage {
+                let stats = (stage.frames, stage.memory.total);
+                let result = stage.close().await;
+                self.ai_pilot_busy.set(false);
+                if let Err(error) = result {
+                    self.retire_failed_context();
+                    return Err(error);
+                }
+                Ok(Some(stats))
+            } else {
+                Ok(None)
+            }
+        }
+
+        #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+        async fn process_ai_video(
+            &self,
+            slot: usize,
+            timestamp: i64,
+        ) -> Result<Option<Rc<crate::ai_video::AiProcessedFrame>>, JsValue> {
+            if !self.ai_video_enabled() {
+                return Ok(None);
+            }
+            if self.ai_preview_key.borrow().is_some()
+                && let Some((pts, frame)) = self.ai_preview_cache.borrow().as_ref()
+                && *pts == timestamp
+            {
+                return Ok(Some(Rc::clone(frame)));
+            }
+            let mut stage =
+                self.ai_video.borrow_mut().take().ok_or_else(|| {
+                    JsValue::from_str("AI inference frame credit is already held")
+                })?;
+            let source = self
+                .configured
+                .borrow()
+                .as_ref()
+                .ok_or_else(|| JsValue::from_str("missing AI ingress"))?
+                .slots[slot]
+                .input
+                .clone();
+            let cancelled = cancellation_callback(stage.job_generation);
+            let result = stage
+                .process(
+                    &self.device,
+                    &self.queue,
+                    &source,
+                    u64::from(self.device_generation),
+                    cancelled.as_ref().unchecked_ref(),
+                )
+                .await;
+            *self.ai_video.borrow_mut() = Some(stage);
+            result
+                .map(|frame| {
+                    let frame = Rc::new(frame);
+                    if self.ai_preview_key.borrow().is_some() {
+                        *self.ai_preview_cache.borrow_mut() = Some((timestamp, Rc::clone(&frame)));
+                    }
+                    Some(frame)
+                })
+                .map_err(|e| JsValue::from_str(&e.to_string()))
+        }
+
         async fn new(canvas: ExportCanvas, stage: Option<&Function>) -> Result<Self, MediaError> {
             let device_generation = NEXT_DEVICE_GENERATION.with(|generation| {
                 let next = generation.get().wrapping_add(1);
@@ -1716,6 +2427,22 @@ mod browser {
             device.set_device_lost_callback(move |_, _| loss_flag.store(true, Ordering::Relaxed));
             let pipeline = ResizePipeline::new(&device, surface_format);
             Ok(Self {
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                ai_preview_key: RefCell::new(None),
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                ai_preview_cache: RefCell::new(None),
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                ai_preview_color: RefCell::new(None),
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                ai_video: RefCell::new(None),
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                ai_video_active: Cell::new(false),
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                ai_pilot_busy: Cell::new(false),
+                #[cfg(feature = "gpu-setup-diagnostic")]
+                diagnostic_instance: instance,
+                #[cfg(feature = "gpu-setup-diagnostic")]
+                diagnostic_adapter: adapter,
                 device_lost,
                 device_generation,
                 equalization: RefCell::new(None),
@@ -1881,20 +2608,30 @@ mod browser {
                     &self.device,
                     &self.queue,
                     selected.unwrap_or(c.output_size),
-                    c.rotation,
-                    c.flip_horizontal,
+                    if self.ai_video_enabled() {
+                        Rotation::Deg0
+                    } else {
+                        c.rotation
+                    },
+                    !self.ai_video_enabled() && c.flip_horizontal,
                     u64::from(self.device_generation),
                 )?;
-                let preview_color =
-                    if let Some(size) = selected.filter(|size| *size != c.output_size) {
-                        Some(PreviewColorStage::new(
-                            &self.device,
-                            size,
-                            stage.scratch_bytes(),
-                        )?)
-                    } else {
-                        None
-                    };
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                let shared_ai_preview =
+                    self.ai_video_enabled() && self.ai_preview_color.borrow().is_some();
+                #[cfg(not(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic")))]
+                let shared_ai_preview = false;
+                let preview_color = if let Some(size) =
+                    selected.filter(|size| *size != c.output_size && !shared_ai_preview)
+                {
+                    Some(PreviewColorStage::new(
+                        &self.device,
+                        size,
+                        stage.scratch_bytes(),
+                    )?)
+                } else {
+                    None
+                };
                 PROCESSING_METRICS.with(|metrics| {
                     let mut m = metrics.get();
                     m.equalization_bytes = stage.scratch_bytes()
@@ -1942,6 +2679,13 @@ mod browser {
             duration: i64,
             color: ColorAdjustments,
         ) -> Result<JsValue, JsValue> {
+            let decoded = OwnedVideoFrame(decoded);
+            let generation = GENERATION.with(Cell::get);
+            if self.device_lost.load(Ordering::Relaxed) {
+                return Err(JsValue::from_str(
+                    "WebGPU processing device lost before frame submission",
+                ));
+            }
             let slot_index = {
                 let configured = self.configured.borrow();
                 let configured = configured
@@ -1971,7 +2715,6 @@ mod browser {
 
             let lease = ProcessingLease::new()?;
             let submission_started = performance_now();
-            let decoded = OwnedVideoFrame(decoded);
             let has_prepared_bitmap =
                 !prepared_bitmap.0.is_null() && !prepared_bitmap.0.is_undefined();
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
@@ -2036,7 +2779,36 @@ mod browser {
             } else {
                 OwnedBitmap(bitmap)
             };
+            #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+            let ai_started = performance_now();
+            #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+            let ai_frame = match self.process_ai_video(slot_index, timestamp).await {
+                Ok(frame) => frame,
+                Err(error) => {
+                    let _ = scope.pop().await;
+                    return Err(error);
+                }
+            };
+            #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+            let ai_processing_ms = if ai_frame.is_some() {
+                performance_now() - ai_started
+            } else {
+                0.
+            };
+            #[cfg(not(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic")))]
+            let ai_processing_ms = 0.;
+            if self.device_lost.load(Ordering::Relaxed) {
+                let _ = scope.pop().await;
+                return Err(JsValue::from_str(
+                    "WebGPU processing device lost before output capture",
+                ));
+            }
             let encoded_input = (|| {
+                if GENERATION.with(Cell::get) != generation {
+                    return Err(JsValue::from_str(
+                        "CANCELLED: processing stopped before output presentation",
+                    ));
+                }
                 let configured = self.configured.borrow();
                 let configured = configured
                     .as_ref()
@@ -2053,6 +2825,16 @@ mod browser {
                 let source = configured.slots[slot_index]
                     .input
                     .create_view(&Default::default());
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                let source = ai_frame.as_ref().map_or(source, |frame| {
+                    frame.texture.create_view(&Default::default())
+                });
+                let rotation = if self.ai_video_enabled() {
+                    Rotation::Deg0
+                } else {
+                    configured.rotation
+                };
+                let flip_horizontal = !self.ai_video_enabled() && configured.flip_horizontal;
                 let target = output.texture.create_view(&Default::default());
                 let mut encoder =
                     self.device
@@ -2061,7 +2843,21 @@ mod browser {
                         });
                 let mut effect = self.equalization.borrow_mut();
                 let active_effect = effect.as_ref().is_some_and(|e| e.settings.active());
-                let separate_display = effect.as_ref().is_some_and(|e| e.preview_color.is_some());
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                let ai_before = self.ai_preview_key.borrow().is_some() && !self.ai_video_enabled();
+                #[cfg(not(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic")))]
+                let ai_before = false;
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                let ai_preview_color = self.ai_preview_color.borrow();
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                let ai_preview_color = ai_preview_color
+                    .as_ref()
+                    .filter(|_| self.ai_video_enabled());
+                #[cfg(not(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic")))]
+                let ai_preview_color: Option<&PreviewColorStage> = None;
+                let separate_display = (!ai_before
+                    && effect.as_ref().is_some_and(|e| e.preview_color.is_some()))
+                    || ai_preview_color.is_some();
                 let adjusted_transform = (!color.is_neutral() || active_effect || separate_display)
                     .then(|| {
                         self.pipeline.create_adjustment_buffer(
@@ -2070,9 +2866,9 @@ mod browser {
                             if active_effect {
                                 Rotation::Deg0
                             } else {
-                                configured.rotation
+                                rotation
                             },
-                            !active_effect && configured.flip_horizontal,
+                            !active_effect && flip_horizontal,
                             color,
                         )
                     });
@@ -2105,7 +2901,9 @@ mod browser {
                             effect.as_ref().and_then(|e| e.preview_color.as_ref()),
                         )
                     };
-                let displayed_source = if let Some(stage) = preview_color {
+                let displayed_source = if let Some(stage) =
+                    preview_color.filter(|_| !ai_before).or(ai_preview_color)
+                {
                     stage.record(
                         &self.device,
                         &self.queue,
@@ -2115,9 +2913,9 @@ mod browser {
                             if active_effect {
                                 Rotation::Deg0
                             } else {
-                                configured.rotation
+                                rotation
                             },
-                            !active_effect && configured.flip_horizontal,
+                            !active_effect && flip_horizontal,
                             color,
                         ),
                     )
@@ -2132,6 +2930,11 @@ mod browser {
                         false,
                     )
                 });
+                let fallback_transform = &configured.transform;
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                let fallback_transform = ai_frame
+                    .as_ref()
+                    .map_or(fallback_transform, |frame| &frame.neutral);
                 self.pipeline.record_resize(
                     &self.device,
                     &mut encoder,
@@ -2139,7 +2942,7 @@ mod browser {
                     display_transform
                         .as_ref()
                         .or(adjusted_transform.as_ref())
-                        .unwrap_or(&configured.transform),
+                        .unwrap_or(fallback_transform),
                     &target,
                     configured.output_size,
                 );
@@ -2169,13 +2972,17 @@ mod browser {
             let completion_wait_started = performance_now();
             PROCESSING_METRICS.with(|metrics| {
                 let mut value = metrics.get();
-                value.cpu_submission_ms += completion_wait_started - submission_started;
+                value.cpu_submission_ms +=
+                    completion_wait_started - submission_started - ai_processing_ms;
+                value.ai_processing_ms += ai_processing_ms;
                 metrics.set(value);
             });
             self.queue.on_submitted_work_done(move || {
                 let _ = sender.send(performance_now() - completion_wait_started);
             });
             let pending = PendingSubmission {
+                #[cfg(any(feature = "ai-upscale", feature = "gpu-setup-diagnostic"))]
+                _ai_frame: ai_frame,
                 completion: receiver,
                 error: Box::pin(scope.pop()),
                 _lease: lease,
@@ -2255,6 +3062,19 @@ mod browser {
             }
             first_error.map_or(Ok(()), Err)
         }
+
+        fn retire_failed_context(&self) {
+            self.device.destroy();
+            GPU_SESSION.with(|slot| {
+                let mut slot = slot.borrow_mut();
+                if slot
+                    .as_ref()
+                    .is_some_and(|gpu| gpu.device_generation == self.device_generation)
+                {
+                    *slot = None;
+                }
+            });
+        }
     }
 
     async fn settle_gpu_job(
@@ -2263,6 +3083,11 @@ mod browser {
     ) -> Result<JsValue, MediaError> {
         let drain_result = gpu.drain_pending().await;
         *gpu.equalization.borrow_mut() = None;
+        if job_result.is_ok() && gpu.device_lost.load(Ordering::Relaxed) {
+            return Err(platform(
+                "WebGPU processing device lost; output cannot be published",
+            ));
+        }
         match (job_result, drain_result) {
             (Ok(result), Ok(())) => Ok(result),
             (Err(job), Ok(())) => Err(js_error(job)),
@@ -2315,6 +3140,14 @@ mod browser {
         } else {
             String::new()
         };
+        let ai = if metrics.ai_processing_ms > 0. {
+            format!(
+                "\nAI normalization/inference/post-scale wall={:.1} ms (includes GPU waits; not pure GPU execution).",
+                metrics.ai_processing_ms
+            )
+        } else {
+            String::new()
+        };
         format!(
             "GPU telemetry: device generation {generation}; bounded input texture pool slots={pool_slots}, lifetime allocations={allocations}, job reuses={}; leases live/peak={}/{}; ingress copies={}; canvas captures={}; capture visible/backing={capture_geometry}; CPU submission/bridge={:.1} ms; cumulative submitted-work completion latency={:.1} ms; slot-reuse wait={:.1} ms; final-drain wait={:.1} ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).{equalization}",
             metrics.texture_reuses,
@@ -2326,7 +3159,7 @@ mod browser {
             metrics.gpu_completion_latency_ms,
             metrics.pool_wait_ms,
             metrics.final_drain_wait_ms,
-        )
+        ) + &ai
     }
 
     fn frame_geometry(value: &JsValue) -> Result<FrameGeometry, MediaError> {
@@ -2421,6 +3254,8 @@ mod browser {
 
     fn source_metadata(value: &JsValue) -> Result<SourceMetadata, MediaError> {
         Ok(SourceMetadata {
+            ai_bit_depth: u8::try_from(u32_property(value, "aiBitDepth")?)
+                .map_err(|_| platform("invalid source bit depth"))?,
             video_bitrate_bps: Reflect::get(value, &"videoBitrate".into())
                 .map_err(js_error)?
                 .as_f64()
@@ -2484,15 +3319,22 @@ mod browser {
 
 #[cfg(target_arch = "wasm32")]
 pub use browser::{
-    ConversionResult, OutputProfileCapabilities, SourceMetadata, cancel, clear_source_preview,
-    convert_m3, mute_preview_playback, pause_preview_playback, preview_playback_error,
-    preview_playback_playing, preview_playback_position, preview_playback_ready,
-    preview_playback_source, preview_source, probe_output_profiles, release_preview_playback,
-    run_m1, seek_preview_playback, selected_gpu, setup_ffmpeg_assets, setup_runtime,
-    start_preview_playback,
+    ConversionResult, OutputProfileCapabilities, SourceMetadata, SourcePreviewSettings,
+    acquire_ai_runtime, cancel, clear_source_preview, convert_m3, import_ai_model,
+    import_ai_model_from_input, invalidate_source_preview, load_ai_runtime, mute_preview_playback,
+    onnx_capability, pause_preview_playback, preview_playback_error, preview_playback_playing,
+    preview_playback_position, preview_playback_ready, preview_playback_source, preview_source,
+    probe_output_profiles, read_ai_model, release_preview_playback, remove_ai_model,
+    remove_ai_runtime, run_m1, seek_preview_playback, selected_gpu, setup_ffmpeg_assets,
+    setup_runtime, start_preview_playback,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub fn cancel() {}
+#[cfg(all(target_arch = "wasm32", feature = "gpu-setup-diagnostic"))]
+pub use browser::{
+    ProcessingAiPilot, ProcessingGpuDiagnostic, create_processing_ai_pilot,
+    initialize_processing_gpu_diagnostic, processing_ai_ownership_diagnostic,
+};
 #[cfg(not(target_arch = "wasm32"))]
 pub fn selected_gpu() -> Option<String> {
     None

@@ -1,0 +1,41 @@
+
+thread 'main' (15200) panicked at D:\Libraries\Cargo\CARGO_HOME\registry\src\index.crates.io-1949cf8c6b5b557f\cubecl-ir-0.11.2\src\interfaces\mod.rs:443:25:
+called `Result::unwrap()` on an `Err` value: "Expected type cube.f32  to implement dyn MaybeVectorizedType"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <pliron::type::TypeHandle as cubecl_ir::interfaces::TypedExt>::vector_size
+   4: <std::thread::local::LocalKey<core::cell::RefCell<cubecl_ir::scope::Scope>>>::with::<<std::thread::local::LocalKey<core::cell::RefCell<cubecl_ir::scope::Scope>>>::with_borrow<<cubecl_std::tensor::view::base::View<cubecl_core::frontend::container::vector::base::Vector<cubecl_core::frontend::element::typemap::DynamicScalar<cubecl_std::tensor::contiguous::base::copy_kernel::_T>, cubecl_core::frontend::element::typemap::DynamicSize<cubecl_std::tensor::contiguous::base::copy_kernel::_N>>, usize> as cubecl_core::frontend::element::base::LaunchArg>::register::{closure#0}, cubecl_ir::type::Type>::{closure#0}, cubecl_ir::type::Type>
+   5: <cubecl_std::tensor::view::base::View<cubecl_core::frontend::container::vector::base::Vector<cubecl_core::frontend::element::typemap::DynamicScalar<cubecl_std::tensor::contiguous::base::copy_kernel::_T>, cubecl_core::frontend::element::typemap::DynamicSize<cubecl_std::tensor::contiguous::base::copy_kernel::_N>>, usize> as cubecl_core::frontend::element::base::LaunchArg>::register
+   6: cubecl_std::tensor::contiguous::base::copy_kernel::launch
+   7: cubecl_std::tensor::contiguous::base::copy_gpu_ref
+   8: cubecl_std::tensor::contiguous::launch::copy_into
+   9: cubecl_std::tensor::contiguous::launch::into_contiguous_pitched
+  10: burn_cubecl::kernel::contiguous::into_contiguous_aligned
+  11: burn_cubecl::kernel::conv::direct::conv_direct::<2>
+  12: burn_cubecl::kernel::conv::base::conv_forward_nhwc::<2>
+  13: burn_cubecl::kernel::conv::base::conv_forward::<2>
+  14: <burn_cubecl::backend::CubeBackend as burn_backend::backend::ops::modules::base::ModuleOps<burn_cubecl::backend::CubeBackend>>::conv2d
+  15: <burn_dispatch::backend::Dispatch as burn_backend::backend::ops::modules::base::ModuleOps<burn_dispatch::backend::Dispatch>>::conv2d
+  16: burn_tensor::tensor::module::conv2d::<burn_std::ops::ConvOptions<2>>
+  17: <burn_nn::modules::conv::conv2d::Conv2d>::forward
+  18: <ai_upscale_burn_native_probe::model::Model>::forward
+  19: ai_upscale_burn_native_probe::main
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+{
+  "adapter": {
+    "backend": "Vulkan",
+    "device": 9634,
+    "driver": "NVIDIA",
+    "driver_info": "621.01",
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318
+  },
+  "cases": [],
+  "error": "called `Result::unwrap()` on an `Err` value: \"Expected type cube.f32  to implement dyn MaybeVectorizedType\"",
+  "load_seconds": 0.0067163,
+  "precision": "explicit FloatDType::F32 before model/tensor creation",
+  "status": "failed",
+  "transfers": "CPU FP32 input upload and GPU FP32 output diagnostic readback per case; independent Vulkan device"
+}

@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "normal_sha256": "e3424ad7c59f45b55b7f529898ed1dfb7f139b1a4cb4b5a75d27ee97bbdc7895",
+  "diagnostic_sha256": "de604f17dcd171ff21dd74dc669e5cc3e194250c4f36dd99864dcef862e5da09",
+  "fault_tokens_absent_from_normal_binary": true,
+  "normal_ignores_fault_env": true,
+  "response_operations": [
+    0,
+    1,
+    1,
+    2
+  ],
+  "command": [
+    "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-lifecycle-20261029\\helper.exe",
+    "D:/Libraries/RTX_Video_SDK_v1.1.0",
+    "1",
+    "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-lifecycle-20261029\\normal-fault-env-cache"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "adapter": {
+    "backend": "Vulkan",
+    "device": 9634,
+    "device_type": "DiscreteGpu",
+    "driver": "NVIDIA",
+    "key": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318
+  },
+  "cases": [
+    {
+      "max_lsb": 1,
+      "readback_bytes": 560,
+      "scale": 2,
+      "upload_bytes": 140
+    },
+    {
+      "max_lsb": 1,
+      "readback_bytes": 2240,
+      "scale": 4,
+      "upload_bytes": 140
+    }
+  ],
+  "gate_max_lsb": 2,
+  "status": "passed"
+}

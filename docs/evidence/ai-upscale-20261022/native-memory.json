@@ -1,0 +1,288 @@
+{
+  "runtime": "1.23.0",
+  "model_sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "selected": {
+    "index": 1,
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor_id": 4318,
+    "device_id": 9634,
+    "dedicated_video_bytes": 4154458112,
+    "flags": 0,
+    "luid": "00000000:00012fb9"
+  },
+  "status": "tiled-memory-numeric-pilot-not-product-accepted",
+  "calibrations": [
+    {
+      "interior": 128,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 25,
+      "host_upload_bytes": 8669988,
+      "host_readback_bytes": 138719808,
+      "max_tile_width": 196,
+      "max_tile_height": 196,
+      "inference_and_host_assembly_seconds": 2.485227599994687,
+      "numeric": {
+        "max_abs": 3.7848949432373047e-06,
+        "mae": 3.979151586008811e-07
+      },
+      "edges": {
+        "max_abs": 2.205371856689453e-06,
+        "mae": 2.9657431355190056e-07
+      },
+      "seams": {
+        "max_abs": 3.0994415283203125e-06,
+        "mae": 3.94567507555621e-07
+      },
+      "memory": {
+        "latest": {
+          "local": {
+            "budget": 3531289396,
+            "current_usage": 126369792,
+            "available_for_reservation": 1869506150,
+            "current_reservation": 0
+          },
+          "nonlocal": {
+            "budget": 11942197248,
+            "current_usage": 43761664,
+            "available_for_reservation": 6105316352,
+            "current_reservation": 0
+          }
+        },
+        "sampled_peak_bytes": {
+          "local": 126369792,
+          "nonlocal": 43761664
+        },
+        "samples": 110,
+        "nominal_interval_ms": 25
+      }
+    },
+    {
+      "interior": 128,
+      "halo": 34,
+      "reverse": true,
+      "tiles": 25,
+      "host_upload_bytes": 8669988,
+      "host_readback_bytes": 138719808,
+      "max_tile_width": 196,
+      "max_tile_height": 196,
+      "inference_and_host_assembly_seconds": 1.5990372999949614,
+      "numeric": {
+        "max_abs": 3.7848949432373047e-06,
+        "mae": 3.979151586008811e-07
+      },
+      "edges": {
+        "max_abs": 2.205371856689453e-06,
+        "mae": 2.9657431355190056e-07
+      },
+      "seams": {
+        "max_abs": 3.0994415283203125e-06,
+        "mae": 3.94567507555621e-07
+      },
+      "order_difference": {
+        "max_abs": 0.0,
+        "mae": 0.0
+      },
+      "memory": {
+        "latest": {
+          "local": {
+            "budget": 3531289396,
+            "current_usage": 126369792,
+            "available_for_reservation": 1869506150,
+            "current_reservation": 0
+          },
+          "nonlocal": {
+            "budget": 11942197248,
+            "current_usage": 43761664,
+            "available_for_reservation": 6105316352,
+            "current_reservation": 0
+          }
+        },
+        "sampled_peak_bytes": {
+          "local": 126369792,
+          "nonlocal": 43761664
+        },
+        "samples": 183,
+        "nominal_interval_ms": 25
+      }
+    },
+    {
+      "interior": 256,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 9,
+      "host_upload_bytes": 6117540,
+      "host_readback_bytes": 97880640,
+      "max_tile_width": 324,
+      "max_tile_height": 324,
+      "inference_and_host_assembly_seconds": 0.7075081000002683,
+      "numeric": {
+        "max_abs": 3.6954879760742188e-06,
+        "mae": 3.9938490203894617e-07
+      },
+      "edges": {
+        "max_abs": 2.2649765014648438e-06,
+        "mae": 2.9611112495331326e-07
+      },
+      "seams": {
+        "max_abs": 3.0994415283203125e-06,
+        "mae": 3.946912272567715e-07
+      },
+      "tile_size_difference": {
+        "max_abs": 1.9073486328125e-06,
+        "mae": 6.790338602513657e-08
+      },
+      "memory": {
+        "latest": {
+          "local": {
+            "budget": 3531289396,
+            "current_usage": 244858880,
+            "available_for_reservation": 1869506150,
+            "current_reservation": 0
+          },
+          "nonlocal": {
+            "budget": 11942197248,
+            "current_usage": 72237056,
+            "available_for_reservation": 6105316352,
+            "current_reservation": 0
+          }
+        },
+        "sampled_peak_bytes": {
+          "local": 244858880,
+          "nonlocal": 72237056
+        },
+        "samples": 225,
+        "nominal_interval_ms": 25
+      }
+    },
+    {
+      "interior": 256,
+      "halo": 34,
+      "reverse": true,
+      "tiles": 9,
+      "host_upload_bytes": 6117540,
+      "host_readback_bytes": 97880640,
+      "max_tile_width": 324,
+      "max_tile_height": 324,
+      "inference_and_host_assembly_seconds": 0.6864036999977543,
+      "numeric": {
+        "max_abs": 3.6954879760742188e-06,
+        "mae": 3.9938490203894617e-07
+      },
+      "edges": {
+        "max_abs": 2.2649765014648438e-06,
+        "mae": 2.9611112495331326e-07
+      },
+      "seams": {
+        "max_abs": 3.0994415283203125e-06,
+        "mae": 3.946912272567715e-07
+      },
+      "order_difference": {
+        "max_abs": 0.0,
+        "mae": 0.0
+      },
+      "tile_size_difference": {
+        "max_abs": 1.9073486328125e-06,
+        "mae": 6.790338602513657e-08
+      },
+      "memory": {
+        "latest": {
+          "local": {
+            "budget": 3531289396,
+            "current_usage": 244858880,
+            "available_for_reservation": 1869506150,
+            "current_reservation": 0
+          },
+          "nonlocal": {
+            "budget": 11942197248,
+            "current_usage": 72237056,
+            "available_for_reservation": 6105316352,
+            "current_reservation": 0
+          }
+        },
+        "sampled_peak_bytes": {
+          "local": 244858880,
+          "nonlocal": 72237056
+        },
+        "samples": 270,
+        "nominal_interval_ms": 25
+      }
+    }
+  ],
+  "admission_local_bytes": 1610612736,
+  "memory_scope": "DXGI per-process local/nonlocal sampled usage; 25 ms sampling may miss peaks. Not a strict allocator cap or whole-video budget.",
+  "before_session": {
+    "latest": {
+      "local": {
+        "budget": 3531289396,
+        "current_usage": 0,
+        "available_for_reservation": 1869506150,
+        "current_reservation": 0
+      },
+      "nonlocal": {
+        "budget": 11942197248,
+        "current_usage": 0,
+        "available_for_reservation": 6105316352,
+        "current_reservation": 0
+      }
+    },
+    "sampled_peak_bytes": {
+      "local": 0,
+      "nonlocal": 0
+    },
+    "samples": 1,
+    "nominal_interval_ms": 25
+  },
+  "actual_providers": [
+    "DmlExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "after_session_creation": {
+    "latest": {
+      "local": {
+        "budget": 3531289396,
+        "current_usage": 18477056,
+        "available_for_reservation": 1869506150,
+        "current_reservation": 0
+      },
+      "nonlocal": {
+        "budget": 11942197248,
+        "current_usage": 27537408,
+        "available_for_reservation": 6105316352,
+        "current_reservation": 0
+      }
+    },
+    "sampled_peak_bytes": {
+      "local": 18477056,
+      "nonlocal": 27537408
+    },
+    "samples": 2,
+    "nominal_interval_ms": 25
+  },
+  "profile_provider_events": {
+    "DmlExecutionProvider": 4760
+  },
+  "after_session_release": {
+    "latest": {
+      "local": {
+        "budget": 3531289396,
+        "current_usage": 40824832,
+        "available_for_reservation": 1869506150,
+        "current_reservation": 0
+      },
+      "nonlocal": {
+        "budget": 11942197248,
+        "current_usage": 34324480,
+        "available_for_reservation": 6105316352,
+        "current_reservation": 0
+      }
+    },
+    "sampled_peak_bytes": {
+      "local": 244858880,
+      "nonlocal": 72237056
+    },
+    "samples": 276,
+    "nominal_interval_ms": 25
+  },
+  "host_peak_working_set_bytes": 859185152
+}

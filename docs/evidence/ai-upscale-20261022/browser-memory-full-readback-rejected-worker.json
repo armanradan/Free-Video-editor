@@ -1,0 +1,257 @@
+{
+  "status": "failed",
+  "context": "worker",
+  "cases": [],
+  "ortVersion": "1.30.0",
+  "gpu": {
+    "vendor": "intel",
+    "architecture": "gen-12lp",
+    "device": "",
+    "description": ""
+  },
+  "processingLimits": {
+    "maxStorageBufferBindingSize": 134217728,
+    "maxBufferSize": 268435456,
+    "maxStorageBuffersPerShaderStage": 8
+  },
+  "processingAllocationBaseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "loadMs": 1032.109999999404,
+  "exactDeviceIdentity": true,
+  "mode": "tiled-allocation-calibration-not-video-acceptance",
+  "memoryScope": "Requested buffer/known texture bytes less explicit destroy; includes runtime pools and diagnostic buffers, excludes driver/compiler/internal surface memory. GC is not observed.",
+  "calibrations": [
+    {
+      "stem": "577x579",
+      "interior": 128,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 25,
+      "maxTileWidth": 196,
+      "maxTileHeight": 196,
+      "diagnosticUploadBytes": 8669988,
+      "diagnosticReadbackBytes": 64143936,
+      "baseline": {
+        "bufferBytes": 4965984,
+        "textureBytes": 921600,
+        "buffers": 137,
+        "textures": 4,
+        "peakBytes": 6071840,
+        "windowPeakBytes": 6071840,
+        "largestBufferBytes": 147456,
+        "createdBuffers": 271,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "inferenceAndAssemblyMs": 24392.170000001788,
+      "beforeReadback": {
+        "bufferBytes": 139235968,
+        "textureBytes": 22302912,
+        "buffers": 173,
+        "textures": 5,
+        "peakBytes": 161658880,
+        "windowPeakBytes": 161658880,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 332,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "numeric": {
+        "maxAbs": 5.662441253662109e-06,
+        "mae": 5.660388843719097e-07,
+        "count": 16035984
+      },
+      "edges": {
+        "maxAbs": 3.121793270111084e-06,
+        "mae": 4.1620765581192635e-07,
+        "count": 110784
+      },
+      "seams": {
+        "maxAbs": 4.827976226806641e-06,
+        "mae": 5.58458205440965e-07,
+        "count": 221184
+      },
+      "withReadback": {
+        "bufferBytes": 203379904,
+        "textureBytes": 22302912,
+        "buffers": 174,
+        "textures": 5,
+        "peakBytes": 225682816,
+        "windowPeakBytes": 225682816,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 333,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "afterCleanup": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 225682816,
+        "windowPeakBytes": 225682816,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 333,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "stem": "577x579",
+      "interior": 128,
+      "halo": 34,
+      "reverse": true,
+      "tiles": 25,
+      "maxTileWidth": 196,
+      "maxTileHeight": 196,
+      "diagnosticUploadBytes": 8669988,
+      "diagnosticReadbackBytes": 64143936,
+      "baseline": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 225682816,
+        "windowPeakBytes": 225682816,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 333,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "inferenceAndAssemblyMs": 27516.57500000298,
+      "beforeReadback": {
+        "bufferBytes": 139235968,
+        "textureBytes": 22302912,
+        "buffers": 173,
+        "textures": 5,
+        "peakBytes": 225682816,
+        "windowPeakBytes": 161999872,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 359,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "numeric": {
+        "maxAbs": 5.662441253662109e-06,
+        "mae": 5.660388843719097e-07,
+        "count": 16035984
+      },
+      "edges": {
+        "maxAbs": 3.121793270111084e-06,
+        "mae": 4.1620765581192635e-07,
+        "count": 110784
+      },
+      "seams": {
+        "maxAbs": 4.827976226806641e-06,
+        "mae": 5.58458205440965e-07,
+        "count": 221184
+      },
+      "orderDifference": {
+        "maxAbs": 0,
+        "mae": 0,
+        "count": 16035984
+      },
+      "withReadback": {
+        "bufferBytes": 203379904,
+        "textureBytes": 22302912,
+        "buffers": 174,
+        "textures": 5,
+        "peakBytes": 225682816,
+        "windowPeakBytes": 225682816,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 360,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "afterCleanup": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 225682816,
+        "windowPeakBytes": 225682816,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 360,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "stem": "577x579",
+      "interior": 256,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 9,
+      "maxTileWidth": 324,
+      "maxTileHeight": 324,
+      "diagnosticUploadBytes": 6117540,
+      "diagnosticReadbackBytes": 64143936,
+      "baseline": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 225682816,
+        "windowPeakBytes": 225682816,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 360,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "inferenceAndAssemblyMs": 32718.560000002384,
+      "beforeReadback": {
+        "bufferBytes": 336368256,
+        "textureBytes": 22302912,
+        "buffers": 182,
+        "textures": 5,
+        "peakBytes": 359930880,
+        "windowPeakBytes": 359930880,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 379,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    }
+  ],
+  "boundary": "calibration 577x579 tile 256 reverse false",
+  "error": "Error: Diagnostic WebGPU allocation cap rejected request before allocation\n    at reserve (http://127.0.0.1:9393/diagnostic-worker.js:14:13)\n    at GPUDevice.createBuffer (http://127.0.0.1:9393/diagnostic-worker.js:19:42)\n    at calibrate (http://127.0.0.1:9393/calibration-probe.mjs:130:27)\n    at async probe (http://127.0.0.1:9393/diagnostic-worker.js:181:7)\n    at async self.onmessage (http://127.0.0.1:9393/diagnostic-worker.js:62:42)",
+  "sessionReleased": true,
+  "afterSessionRelease": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 359930880,
+    "windowPeakBytes": 359930880,
+    "largestBufferBytes": 64143936,
+    "createdBuffers": 379,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 1,
+    "capBytes": 402653184
+  },
+  "gpuValidationError": null,
+  "browserVersion": "141.0.7390.37",
+  "scope": "Historical failed full-frame verification readback; replaced with bounded 8 MiB diagnostic staging, no inference/budget/tolerance change."
+}

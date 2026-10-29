@@ -1,0 +1,606 @@
+{
+  "status": "failed",
+  "scope": "Synthetic SDR SDK feasibility only; no video, preview or product acceptance",
+  "probe": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-msvc-20261029\\probe-final.exe",
+  "probe_sha256": "e4f43fc562ddccdb588ad314c81e735cce0ed5fdf4131d461d12978cef65a29d",
+  "sdk": "D:\\Libraries\\RTX_Video_SDK_v1.1.0",
+  "runs": [
+    {
+      "label": "first",
+      "command": [
+        "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-msvc-20261029\\probe-final.exe",
+        "D:\\Libraries\\RTX_Video_SDK_v1.1.0",
+        "1",
+        "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-evaluation-20261029\\first"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.713442899999791,
+      "records": [
+        {
+          "stage": "adapter",
+          "dxgi_index": 1,
+          "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "vendor": 4318,
+          "device": 9634,
+          "luid_high": 0,
+          "luid_low": 78108
+        },
+        {
+          "stage": "initialize",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "capabilities",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "vsr-available-query",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "vsr-capability",
+          "available": 1,
+          "needs_update": 0,
+          "update_query": "0x00000001",
+          "feature_init_query": "0x00000001",
+          "feature_init_result": "0x00000001"
+        },
+        {
+          "stage": "scratch-size",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "create-vsr",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 0,
+          "quality": 0,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 31114481,
+          "file": "2x-pattern0-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 0,
+          "quality": 3,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 30762380,
+          "file": "2x-pattern0-quality3.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 1,
+          "quality": 0,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 31045447,
+          "file": "2x-pattern1-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 1,
+          "quality": 3,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 30707520,
+          "file": "2x-pattern1-quality3.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 0,
+          "quality": 0,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 124414397,
+          "file": "4x-pattern0-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 0,
+          "quality": 3,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 123514111,
+          "file": "4x-pattern0-quality3.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 1,
+          "quality": 0,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 124309839,
+          "file": "4x-pattern1-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 1,
+          "quality": 3,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 123289367,
+          "file": "4x-pattern1-quality3.rgba"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "_nvngx.dll",
+          "path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_00e5dc1fb00a1261\\_nvngx.dll"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "nvngx_truehdr.dll",
+          "path": "D:\\Libraries\\RTX_Video_SDK_v1.1.0\\bin\\Windows\\x64\\rel\\nvngx_truehdr.dll"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "nvngx_vsr.dll",
+          "path": "D:\\Libraries\\RTX_Video_SDK_v1.1.0\\bin\\Windows\\x64\\rel\\nvngx_vsr.dll"
+        },
+        {
+          "stage": "release-feature",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "destroy-parameters",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "shutdown-device",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "status": "pilot-passed-not-product-accepted",
+          "cases": 4,
+          "input_uploads": 4,
+          "diagnostic_readbacks": 12,
+          "format": "opaque-RGBA8-SDR"
+        }
+      ]
+    },
+    {
+      "label": "repeat",
+      "command": [
+        "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-msvc-20261029\\probe-final.exe",
+        "D:\\Libraries\\RTX_Video_SDK_v1.1.0",
+        "1",
+        "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-evaluation-20261029\\repeat"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.440942699999141,
+      "records": [
+        {
+          "stage": "adapter",
+          "dxgi_index": 1,
+          "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "vendor": 4318,
+          "device": 9634,
+          "luid_high": 0,
+          "luid_low": 78108
+        },
+        {
+          "stage": "initialize",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "capabilities",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "vsr-available-query",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "vsr-capability",
+          "available": 1,
+          "needs_update": 0,
+          "update_query": "0x00000001",
+          "feature_init_query": "0x00000001",
+          "feature_init_result": "0x00000001"
+        },
+        {
+          "stage": "scratch-size",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "create-vsr",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 0,
+          "quality": 0,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 31114481,
+          "file": "2x-pattern0-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 0,
+          "quality": 3,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 30762380,
+          "file": "2x-pattern0-quality3.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 1,
+          "quality": 0,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 31044485,
+          "file": "2x-pattern1-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 2,
+          "pattern": 1,
+          "quality": 3,
+          "width": 384,
+          "height": 216,
+          "bytes": 331776,
+          "rgb_sum": 30707520,
+          "file": "2x-pattern1-quality3.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 0,
+          "quality": 0,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 124414397,
+          "file": "4x-pattern0-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 0,
+          "quality": 3,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 123514111,
+          "file": "4x-pattern0-quality3.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 1,
+          "quality": 0,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 124309839,
+          "file": "4x-pattern1-quality0.rgba"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "output",
+          "scale": 4,
+          "pattern": 1,
+          "quality": 3,
+          "width": 768,
+          "height": 432,
+          "bytes": 1327104,
+          "rgb_sum": 123289367,
+          "file": "4x-pattern1-quality3.rgba"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "_nvngx.dll",
+          "path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_00e5dc1fb00a1261\\_nvngx.dll"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "nvngx_truehdr.dll",
+          "path": "D:\\Libraries\\RTX_Video_SDK_v1.1.0\\bin\\Windows\\x64\\rel\\nvngx_truehdr.dll"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "nvngx_vsr.dll",
+          "path": "D:\\Libraries\\RTX_Video_SDK_v1.1.0\\bin\\Windows\\x64\\rel\\nvngx_vsr.dll"
+        },
+        {
+          "stage": "release-feature",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "destroy-parameters",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "shutdown-device",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "status": "pilot-passed-not-product-accepted",
+          "cases": 4,
+          "input_uploads": 4,
+          "diagnostic_readbacks": 12,
+          "format": "opaque-RGBA8-SDR"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 2,
+      "pattern": 0,
+      "quality": 0,
+      "width": 384,
+      "height": 216,
+      "bytes": 331776,
+      "rgb_sum": 31114481,
+      "file": "2x-pattern0-quality0.rgba",
+      "sha256": "5eeb53ffb429144e8fa7771011a5e20320ac58bb0f6687b3d0d35e110913b034",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 2,
+      "pattern": 0,
+      "quality": 3,
+      "width": 384,
+      "height": 216,
+      "bytes": 331776,
+      "rgb_sum": 30762380,
+      "file": "2x-pattern0-quality3.rgba",
+      "sha256": "29659a82096969583dd850d575ef07deb15b84f7b0aec617f0f641e16f823f36",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 2,
+      "pattern": 1,
+      "quality": 0,
+      "width": 384,
+      "height": 216,
+      "bytes": 331776,
+      "rgb_sum": 31045447,
+      "file": "2x-pattern1-quality0.rgba",
+      "sha256": "12a4b0a35198965000aa8576e55530db4c74fffdda1ca50a3dd735b8fbd416cb",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 2,
+      "pattern": 1,
+      "quality": 3,
+      "width": 384,
+      "height": 216,
+      "bytes": 331776,
+      "rgb_sum": 30707520,
+      "file": "2x-pattern1-quality3.rgba",
+      "sha256": "9ef3ef2d2e4129b7c8874380ee359dfbe31a4d6bc052d8f721db5d7b83bfb459",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 4,
+      "pattern": 0,
+      "quality": 0,
+      "width": 768,
+      "height": 432,
+      "bytes": 1327104,
+      "rgb_sum": 124414397,
+      "file": "4x-pattern0-quality0.rgba",
+      "sha256": "3d27154ca9636120d642f8c318b7d4ff54fd67dd7479e3a7009f64292078a73d",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 4,
+      "pattern": 0,
+      "quality": 3,
+      "width": 768,
+      "height": 432,
+      "bytes": 1327104,
+      "rgb_sum": 123514111,
+      "file": "4x-pattern0-quality3.rgba",
+      "sha256": "79bc780d1bf338bb5c897763fae4af5b49e7270bd67f89793e8458ca1af747c2",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 4,
+      "pattern": 1,
+      "quality": 0,
+      "width": 768,
+      "height": 432,
+      "bytes": 1327104,
+      "rgb_sum": 124309839,
+      "file": "4x-pattern1-quality0.rgba",
+      "sha256": "7071ff02b6dc20ea3f49a635d9b0d5c786ebaf4538cfa22d72ae7b0213523738",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "first",
+      "stage": "output",
+      "scale": 4,
+      "pattern": 1,
+      "quality": 3,
+      "width": 768,
+      "height": 432,
+      "bytes": 1327104,
+      "rgb_sum": 123289367,
+      "file": "4x-pattern1-quality3.rgba",
+      "sha256": "fbef32c66e2363fff663a4f56fab1e3ff52eefc6ea019bb469571b19d39e7772",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "repeat",
+      "stage": "output",
+      "scale": 2,
+      "pattern": 0,
+      "quality": 0,
+      "width": 384,
+      "height": 216,
+      "bytes": 331776,
+      "rgb_sum": 31114481,
+      "file": "2x-pattern0-quality0.rgba",
+      "sha256": "5eeb53ffb429144e8fa7771011a5e20320ac58bb0f6687b3d0d35e110913b034",
+      "alpha_min": 255,
+      "alpha_max": 255
+    },
+    {
+      "run": "repeat",
+      "stage": "output",
+      "scale": 2,
+      "pattern": 0,
+      "quality": 3,
+      "width": 384,
+      "height": 216,
+      "bytes": 331776,
+      "rgb_sum": 30762380,
+      "file": "2x-pattern0-quality3.rgba",
+      "sha256": "29659a82096969583dd850d575ef07deb15b84f7b0aec617f0f641e16f823f36",
+      "alpha_min": 255,
+      "alpha_max": 255
+    }
+  ],
+  "sdk_bicubic_differences": [
+    {
+      "run": "first",
+      "scale": 2,
+      "pattern": 0,
+      "maximum_lsb": 80,
+      "mae_lsb": 11.87720630787037,
+      "different_rgb_channels": 237516
+    },
+    {
+      "run": "first",
+      "scale": 2,
+      "pattern": 1,
+      "maximum_lsb": 255,
+      "mae_lsb": 11.936941390174898,
+      "different_rgb_channels": 237054
+    },
+    {
+      "run": "first",
+      "scale": 4,
+      "pattern": 0,
+      "maximum_lsb": 75,
+      "mae_lsb": 10.519434799382717,
+      "different_rgb_channels": 946244
+    },
+    {
+      "run": "first",
+      "scale": 4,
+      "pattern": 1,
+      "maximum_lsb": 81,
+      "mae_lsb": 10.501060956790123,
+      "different_rgb_channels": 942712
+    }
+  ],
+  "error": "repeat output differs"
+}

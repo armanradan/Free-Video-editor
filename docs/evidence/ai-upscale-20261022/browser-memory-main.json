@@ -1,0 +1,421 @@
+{
+  "status": "numeric-device-probe-passed-not-product-accepted",
+  "context": "main",
+  "cases": [],
+  "ortVersion": "1.30.0",
+  "gpu": {
+    "vendor": "intel",
+    "architecture": "gen-12lp",
+    "device": "",
+    "description": ""
+  },
+  "processingLimits": {
+    "maxStorageBufferBindingSize": 134217728,
+    "maxBufferSize": 268435456,
+    "maxStorageBuffersPerShaderStage": 8
+  },
+  "processingAllocationBaseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "loadMs": 1026.1700000017881,
+  "exactDeviceIdentity": true,
+  "mode": "tiled-allocation-calibration-not-video-acceptance",
+  "memoryScope": "Requested buffer/known texture bytes less explicit destroy; includes runtime pools and diagnostic buffers, excludes driver/compiler/internal surface memory. GC is not observed.",
+  "calibrations": [
+    {
+      "stem": "577x579",
+      "interior": 128,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 25,
+      "maxTileWidth": 196,
+      "maxTileHeight": 196,
+      "diagnosticUploadBytes": 8669988,
+      "diagnosticReadbackBytes": 64143936,
+      "baseline": {
+        "bufferBytes": 4965984,
+        "textureBytes": 921600,
+        "buffers": 137,
+        "textures": 4,
+        "peakBytes": 6071840,
+        "windowPeakBytes": 6071840,
+        "largestBufferBytes": 147456,
+        "createdBuffers": 271,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "inferenceAndAssemblyMs": 43752.30000000447,
+      "beforeReadback": {
+        "bufferBytes": 139235968,
+        "textureBytes": 22302912,
+        "buffers": 173,
+        "textures": 5,
+        "peakBytes": 161658880,
+        "windowPeakBytes": 161658880,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 332,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "diagnosticReadbackBufferBytes": 8388608,
+      "numeric": {
+        "maxAbs": 5.662441253662109e-06,
+        "mae": 5.660388843719097e-07,
+        "count": 16035984
+      },
+      "edges": {
+        "maxAbs": 3.121793270111084e-06,
+        "mae": 4.1620765581192635e-07,
+        "count": 110784
+      },
+      "seams": {
+        "maxAbs": 4.827976226806641e-06,
+        "mae": 5.519954857051201e-07,
+        "count": 386064
+      },
+      "withReadback": {
+        "bufferBytes": 147624576,
+        "textureBytes": 22302912,
+        "buffers": 174,
+        "textures": 5,
+        "peakBytes": 169927488,
+        "windowPeakBytes": 169927488,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 333,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "afterCleanup": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 169927488,
+        "windowPeakBytes": 169927488,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 333,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "stem": "577x579",
+      "interior": 128,
+      "halo": 34,
+      "reverse": true,
+      "tiles": 25,
+      "maxTileWidth": 196,
+      "maxTileHeight": 196,
+      "diagnosticUploadBytes": 8669988,
+      "diagnosticReadbackBytes": 64143936,
+      "baseline": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 169927488,
+        "windowPeakBytes": 169927488,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 333,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "inferenceAndAssemblyMs": 23541.744999997318,
+      "beforeReadback": {
+        "bufferBytes": 139235968,
+        "textureBytes": 22302912,
+        "buffers": 173,
+        "textures": 5,
+        "peakBytes": 169927488,
+        "windowPeakBytes": 161999872,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 359,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "diagnosticReadbackBufferBytes": 8388608,
+      "numeric": {
+        "maxAbs": 5.662441253662109e-06,
+        "mae": 5.660388843719097e-07,
+        "count": 16035984
+      },
+      "edges": {
+        "maxAbs": 3.121793270111084e-06,
+        "mae": 4.1620765581192635e-07,
+        "count": 110784
+      },
+      "seams": {
+        "maxAbs": 4.827976226806641e-06,
+        "mae": 5.519954857051201e-07,
+        "count": 386064
+      },
+      "orderDifference": {
+        "maxAbs": 0,
+        "mae": 0,
+        "count": 16035984
+      },
+      "withReadback": {
+        "bufferBytes": 147624576,
+        "textureBytes": 22302912,
+        "buffers": 174,
+        "textures": 5,
+        "peakBytes": 169927488,
+        "windowPeakBytes": 169927488,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 360,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "afterCleanup": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 169927488,
+        "windowPeakBytes": 169927488,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 360,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "stem": "577x579",
+      "interior": 256,
+      "halo": 34,
+      "reverse": false,
+      "tiles": 9,
+      "maxTileWidth": 324,
+      "maxTileHeight": 324,
+      "diagnosticUploadBytes": 6117540,
+      "diagnosticReadbackBytes": 64143936,
+      "baseline": {
+        "bufferBytes": 75092032,
+        "textureBytes": 921600,
+        "buffers": 172,
+        "textures": 4,
+        "peakBytes": 169927488,
+        "windowPeakBytes": 169927488,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 360,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "inferenceAndAssemblyMs": 16461.329999998212,
+      "beforeReadback": {
+        "bufferBytes": 336368256,
+        "textureBytes": 22302912,
+        "buffers": 182,
+        "textures": 5,
+        "peakBytes": 359930880,
+        "windowPeakBytes": 359930880,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 379,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "diagnosticReadbackBufferBytes": 8388608,
+      "numeric": {
+        "maxAbs": 5.662441253662109e-06,
+        "mae": 5.660388843719097e-07,
+        "count": 16035984
+      },
+      "edges": {
+        "maxAbs": 3.121793270111084e-06,
+        "mae": 4.1620765581192635e-07,
+        "count": 110784
+      },
+      "seams": {
+        "maxAbs": 4.827976226806641e-06,
+        "mae": 5.465065502938641e-07,
+        "count": 193620
+      },
+      "tileSizeDifference": {
+        "maxAbs": 0,
+        "mae": 0,
+        "count": 16035984
+      },
+      "withReadback": {
+        "bufferBytes": 344756864,
+        "textureBytes": 22302912,
+        "buffers": 183,
+        "textures": 5,
+        "peakBytes": 367059776,
+        "windowPeakBytes": 367059776,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 380,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "afterCleanup": {
+        "bufferBytes": 272224320,
+        "textureBytes": 921600,
+        "buffers": 181,
+        "textures": 4,
+        "peakBytes": 367059776,
+        "windowPeakBytes": 367059776,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 380,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "stem": "577x579",
+      "interior": 256,
+      "halo": 34,
+      "reverse": true,
+      "tiles": 9,
+      "maxTileWidth": 324,
+      "maxTileHeight": 324,
+      "diagnosticUploadBytes": 6117540,
+      "diagnosticReadbackBytes": 64143936,
+      "baseline": {
+        "bufferBytes": 272224320,
+        "textureBytes": 921600,
+        "buffers": 181,
+        "textures": 4,
+        "peakBytes": 367059776,
+        "windowPeakBytes": 367059776,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 380,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "inferenceAndAssemblyMs": 16803.984999999404,
+      "beforeReadback": {
+        "bufferBytes": 336368256,
+        "textureBytes": 22302912,
+        "buffers": 182,
+        "textures": 5,
+        "peakBytes": 367059776,
+        "windowPeakBytes": 359930880,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 390,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "diagnosticReadbackBufferBytes": 8388608,
+      "numeric": {
+        "maxAbs": 5.662441253662109e-06,
+        "mae": 5.660388843719097e-07,
+        "count": 16035984
+      },
+      "edges": {
+        "maxAbs": 3.121793270111084e-06,
+        "mae": 4.1620765581192635e-07,
+        "count": 110784
+      },
+      "seams": {
+        "maxAbs": 4.827976226806641e-06,
+        "mae": 5.465065502938641e-07,
+        "count": 193620
+      },
+      "orderDifference": {
+        "maxAbs": 0,
+        "mae": 0,
+        "count": 16035984
+      },
+      "tileSizeDifference": {
+        "maxAbs": 0,
+        "mae": 0,
+        "count": 16035984
+      },
+      "withReadback": {
+        "bufferBytes": 344756864,
+        "textureBytes": 22302912,
+        "buffers": 183,
+        "textures": 5,
+        "peakBytes": 367059776,
+        "windowPeakBytes": 367059776,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 391,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      },
+      "afterCleanup": {
+        "bufferBytes": 272224320,
+        "textureBytes": 921600,
+        "buffers": 181,
+        "textures": 4,
+        "peakBytes": 367059776,
+        "windowPeakBytes": 367059776,
+        "largestBufferBytes": 64143936,
+        "createdBuffers": 391,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    }
+  ],
+  "boundary": "calibration 577x579 tile 256 reverse true",
+  "allocationGuardRejectedBeforeGpuCall": true,
+  "allocationSummary": {
+    "bufferBytes": 272224320,
+    "textureBytes": 921600,
+    "buffers": 181,
+    "textures": 4,
+    "peakBytes": 367059776,
+    "windowPeakBytes": 367059776,
+    "largestBufferBytes": 64143936,
+    "createdBuffers": 391,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 1,
+    "capBytes": 402653184
+  },
+  "deviceRequests": 1,
+  "sessionReleased": true,
+  "afterSessionRelease": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 367059776,
+    "windowPeakBytes": 367059776,
+    "largestBufferBytes": 64143936,
+    "createdBuffers": 391,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 1,
+    "capBytes": 402653184
+  },
+  "processingDeviceUsableAfterRelease": true,
+  "lifecycleDiagnosticReadbackBytes": 4,
+  "gpuValidationError": null,
+  "browserVersion": "141.0.7390.37",
+  "selected_logs": [
+    "2026-10-22 20:55:13.340650 [I:onnxruntime:, inference_session.cc:764 TraceSessionOptions] Session Options {  execution_mode:0 execution_order:DEFAULT enable_profiling:0 optimized_model_filepath:\"\" enable_mem_pattern:0 enable_mem_reuse:1 enable_cpu_mem_arena:0 profile_file_prefix: session_logid: session_log_severity_level:0 session_log_verbosity_level:1 max_num_graph_transformation_steps:10 graph_optimization_level:4 intra_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 spin_duration_us: -1 spin_backoff_max: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } inter_op_param:OrtThreadPoolParams { thread_pool_size: 0 auto_set_affinity: 0 allow_spinning: 1 spin_duration_us: -1 spin_backoff_max: 1 dynamic_block_base_: 0 stack_size: 0 affinity_str:  set_denormal_as_zero: 0 } use_per_session_threads:0 thread_pool_allow_spinning:1 use_deterministic_compute:0 ep_selection_policy:0 config_options: {   ep.webgpuexecutionprovider.webgpuDevice: 9937008  ep.webgpuexecutionprovider.webgpuInstance: 9936088  ep.webgpuexecutionprovider.deviceId: 1  session.use_ort_model_bytes_directly: 1  session.disable_cpu_ep_fallback: 1 } }",
+    "2026-10-22 20:55:13.682985 [V:onnxruntime:, session_state.cc:1380 VerifyEachNodeIsAssignedToAnEp]  All nodes placed on [WebGpuExecutionProvider]. Number of nodes: 73"
+  ],
+  "diagnostic_flags": [
+    "--enable-unsafe-webgpu",
+    "--use-angle=d3d11",
+    "--disable-dawn-features=use_dxc"
+  ],
+  "timing_limitations": "Diagnostic cold shader compilation, readback/instrumentation and overlapping exploratory processes; not a throughput comparison."
+}

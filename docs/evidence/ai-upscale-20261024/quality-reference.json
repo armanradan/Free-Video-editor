@@ -1,0 +1,224 @@
+{
+  "status": "passed-reference-not-release-accepted",
+  "scope": "Offline CPU PyTorch versus untiled DirectML FP32; neutral x4 versus CPU bilinear visual baseline",
+  "limits": [
+    "No high-resolution ground-truth quality metric",
+    "CPU bilinear timing is an offline reference, not the shared GPU resize baseline",
+    "Inference measurements include explicit CPU input/output staging",
+    "Eight frames per clip do not establish broad temporal quality"
+  ],
+  "cases": [
+    {
+      "fixture": "tos-text-texture.mp4",
+      "frames": [
+        {
+          "index": 0,
+          "max_abs": 2.384185791015625e-06,
+          "mae": 6.846828881634792e-08
+        },
+        {
+          "index": 1,
+          "max_abs": 3.5762786865234375e-06,
+          "mae": 6.752572545565272e-08,
+          "ai_frame_difference_lsb": 1.2617635091145833,
+          "bilinear_frame_difference_lsb": 0.8211561414930556
+        },
+        {
+          "index": 2,
+          "max_abs": 3.822147846221924e-06,
+          "mae": 6.750793346554929e-08,
+          "ai_frame_difference_lsb": 1.3384141710069444,
+          "bilinear_frame_difference_lsb": 0.8438883463541667
+        },
+        {
+          "index": 3,
+          "max_abs": 2.7418136596679688e-06,
+          "mae": 6.822357079272479e-08,
+          "ai_frame_difference_lsb": 1.3815117730034723,
+          "bilinear_frame_difference_lsb": 0.8680121527777778
+        },
+        {
+          "index": 4,
+          "max_abs": 2.384185791015625e-06,
+          "mae": 6.712750888482333e-08,
+          "ai_frame_difference_lsb": 1.5113294813368054,
+          "bilinear_frame_difference_lsb": 1.0324639214409723
+        },
+        {
+          "index": 5,
+          "max_abs": 3.0994415283203125e-06,
+          "mae": 6.779994521366461e-08,
+          "ai_frame_difference_lsb": 1.1903130425347221,
+          "bilinear_frame_difference_lsb": 0.79141845703125
+        },
+        {
+          "index": 6,
+          "max_abs": 2.4437904357910156e-06,
+          "mae": 6.644052774618103e-08,
+          "ai_frame_difference_lsb": 1.2749823676215277,
+          "bilinear_frame_difference_lsb": 0.8470228407118056
+        },
+        {
+          "index": 7,
+          "max_abs": 2.086162567138672e-06,
+          "mae": 6.743921687757393e-08,
+          "ai_frame_difference_lsb": 1.1369737413194445,
+          "bilinear_frame_difference_lsb": 0.7302205403645833
+        }
+      ],
+      "bilinear_seconds": 0.4540463000005275,
+      "directml_seconds": 0.5619289000001118,
+      "pytorch_seconds": 1.8454228999996758
+    },
+    {
+      "fixture": "tos-face.mp4",
+      "frames": [
+        {
+          "index": 0,
+          "max_abs": 1.8775463104248047e-06,
+          "mae": 8.437928755711255e-08
+        },
+        {
+          "index": 1,
+          "max_abs": 5.543231964111328e-06,
+          "mae": 8.59395612451408e-08,
+          "ai_frame_difference_lsb": 10.501722547743055,
+          "bilinear_frame_difference_lsb": 7.473838975694444
+        },
+        {
+          "index": 2,
+          "max_abs": 3.516674041748047e-06,
+          "mae": 8.445706356496885e-08,
+          "ai_frame_difference_lsb": 9.71581081814236,
+          "bilinear_frame_difference_lsb": 6.923544650607639
+        },
+        {
+          "index": 3,
+          "max_abs": 5.783513188362122e-06,
+          "mae": 8.276150254005188e-08,
+          "ai_frame_difference_lsb": 13.701174587673611,
+          "bilinear_frame_difference_lsb": 9.879667154947917
+        },
+        {
+          "index": 4,
+          "max_abs": 2.8014183044433594e-06,
+          "mae": 8.36010158877798e-08,
+          "ai_frame_difference_lsb": 10.674929470486111,
+          "bilinear_frame_difference_lsb": 7.615447319878472
+        },
+        {
+          "index": 5,
+          "max_abs": 1.7881393432617188e-06,
+          "mae": 8.05430957484532e-08,
+          "ai_frame_difference_lsb": 10.140087890625,
+          "bilinear_frame_difference_lsb": 7.2638427734375
+        },
+        {
+          "index": 6,
+          "max_abs": 1.7978250980377197e-05,
+          "mae": 8.761824688008346e-08,
+          "ai_frame_difference_lsb": 11.385823567708334,
+          "bilinear_frame_difference_lsb": 8.222406684027778
+        },
+        {
+          "index": 7,
+          "max_abs": 1.8775463104248047e-06,
+          "mae": 8.304763809974247e-08,
+          "ai_frame_difference_lsb": 9.877229817708333,
+          "bilinear_frame_difference_lsb": 7.096324327256944
+        }
+      ],
+      "bilinear_seconds": 0.3643238000004203,
+      "directml_seconds": 0.6119785999999294,
+      "pytorch_seconds": 0.9158888000004026
+    },
+    {
+      "fixture": "tos-motion.mp4",
+      "frames": [
+        {
+          "index": 0,
+          "max_abs": 3.933906555175781e-06,
+          "mae": 7.198153184617695e-08
+        },
+        {
+          "index": 1,
+          "max_abs": 6.9141387939453125e-06,
+          "mae": 7.193827400442387e-08,
+          "ai_frame_difference_lsb": 2.965839301215278,
+          "bilinear_frame_difference_lsb": 1.9948540581597223
+        },
+        {
+          "index": 2,
+          "max_abs": 5.841255187988281e-06,
+          "mae": 7.35047507305353e-08,
+          "ai_frame_difference_lsb": 2.7873670789930554,
+          "bilinear_frame_difference_lsb": 1.8535942925347222
+        },
+        {
+          "index": 3,
+          "max_abs": 2.9802322387695312e-06,
+          "mae": 7.228771892187069e-08,
+          "ai_frame_difference_lsb": 2.960202365451389,
+          "bilinear_frame_difference_lsb": 2.052043999565972
+        },
+        {
+          "index": 4,
+          "max_abs": 3.829598426818848e-06,
+          "mae": 7.464957008096462e-08,
+          "ai_frame_difference_lsb": 2.9738593207465276,
+          "bilinear_frame_difference_lsb": 1.9488742404513888
+        },
+        {
+          "index": 5,
+          "max_abs": 2.6226043701171875e-06,
+          "mae": 7.239206922804442e-08,
+          "ai_frame_difference_lsb": 3.15518798828125,
+          "bilinear_frame_difference_lsb": 1.9781643337673611
+        },
+        {
+          "index": 6,
+          "max_abs": 2.562999725341797e-06,
+          "mae": 7.42925010399631e-08,
+          "ai_frame_difference_lsb": 3.5833916558159724,
+          "bilinear_frame_difference_lsb": 2.252582465277778
+        },
+        {
+          "index": 7,
+          "max_abs": 5.245208740234375e-06,
+          "mae": 7.542116264858123e-08,
+          "ai_frame_difference_lsb": 3.863283962673611,
+          "bilinear_frame_difference_lsb": 2.5469292534722223
+        }
+      ],
+      "bilinear_seconds": 0.35553989999993973,
+      "directml_seconds": 0.4971123999998781,
+      "pytorch_seconds": 0.9449424999997973
+    }
+  ],
+  "selected_adapter": {
+    "index": 1,
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor_id": 4318,
+    "device_id": 9634,
+    "dedicated_video_bytes": 4154458112,
+    "flags": 0,
+    "luid": "00000000:00012f73"
+  },
+  "pytorch_version": "2.8.0+cpu",
+  "numpy_version": "2.2.6",
+  "pytorch_load_seconds": 0.08820890000015424,
+  "directml_load_seconds": 0.519393399999899,
+  "runtime": "1.23.0",
+  "providers": [
+    "DmlExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "device_id": 1,
+  "model_sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "profile": {
+    "providers": [
+      "DmlExecutionProvider"
+    ],
+    "node_events": 1680
+  }
+}

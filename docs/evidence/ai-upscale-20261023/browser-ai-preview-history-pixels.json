@@ -1,0 +1,186 @@
+{
+  "status": "passed",
+  "gate_max_lsb": 2,
+  "cases": [
+    {
+      "context": "main",
+      "label": "cut-with-boundary-history",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "seek-back",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "gap-expires-history",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "seek-back-to-cut",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "strength-edit",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "before",
+      "reference": "independent neutral normalized source resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 1,
+      "mae_lsb": 0.050252278645833336
+    },
+    {
+      "context": "main",
+      "label": "after-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "scale-change",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 128,
+      "height": 72,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "scale-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "validated-model-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "cut-with-boundary-history",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "seek-back",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "gap-expires-history",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "seek-back-to-cut",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "strength-edit",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "before",
+      "reference": "independent neutral normalized source resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 1,
+      "mae_lsb": 0.050252278645833336
+    },
+    {
+      "context": "worker",
+      "label": "after-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "scale-change",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 128,
+      "height": 72,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "scale-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "validated-model-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    }
+  ]
+}

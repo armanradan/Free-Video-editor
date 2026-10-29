@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "realesr-general-x4v3-strong-fp32-evaluation-v1",
+  "availability": "evaluation-only-not-product-supported",
+  "upstream_commit": "a4abfb2979a7bbff3f69f58f58ae324608821e27",
+  "assets": [
+    {
+      "file": "realesr-general-x4v3.pth",
+      "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth",
+      "bytes": 4885111,
+      "sha256": "8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292"
+    },
+    {
+      "file": "srvgg_arch.py",
+      "url": "https://raw.githubusercontent.com/xinntao/Real-ESRGAN/a4abfb2979a7bbff3f69f58f58ae324608821e27/realesrgan/archs/srvgg_arch.py",
+      "sha256": "7419a75e789ca09295266563d74a6d7c08d6c24502af6b0a919b1811d0a0be59"
+    },
+    {
+      "file": "Real-ESRGAN-LICENSE",
+      "url": "https://raw.githubusercontent.com/xinntao/Real-ESRGAN/a4abfb2979a7bbff3f69f58f58ae324608821e27/LICENSE",
+      "sha256": "4a699ec4863d96a91fc265948a0c90033f7e8735d515524dcf3444736406e0c2"
+    }
+  ],
+  "license": "BSD-3-Clause, upstream project license; retain notice for derived assets",
+  "checksum_provenance": "SHA-256 measured from official HTTPS assets on 2026-10-22, not a publisher signature",
+  "architecture": {
+    "name": "SRVGGNetCompact",
+    "features": 64,
+    "body_convolutions": 32,
+    "total_convolutions": 34,
+    "activation": "PReLU",
+    "internal_scale": 4
+  },
+  "preprocessing": "Opaque encoded sRGB RGB uint8 / 255, NCHW batch 1, FP32; no mean/std, no input enlargement or denoise-weight blending",
+  "denoise_strength": 1,
+  "padding": "No global pre-pad; each upstream 3x3 convolution uses zero padding 1",
+  "reference": "CPU PyTorch FP32 eval, unquantized and unclamped; no face enhancement",
+  "onnx_export": {
+    "opset": 17,
+    "dynamic_spatial_axes": true,
+    "dynamo": false,
+    "bytes": 4866413,
+    "sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5"
+  },
+  "output_scales": {
+    "4": "native model output",
+    "2": "not validated; requires separately tested final shared downscale from internal x4"
+  },
+  "tile_policy": {
+    "interiors": [
+      128,
+      256
+    ],
+    "source_halo": 34,
+    "derivation": "34 stride-1 3x3 convolutions: receptive field 69; PReLU, PixelShuffle and nearest residual add no source radius",
+    "outer_edges": "clip halo to source extent; retain model's per-layer zero padding; no synthetic global reflect pad"
+  },
+  "numeric_limits": {
+    "max_abs": 0.01,
+    "mae": 0.001
+  },
+  "runtime_evaluation": {
+    "browser_onnxruntime_web": {
+      "version": "1.30.0",
+      "status": "numeric/device pilot only; production integration and envelopes unvalidated"
+    },
+    "native_onnxruntime_directml": {
+      "version": "1.23.0",
+      "status": "numeric/provider pilot only"
+    },
+    "burn": {
+      "version": "0.22.1",
+      "cubecl": "0.11.2",
+      "browser": "failed existing device workgroup limit",
+      "native": "failed CubeCL IR type check"
+    }
+  }
+}

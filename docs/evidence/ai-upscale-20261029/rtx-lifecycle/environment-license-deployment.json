@@ -1,0 +1,32 @@
+{
+  "os": "Windows-11-10.0.26300-SP0",
+  "sdk_root": "D:\\Libraries\\RTX_Video_SDK_v1.1.0",
+  "sdk": "1.1.0",
+  "api": "D3D11 VSR High3, public NGX create/evaluate/release/destroy/shutdown; no TrueHDR feature",
+  "driver_query": "NVIDIA GeForce RTX 3050 Laptop GPU, 621.01, 0x25A210DE",
+  "sdk_files": {
+    "NVIDIA_RTX_Video_SDK_License.pdf": {
+      "bytes": 136535,
+      "sha256": "5addfcf7c78891a12f1dcd6b5f86c2512351ab71b3872f446ba10e1b6da54464"
+    },
+    "bin/Windows/x64/rel/nvngx_vsr.dll": {
+      "bytes": 19140144,
+      "sha256": "c3d88eea5ff7a548edefa66414cf6e77464d0947277c904f324dd23abf58a1ed"
+    },
+    "bin/Windows/x64/rel/nvngx_truehdr.dll": {
+      "bytes": 3955752,
+      "sha256": "9a80575f247190c05fe80eac0c4baa1d0d4d932348f26808310b5ec4bf9eeb4b"
+    },
+    "lib/Windows/x64/nvsdk_ngx_s.lib": {
+      "bytes": 5020874,
+      "sha256": "9faaddbdebce63fc32cd6fba6d78ba305a26965e90f189672f98d5f1a01b60b4"
+    },
+    "include/nvsdk_ngx.h": {
+      "bytes": 31639,
+      "sha256": "00ebaa489c6b3dc88beb022d4c439d2e601ee520df99d5195b681b169980279a"
+    }
+  },
+  "authorization": "Human user accepted supplied SDK terms and authorized local evaluation in this chat. No redistribution or automatic driver/toolchain installation.",
+  "deployment": "Source-only optional MSVC helper, separately installed SDK/runtime via explicit paths. GNU Rust uses versioned pipes; no SDK binary/headers in Git. Shipping license/deployment review remains pending.",
+  "deadline_scope": "Native production frame deadline60s; test-only override3s after real SDK startup. Diagnostic stalls/crash only in separately compiled RTX_DIAGNOSTIC helper; normal helper ignores fault environment."
+}

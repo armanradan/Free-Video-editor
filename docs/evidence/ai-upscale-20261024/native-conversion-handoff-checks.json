@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-24",
+  "task": "6.4 partial",
+  "status": "passed-in-recorded-scope",
+  "progress": {
+    "complete": 20,
+    "total": 32
+  },
+  "regular_tests": {
+    "core_passed": 38,
+    "native_library_passed": 46,
+    "native_library_ignored": 9,
+    "ui_passed": 2,
+    "native_app_passed": 17,
+    "native_app_ignored": 6
+  },
+  "explicit_gpu_tests": [
+    "actual_ai_conversion_handoff_retires_and_retries: 2x/4x, active preparation retirement, stale rejection, cancelled conversion, verified retry, paused pixel equality, concurrent renderer close",
+    "actual_ai_renderer_staging_cache_and_invalidation: passed"
+  ],
+  "release_exports": {
+    "native_cut_and_vfr": 12,
+    "browser_face_existing_exports_reverified": 12
+  },
+  "checks": [
+    "locked host native all-target Clippy -D warnings",
+    "host core/GPU check",
+    "wasm web/app all-target Clippy -D warnings",
+    "format",
+    "JS syntax",
+    "strict OpenSpec",
+    "diff whitespace",
+    "normal native build"
+  ],
+  "limitations": [
+    "ordinary AI On and full browser lifecycle remain unaccepted",
+    "active preparation is not proof of active inference dispatch",
+    "pre-cancelled conversion is not a new active-inference cancellation test",
+    "ordinary AI Off shared-GPU cut fixture rejects legacy header/final-frame mismatch",
+    "native release linker .drectve warning remains"
+  ]
+}

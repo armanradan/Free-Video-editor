@@ -1,0 +1,150 @@
+{
+  "status": "passed",
+  "gate_max_lsb": 2,
+  "cases": [
+    {
+      "context": "main",
+      "label": "neutral",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "manual",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "clahe-50",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "clahe-80",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "before",
+      "reference": "independent neutral normalized source resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 1,
+      "mae_lsb": 0.04769558376736111
+    },
+    {
+      "context": "main",
+      "label": "after-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "preview-with-rejected-ffmpeg-export",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "main",
+      "label": "off",
+      "reference": "independent neutral normalized source resize",
+      "width": 32,
+      "height": 18,
+      "max_lsb": 1,
+      "mae_lsb": 0.15234375
+    },
+    {
+      "context": "worker",
+      "label": "neutral",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "manual",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "clahe-50",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "clahe-80",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "before",
+      "reference": "independent neutral normalized source resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 1,
+      "mae_lsb": 0.04769558376736111
+    },
+    {
+      "context": "worker",
+      "label": "after-restore",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "preview-with-rejected-ffmpeg-export",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 256,
+      "height": 144,
+      "max_lsb": 0,
+      "mae_lsb": 0.0
+    },
+    {
+      "context": "worker",
+      "label": "off",
+      "reference": "independent neutral normalized source resize",
+      "width": 32,
+      "height": 18,
+      "max_lsb": 1,
+      "mae_lsb": 0.15234375
+    }
+  ]
+}

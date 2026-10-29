@@ -1,0 +1,8 @@
+{
+  "crates/media-native/src/rtx_inference.rs": "a9290830fd7ded831df2a16f50e834e433e3e44814691a03ce6d67bd83e1fbf1",
+  "crates/media-native/src/ai_inference.rs": "96b45b2deeddea399df5416cd76851aa826c1a6c66f001aa2b1dacc1a4c00b4f",
+  "crates/media-native/src/lib.rs": "aa55ef286ad37bdef8d07f24af242bcc6d53f5133546534666d6709f64175620",
+  "crates/media-native/src/main.rs": "56cdadf4e4f7b5e7d45fbceb733fae60e9043196b093ed1eb6ecf7eacf9703da",
+  "tools/ai-upscale/native_video.py": "85e3adb1cf31c56ce7c9d963f49781ca7b35bca2c4633ffc9a9920acc256b948",
+  "tools/ai-upscale/compare_native_video.py": "ff69e51c22fba5ec75c8d1f99e56cc7ce191610891539f18cf297e0a37a74184"
+}

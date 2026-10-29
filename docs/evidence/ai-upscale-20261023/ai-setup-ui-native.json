@@ -1,0 +1,41 @@
+{
+  "status": "setup-only-passed-ai-remains-unavailable",
+  "window_client": {
+    "width": 960,
+    "height": 760
+  },
+  "themes": [
+    "dark",
+    "light"
+  ],
+  "interaction": "owned test window mouse messages and Windows UIAutomation common-file dialogs; owned-window PrintWindow snapshots",
+  "cases": [
+    "default collapsed window fits without page scrolling",
+    "native setup view fits both themes",
+    "explicit local cache-folder choice",
+    "exact ONNX import and stored-model check",
+    "read-only existing runtime-folder inspection",
+    "truncated import rejected; original cached SHA-256 preserved",
+    "explicit model removal verified on disk",
+    "Done restores source/settings and paused AI Off preview"
+  ],
+  "model_sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "model_bytes": 4866413,
+  "checks": {
+    "runtimeModules": [],
+    "modelCacheRemoved": true,
+    "process": 29104
+  },
+  "ordinary_preview_regression": {
+    "case": "ordinary paused preview across AI setup",
+    "height": 180,
+    "changedPixels": 0,
+    "width": 320
+  },
+  "limitations": [
+    "2x/4x unavailable; no AI preview or conversion UI claim",
+    "native live-import cancellation/disk-full not established",
+    "initial fixed-overlay layout failed; dedicated native setup view used",
+    "browser initial encoding failure corrected and UTF-8 assertion added"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "processing_adapter": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+  "helper": {
+    "backend": "rtx",
+    "configuration": {
+      "executable": "C:/path/to/built/rtx-helper.exe",
+      "sdk_root": "C:/path/to/RTX_Video_SDK_v1.1.0",
+      "cache_parent": "C:/path/to/existing/ngx-cache-parent",
+      "dxgi_index": 1,
+      "exact_adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "expected_luid_high": 0,
+      "expected_luid_low": 0
+    }
+  }
+}

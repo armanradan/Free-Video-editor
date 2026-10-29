@@ -331,6 +331,8 @@ pub struct VideoSettings {
     pub color: ColorAdjustments,
     #[serde(default)]
     pub equalization: equalization::Equalization,
+    #[serde(default)]
+    pub ai: ai_upscale::AiSettings,
 }
 
 impl VideoSettings {
@@ -776,10 +778,12 @@ impl TimeBase {
     }
 }
 
+pub mod ai_upscale;
 pub mod equalization;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MediaError {
+    AiUnavailable(String),
     InvalidEqualization,
     InvalidColorAdjustments,
     InvalidBitrateInput,
@@ -801,6 +805,7 @@ pub enum MediaError {
 impl fmt::Display for MediaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::AiUnavailable(reason) => write!(f, "AI upscaling unavailable: {reason}"),
             Self::InvalidEqualization => f.write_str("equalization strength must be 0..100"),
             Self::InvalidColorAdjustments => {
                 f.write_str("brightness must be -100..100 and contrast/saturation 0..200")

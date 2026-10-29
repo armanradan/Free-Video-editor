@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 use futures_channel::{mpsc, oneshot};
 use futures_util::StreamExt;
+use media_core::ai_upscale::AiSettings;
 use media_core::{
     ColorAdjustments, FrameRateSpec, OutputProfileId, ResizeSpec, Size, VideoBitrate,
 };
@@ -15,6 +16,8 @@ use std::{
     sync::{Arc, OnceLock},
 };
 use ui::{ResizePresetButtons, frame_rate_label};
+mod ai_preview_check;
+mod ai_setup;
 mod preferences;
 pub mod preview;
 pub mod preview_gpu;
@@ -174,18 +177,23 @@ fn app() -> Element {
         std::env::args()
             .any(|arg| arg == "--clahe-preview-check" || arg == "--clahe-device-loss-check")
     });
+    let ai_check = use_hook(|| {
+        std::sync::Arc::new(ai_preview_check::requested().then(ai_preview_check::policy))
+    });
     let preview_canvas =
         dioxus::native::use_wgpu(|| preview::Presenter::new(app_state().preview.frames.clone()));
     let adapters = use_hook(enumerate_adapters);
     let nvidia_gpus = use_hook(|| enumerate_nvidia_gpus().unwrap_or_default());
     let nvidia_available = !nvidia_gpus.is_empty();
     let mut dark_mode = use_signal(|| true);
+    let ai_setup_expanded = use_signal(|| false);
+    let mut ai_setup_busy = use_signal(|| false);
     let mut choosing_gpu = use_signal(|| false);
     let mut choosing_fps = use_signal(|| false);
     let mut color_expanded = use_signal(|| false);
     let mut color = use_signal(ColorAdjustments::default);
     let mut equalization = use_signal(move || {
-        if clahe_check {
+        if clahe_check || ai_preview_check::requested() {
             media_core::equalization::Equalization::new(true, 50).unwrap()
         } else {
             media_core::equalization::Equalization::default()
@@ -199,9 +207,14 @@ fn app() -> Element {
     let mut preview_path = use_signal(String::new);
     let mut pointer_released = use_signal(|| 0_u64);
     use_effect(move || {
-        window::set_player_open(showing_preview() && !choosing_gpu() && !choosing_fps())
+        window::set_player_open(
+            showing_preview() && !choosing_gpu() && !choosing_fps() && !ai_setup_expanded(),
+        )
     });
     use_effect(move || {
+        app_state()
+            .preview
+            .set_before(before() && preview_is_source());
         app_state()
             .preview
             .set_color(if before() || !preview_is_source() {
@@ -274,7 +287,9 @@ fn app() -> Element {
     });
     let mut verified_output = use_signal(String::new);
     let mut input = use_signal(move || {
-        if clahe_check {
+        if ai_preview_check::requested() {
+            ai_preview_check::source().display().to_string()
+        } else if clahe_check {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../../fixtures/m35-vfr-offset.mp4")
                 .display()
@@ -293,6 +308,10 @@ fn app() -> Element {
     });
     let mut output = use_signal(String::new);
     let mut resize = use_signal(|| "original".to_string());
+    let mut ai = use_signal(AiSettings::default);
+    let mut ai_choices = use_signal(ai_setup::pending_choices);
+    let mut ai_configuration =
+        use_signal(|| None::<media_native::ai_configuration::NativeAiConfiguration>);
     let mut profile = use_signal(|| OutputProfileId::Mp4H264Aac);
     let mut bitrate = use_signal(VideoBitrate::default);
     let mut custom_bitrate = use_signal(|| "4".to_string());
@@ -342,73 +361,146 @@ fn app() -> Element {
         }
     });
     use_drop(|| window::set_color_focus(None));
-    use_future(move || async move {
-        loop {
-            if let Some((path, value)) = window::take_before_request()
-                && !running()
-                && !switching()
-                && preview_is_source()
-                && path == preview_path()
-            {
-                before.set(value);
-            }
-            while let Some((index, key)) = window::take_color_key() {
-                if !color_expanded() || running() || switching() {
-                    continue;
+    let preview_ai_check = ai_check.clone();
+    use_future(move || {
+        let preview_ai_check = preview_ai_check.clone();
+        async move {
+            loop {
+                if let Some((path, value)) = window::take_before_request()
+                    && !running()
+                    && !switching()
+                    && preview_is_source()
+                    && path == preview_path()
+                {
+                    before.set(value);
                 }
-                if index == 3 {
-                    let (enabled, strength) = equalization().values();
-                    let strength = match key {
-                        window::ColorKey::Step(step) => {
-                            (strength as i16 + step).clamp(0, 100) as u16
-                        }
-                        window::ColorKey::Min => 0,
-                        window::ColorKey::Max => 100,
+                while let Some((index, key)) = window::take_color_key() {
+                    if !color_expanded() || running() || switching() {
+                        continue;
+                    }
+                    if index == 3 {
+                        let (enabled, strength) = equalization().values();
+                        let strength = match key {
+                            window::ColorKey::Step(step) => {
+                                (strength as i16 + step).clamp(0, 100) as u16
+                            }
+                            window::ColorKey::Min => 0,
+                            window::ColorKey::Max => 100,
+                        };
+                        equalization.set(
+                            media_core::equalization::Equalization::new(enabled, strength).unwrap(),
+                        );
+                    } else {
+                        color.set(color_from_key(color(), index, key));
+                    }
+                    before.set(false);
+                }
+                if app_state().preview.publish_color() {
+                    color_preview_revision.set(color_preview_revision().wrapping_add(1));
+                }
+                if showing_preview() && preview_is_source() && app_state().preview.state().ready {
+                    let settings = if before() {
+                        media_core::equalization::Equalization::default()
+                    } else {
+                        equalization()
                     };
-                    equalization.set(
-                        media_core::equalization::Equalization::new(enabled, strength).unwrap(),
+                    if let Some(check) = preview_ai_check.as_ref() {
+                        match check {
+                        Ok((policy, selected)) if std::path::Path::new(&preview_path()) == ai_preview_check::source().as_path() => {
+                            if let Err(error) = app_state().preview.set_ai_preview(Some(policy.clone()), *selected, settings) {
+                                app_state().preview.history_unavailable(&error);
+                            }
+                        }
+                        Ok(_) => app_state().preview.history_unavailable("AI preview diagnostic accepts only its CC0 fixture; restart without --ai-preview-check for ordinary sources."),
+                        Err(error) => app_state().preview.history_unavailable(error),
+                    }
+                    } else if ai() != AiSettings::Off {
+                        let configured = (|| -> Result<_, String> {
+                            ai_choices().select(ai())?;
+                            if preview_path() != input() {
+                                return Err(
+                                    "AI preview requires the current inspected source.".into()
+                                );
+                            }
+                            let config = ai_configuration()
+                                .ok_or("Import a local AI configuration first")?;
+                            if app_state().session.status().adapter_key.as_deref()
+                                != Some(config.processing_adapter.as_str())
+                            {
+                                return Err("Select the configured AI processing GPU explicitly; no fallback".into());
+                            }
+                            let source = estimate_source()
+                                .ok_or("Inspect this source before selecting AI")?;
+                            let choices = ai_choices();
+                            config
+                                .preview_policy(
+                                    ai(),
+                                    Size::new(source.width, source.height)
+                                        .map_err(|e| e.to_string())?,
+                                    choices.capability(ai())?,
+                                )
+                                .map_err(|e| e.to_string())
+                        })();
+                        match configured {
+                            Ok((policy, selected)) => {
+                                if let Err(error) = app_state().preview.set_ai_preview(
+                                    Some(policy),
+                                    selected,
+                                    settings,
+                                ) {
+                                    app_state().preview.history_unavailable(&error);
+                                }
+                            }
+                            Err(error) => {
+                                let _ = app_state().preview.set_ai_preview(
+                                    None,
+                                    Size::new(2, 2).unwrap(),
+                                    Default::default(),
+                                );
+                                app_state().preview.history_unavailable(&error);
+                            }
+                        }
+                    } else {
+                        let selected = if clahe_check {
+                            Size::new(160, 90).ok()
+                        } else {
+                            estimate_source().and_then(|source| {
+                                resize_spec(&resize())?
+                                    .output_size(
+                                        Size::new(source.display_width, source.display_height)
+                                            .ok()?,
+                                    )
+                                    .ok()
+                            })
+                        };
+                        let policy = if equalization().values().0 {
+                            selected.map(|size| (size, settings))
+                        } else {
+                            None
+                        };
+                        let _ = app_state().preview.set_history_preview(policy);
+                        if equalization().values().0 && selected.is_none() {
+                            app_state().preview.history_unavailable("Inspect this source first to resolve selected CLAHE geometry; no unadjusted substitute is displayed.");
+                        }
+                    }
+                } else if !preview_is_source() || !showing_preview() {
+                    let _ = app_state().preview.set_ai_preview(
+                        None,
+                        Size::new(2, 2).unwrap(),
+                        Default::default(),
                     );
-                } else {
-                    color.set(color_from_key(color(), index, key));
                 }
-                before.set(false);
+                futures_timer::Delay::new(preview::COLOR_INTERVAL).await;
             }
-            if app_state().preview.publish_color() {
-                color_preview_revision.set(color_preview_revision().wrapping_add(1));
-            }
-            if showing_preview() && preview_is_source() && app_state().preview.state().ready {
-                let settings = if before() {
-                    media_core::equalization::Equalization::default()
-                } else {
-                    equalization()
-                };
-                let selected = if clahe_check {
-                    Size::new(160, 90).ok()
-                } else {
-                    estimate_source().and_then(|source| {
-                        resize_spec(&resize())?
-                            .output_size(
-                                Size::new(source.display_width, source.display_height).ok()?,
-                            )
-                            .ok()
-                    })
-                };
-                let policy = if equalization().values().0 {
-                    selected.map(|size| (size, settings))
-                } else {
-                    None
-                };
-                let _ = app_state().preview.set_history_preview(policy);
-                if equalization().values().0 && selected.is_none() {
-                    app_state().preview.history_unavailable("Inspect this source first to resolve selected CLAHE geometry; no unadjusted substitute is displayed.");
-                }
-            } else if !preview_is_source() || !showing_preview() {
-                let _ = app_state().preview.set_history_preview(None);
-            }
-            futures_timer::Delay::new(preview::COLOR_INTERVAL).await;
         }
     });
-    let mut status = use_signal(|| app_state().startup_status.clone());
+    let mut status = use_signal(|| {
+        if ai_preview_check::requested() {
+            "AI preview diagnostic: explicit ONNX/RTX configuration, CC0 fixture only. Export is disabled; product AI controls remain unavailable.".into()
+        } else {
+            app_state().startup_status.clone()
+        }
+    });
     let mut source_metadata = use_signal(String::new);
     let mut gpu_limitation = use_signal(|| None::<String>);
     let mut active_gpu = use_signal(|| "No conversion yet".to_string());
@@ -505,6 +597,14 @@ fn app() -> Element {
 
     let convert_session = session.clone();
     let convert = move |_| {
+        if running() || switching() || ai_setup_busy() {
+            status.set("Finish or cancel the active operation before starting conversion.".into());
+            return;
+        }
+        if ai_preview_check::requested() {
+            status.set("Export is disabled in the AI preview diagnostic. Restart without --ai-preview-check for ordinary conversion.".into());
+            return;
+        }
         let source = PathBuf::from(input());
         let target = PathBuf::from(output());
         if source.as_os_str().is_empty() || target.as_os_str().is_empty() {
@@ -531,6 +631,36 @@ fn app() -> Element {
         let selected_route = route();
         let selected_color = color();
         let selected_equalization = equalization();
+        let selected_ai = ai();
+        if let Err(error) = ai_choices().select(selected_ai) {
+            status.set(format!("AI unavailable: {error}"));
+            return;
+        }
+        let selected_ai_configuration = if selected_ai == AiSettings::Off {
+            None
+        } else {
+            let Some(config) = ai_configuration() else {
+                status.set("Import a local AI configuration first.".into());
+                return;
+            };
+            let choices = ai_choices();
+            let capability = match choices.capability(selected_ai) {
+                Ok(capability) => capability.clone(),
+                Err(error) => {
+                    status.set(error);
+                    return;
+                }
+            };
+            if let Err(error) = config.validate_selection(selected_ai, &capability) {
+                status.set(error.to_string());
+                return;
+            }
+            if selected_route != ProcessingRoute::SharedWgpu {
+                status.set("AI export requires the explicitly selected Shared GPU software-codec route. No automatic route change.".into());
+                return;
+            }
+            Some((config, capability))
+        };
         if selected_equalization.active() && !selected_route.uses_wgpu() {
             status.set("CLAHE requires an explicitly selected Shared GPU route and 8-bit output. Direct FFmpeg has no matching temporal algorithm; no automatic fallback.".into());
             return;
@@ -549,6 +679,13 @@ fn app() -> Element {
             status.set("Main 10 is supported only by direct FFmpeg.".into());
             return;
         }
+        let preview_handoff = match app_state().preview.begin_conversion() {
+            Ok(handoff) => handoff,
+            Err(error) => {
+                status.set(format!("Cannot retire preview for conversion: {error}"));
+                return;
+            }
+        };
         running.set(true);
         let cancel = CancellationToken::default();
         job_cancel.set(cancel.clone());
@@ -560,25 +697,36 @@ fn app() -> Element {
             let (send, mut receive) = mpsc::unbounded();
             let output_label = target.display().to_string();
             std::thread::spawn(move || {
-                let result = session
-                    .convert_job(
-                        NativeJob {
-                            input: &source,
-                            output: &target,
-                            resize: size,
-                            profile: selected_profile,
-                            route: selected_route,
-                            bitrate: Some(selected_bitrate),
-                            frame_rate: selected_fps,
-                            color: selected_color,
-                            equalization: selected_equalization,
-                        },
-                        &cancel,
-                        |stage| {
-                            let _ = send.unbounded_send(JobUpdate::Stage(stage));
-                        },
-                    )
-                    .map_err(|error| error.to_string());
+                let result = preview_handoff.wait_retired(&cancel).and_then(|()| {
+                    let job = NativeJob {
+                        input: &source,
+                        output: &target,
+                        resize: size,
+                        profile: selected_profile,
+                        route: selected_route,
+                        bitrate: Some(selected_bitrate),
+                        frame_rate: selected_fps,
+                        color: selected_color,
+                        equalization: selected_equalization,
+                        ai: selected_ai,
+                    };
+                    let stages = |stage| {
+                        let _ = send.unbounded_send(JobUpdate::Stage(stage));
+                    };
+                    match selected_ai_configuration {
+                        Some((config, capability)) => session.convert_configured_job(
+                            job,
+                            &config,
+                            &capability,
+                            &cancel,
+                            stages,
+                        ),
+                        None => session.convert_job(job, &cancel, stages),
+                    }
+                    .map_err(|error| error.to_string())
+                });
+                // Reopen a paused preview only after all conversion work retires.
+                drop(preview_handoff);
                 let _ = send.unbounded_send(JobUpdate::Finished(Box::new(result)));
             });
             let mut finished = None;
@@ -629,15 +777,26 @@ fn app() -> Element {
                 None => status.set("Conversion worker stopped.".into()),
             }
             running.set(false);
+            if showing_preview() {
+                let state = app_state().preview.state();
+                if let Err(error) = app_state().preview.start(
+                    PathBuf::from(preview_path()),
+                    state.position_us,
+                    false,
+                    state.muted,
+                ) {
+                    status.set(format!("{} Preview could not resume: {error}", status()));
+                }
+            }
         });
     };
 
-    let busy = running() || switching();
+    let busy = running() || switching() || ai_setup_busy();
     let estimate = match (estimate_source(), resize_spec(&resize())) {
         (Some(source), Some(size)) => match selected_bitrate(bitrate(), &custom_bitrate())
             .map_err(|error| error.into())
             .and_then(|policy| {
-                source.output_estimate_with_rate(size, profile(), policy, frame_rate())
+                source.output_estimate_with_ai(size, profile(), policy, frame_rate(), ai())
             }) {
             Ok((bps, Some(bytes))) => format!(
                 "{:.2} Mbps video · Estimated ~{:.1} MB",
@@ -653,10 +812,23 @@ fn app() -> Element {
         _ => "Inspect source for bitrate and size estimate.".to_string(),
     };
     let fps_label = frame_rate_label(frame_rate());
+    let ai_output_label = estimate_source()
+        .and_then(|source| {
+            ai().scale()?;
+            ai().requested_output_size(
+                Size::new(source.display_width, source.display_height).ok()?,
+                ResizeSpec::Original,
+            )
+            .ok()
+        })
+        .map(|size| format!("AI output: {}×{}", size.width, size.height));
     let bitrate_label = |policy: VideoBitrate, name: &str| -> String {
         let rate = estimate_source().and_then(|source| {
-            let size = resize_spec(&resize())?
-                .output_size(Size::new(source.display_width, source.display_height).ok()?)
+            let size = ai()
+                .requested_output_size(
+                    Size::new(source.display_width, source.display_height).ok()?,
+                    resize_spec(&resize())?,
+                )
                 .ok()?;
             source
                 .resolve_bitrate(size, profile(), policy, frame_rate())
@@ -674,7 +846,7 @@ fn app() -> Element {
         .unwrap_or_else(|| "Automatic".to_string());
     rsx! {
         style { {include_str!("../assets/native.css")} }
-        div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" }, "data-color-preview-revision": color_preview_revision(),
+        div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" }, "data-ai-setup": ai_setup_expanded(), "data-color-preview-revision": color_preview_revision(),
         onmousedown: move |_| { window::set_player_open(false); window::set_color_focus(None); },
         onmouseup: move |_| pointer_released.set(pointer_released().wrapping_add(1)),
         main { class: "app-shell",
@@ -717,14 +889,15 @@ fn app() -> Element {
                 section { class: "panel",
                     h2 { "Output size" }
                     ResizePresetButtons {
-                        running: busy, resize_mode: resize(),
-                        on_change: move |value| resize.set(value),
+                        running: busy || ai() != AiSettings::Off, resize_mode: resize(),
+                        on_change: move |value| {if !busy && ai() == AiSettings::Off {resize.set(value)}},
                     }
                     div { class: "fps-summary",
                         button { class: "preset", disabled: busy.then_some("true"), onclick: move |_| choosing_fps.set(true), "FPS: {fps_label}…" }
-                        span { class: "note", if frame_rate() == FrameRateSpec::Original { "No upscaling" } else { "CFR · frames resampled" } }
+                        span { class: "note", if let Some(scale) = ai().scale() { "AI {scale.factor()}×" } else if frame_rate() == FrameRateSpec::Original { "No upscaling" } else { "CFR · frames resampled" } }
                     }
                     p { class: "note", title: "Approximate size including audio when present and 2% muxing allowance. Variable bitrate can differ substantially from this estimate.", "{estimate}" }
+                    if let Some(label) = ai_output_label { p {class:"note", "{label}"} }
                 }
                 section { class: "panel",
                     h2 { "Format · MP4 / AAC · SDR" }
@@ -859,14 +1032,14 @@ fn app() -> Element {
                             NativeColorSlider { index: 3, name: "Strength %", min: 0, max: 100, color, equalization, before, pointer_released, disabled: busy }
                         }
                         div { class: "color-actions",
-                            button { id: "native-clahe-enable", disabled: (busy || estimate_source().is_none() && !clahe_check && !equalization().values().0).then_some("true"), aria_pressed: equalization().values().0,
+                            button { id: "native-clahe-enable", disabled: (busy || estimate_source().is_none() && !clahe_check && !ai_preview_check::requested() && !equalization().values().0).then_some("true"), aria_pressed: equalization().values().0,
                                 title: "Inspect source first. CLAHE precedes all sliders; conversion needs Shared GPU and 8-bit output. Bounded-preroll playback may be slower.",
                                 onclick: move |_| {
                                     let (enabled, strength) = equalization().values();
                                     // Enforce availability in the command handler as well as
                                     // the DOM: native disabled event dispatch is incomplete.
                                     if busy { return; }
-                                    if !enabled && estimate_source().is_none() && !clahe_check {
+                                    if !enabled && estimate_source().is_none() && !clahe_check && !ai_preview_check::requested() {
                                         status.set("Inspect this source before enabling CLAHE.".into());
                                         return;
                                     }
@@ -884,7 +1057,7 @@ fn app() -> Element {
             }
             section { class: "panel job-panel",
                 div { class: "actions",
-                    button { class: "primary", disabled: (busy || input().trim().is_empty() || output().trim().is_empty()).then_some("true"),
+                    button { class: "primary", disabled: (busy || ai_preview_check::requested() || input().trim().is_empty() || output().trim().is_empty()).then_some("true"),
                         onclick: convert, if running() {
                             match job_stage() {
                                 JobStage::Inspecting => "Inspecting…", JobStage::Preparing => "Preparing…", JobStage::Converting => "Converting…", JobStage::Verifying => "Verifying…", JobStage::Publishing => "Publishing…"
@@ -915,6 +1088,26 @@ fn app() -> Element {
                     p { class: "note", "Independent player · Original FPS keeps every frame" }
                 }
             }
+            }
+            ai_setup::AiSetup { disabled: busy, expanded: ai_setup_expanded, selected:ai(), choices:ai_choices(),
+                on_busy:move |value|ai_setup_busy.set(value),
+                rtx:ai_configuration().as_ref().is_some_and(|c|matches!(c.helper, media_native::ai_preview::PreviewHelper::Rtx(_))),
+                on_configuration:move |configuration| {
+                    if running() || switching() {return;}
+                    app_state().preview.pause(true);
+                    ai.set(AiSettings::Off);
+                    before.set(false);
+                    ai_configuration.set(configuration);
+                    ai_choices.set(ai_setup::pending_choices());
+                    let _ = app_state().preview.set_ai_preview(None, Size::new(2,2).unwrap(), Default::default());
+                },
+                on_select:move |requested| {
+                    if running() || switching() {return;}
+                    match ai_choices().select(requested) {
+                        Ok(value) => {app_state().preview.pause(true);ai.set(value);before.set(false);},
+                        Err(error) => status.set(format!("AI unavailable: {error}")),
+                    }
+                }
             }
             footer { "No automatic CPU fallback · Shared GPU uses CPU staging · Preview is independent" }
         }
@@ -1183,7 +1376,7 @@ fn VideoPlayer(
                 div { class: "preview-controls",
                     style: "width: {extent().0}px",
                     button { class: "primary", disabled: (!state.ready).then_some("true"), onclick: move |_| toggle_play(),
-                        if !state.ready { "Loading…" } else if state.paused { "Play" } else { "Pause" }
+                        if state.converting { "Paused" } else if !state.ready { "Loading…" } else if state.paused { "Play" } else { "Pause" }
                     }
                     span { class: "player-time", "{preview::format_time(position)} / {preview::format_time(state.duration_us)}" }
                     button { disabled: (!state.ready).then_some("true"), aria_pressed: muted(), onclick: move |_| {
@@ -1195,7 +1388,7 @@ fn VideoPlayer(
                         }, if before() { "Before · show After" } else { "After · show Before" } }
                     }
                 }
-                p { class: "note", if !state.ready { "Preparing preview…" } else if state.ended { "Ended" } else if state.audio_active { "Audio enabled" } else { "Video only" } }
+                p { class: "note", if state.converting { "Preview paused during conversion" } else if !state.ready { "Preparing preview…" } else if state.ended { "Ended" } else if state.audio_active { "Audio enabled" } else { "Video only" } }
                 if let Some(error) = error { p { class: "job-status", role: "alert", "Preview failed: {error}" } }
                 p { class: "note", "Click video / Space play/pause · Drag to seek · ←/→ 5 s" }
             }

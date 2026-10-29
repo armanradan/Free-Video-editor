@@ -1,0 +1,109 @@
+{
+  "kind": "explicit-native-pilot",
+  "cases": [
+    {
+      "case": "wrong-version",
+      "reaped": true,
+      "error": "AI_HELPER_ERROR: Wrong protocol magic/version"
+    },
+    {
+      "case": "oversized-tile",
+      "reaped": true,
+      "error": "AI_HELPER_ERROR: Invalid bounded FP32 tile request"
+    },
+    {
+      "case": "truncated-tile",
+      "reaped": true,
+      "error": "AI_HELPER_ERROR: Truncated helper request"
+    }
+  ],
+  "identity": {
+    "protocol": 2,
+    "pid": 17132,
+    "runtime": "1.23.0",
+    "model_sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+    "dxgi_index": 1,
+    "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor_id": 4318,
+    "device_id": 9634,
+    "luid_high": 0,
+    "luid_low": 80112,
+    "cpu_fallback": false,
+    "tile_interior": 128,
+    "halo": 34
+  },
+  "numeric": {
+    "status": "running",
+    "cases": [
+      {
+        "shape": "1x1",
+        "max_abs": 1.4063e-07,
+        "mae": 6.71231e-08
+      },
+      {
+        "shape": "3x5",
+        "max_abs": 2.68221e-07,
+        "mae": 6.25202e-08
+      },
+      {
+        "shape": "17x19",
+        "max_abs": 2.08616e-06,
+        "mae": 2.86185e-07
+      },
+      {
+        "shape": "33x31",
+        "max_abs": 2.23517e-06,
+        "mae": 3.05756e-07
+      },
+      {
+        "shape": "257x259",
+        "max_abs": 3.45707e-06,
+        "mae": 3.96991e-07
+      }
+    ],
+    "host_to_gpu_bytes": 815100,
+    "gpu_to_host_bytes": 13041600,
+    "sampled_process_local_peak": 167919616,
+    "result": "passed-numeric-pilot"
+  },
+  "profile": {
+    "providers": [
+      "DmlExecutionProvider"
+    ],
+    "node_events": 350
+  },
+  "envelope": {
+    "source": [
+      577,
+      579
+    ],
+    "tiles": 25,
+    "max_lsb": 1,
+    "mae_lsb": 0.0001002744826884337,
+    "wall_seconds": 7.4865772000002835,
+    "gpu_to_host_bytes": 138719808,
+    "host_to_gpu_bytes": 8669988,
+    "identity": {
+      "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "cpu_fallback": false,
+      "device_id": 9634,
+      "dxgi_index": 1,
+      "halo": 34,
+      "luid_high": 0,
+      "luid_low": 80112,
+      "model_sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+      "pid": 10752,
+      "protocol": 2,
+      "runtime": "1.23.0",
+      "tile_interior": 128,
+      "vendor_id": 4318
+    },
+    "output_bytes": 21381312,
+    "output_height": 2316,
+    "output_width": 2308,
+    "sampled_process_local_peak": 126369792,
+    "session_closed": true,
+    "status": "frame-pilot-not-release-accepted"
+  },
+  "status": "passed"
+}

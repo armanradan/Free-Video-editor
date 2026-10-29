@@ -1,0 +1,23 @@
+{
+  "adapter": {
+    "backend": "Vulkan",
+    "device": 9634,
+    "driver": "NVIDIA",
+    "driver_info": "621.01",
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318
+  },
+  "cases": [],
+  "error": "called `Result::unwrap()` on an `Err` value: \"Expected type cube.f32  to implement dyn MaybeVectorizedType\"",
+  "load_seconds": 0.0085351,
+  "precision": "explicit FloatDType::F32 before model/tensor creation",
+  "status": "failed",
+  "transfers": "CPU FP32 input upload and GPU FP32 output diagnostic readback per case; independent Vulkan device",
+  "exit_status": 1,
+  "backtrace_observation": {
+    "first_input": "1x1",
+    "boundary": "first Conv2d -> into_contiguous_aligned -> copy_kernel -> CubeCL IR vector_size",
+    "cleanup": "Unwound process exits; driver/runtime cache reclamation and resource counters unmeasured",
+    "source": "native-burn-backtrace.txt"
+  }
+}

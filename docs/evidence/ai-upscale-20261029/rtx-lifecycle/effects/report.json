@@ -1,0 +1,53 @@
+{
+  "cases": [
+    {
+      "clahe_max_source_delta": 0,
+      "max_lsb": 1,
+      "pinned_max_lsb": 2,
+      "scale": 2,
+      "source_frames": 4,
+      "strength": 0
+    },
+    {
+      "clahe_max_source_delta": 45,
+      "max_lsb": 1,
+      "pinned_max_lsb": 2,
+      "scale": 2,
+      "source_frames": 4,
+      "strength": 50
+    },
+    {
+      "clahe_max_source_delta": 91,
+      "max_lsb": 1,
+      "pinned_max_lsb": 2,
+      "scale": 2,
+      "source_frames": 4,
+      "strength": 100
+    },
+    {
+      "clahe_max_source_delta": 0,
+      "max_lsb": 1,
+      "pinned_max_lsb": 2,
+      "scale": 4,
+      "source_frames": 4,
+      "strength": 0
+    },
+    {
+      "clahe_max_source_delta": 46,
+      "max_lsb": 1,
+      "pinned_max_lsb": 2,
+      "scale": 4,
+      "source_frames": 4,
+      "strength": 50
+    },
+    {
+      "clahe_max_source_delta": 92,
+      "max_lsb": 1,
+      "pinned_max_lsb": 2,
+      "scale": 4,
+      "source_frames": 4,
+      "strength": 100
+    }
+  ],
+  "status": "passed"
+}

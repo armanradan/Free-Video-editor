@@ -1,0 +1,24 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+warning: linker stderr: corrupt .drectve at end of def file
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `media-native` (bin "native-convert" test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.32s
+     Running unittests src\lib.rs (D:/Libraries/Cargo/CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 3 tests
+test ai_video_tests::ai_pilot_direct_routes_reject_before_inspection ... ok
+test ai_video_tests::ai_packet_endpoint_preserves_b_frame_presentation_tail ... ok
+native AI selected postscale x4/1 + manual controls: max 1 LSB
+native AI selected postscale x4/2 + manual controls: max 1 LSB
+native AI video cancel and actual device destruction after one processed frame: unpublished partials removed; fresh generation 14 retry passed: D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native\../../tmp/ai-upscale/native-ai-lifecycle-8400
+test ai_video_tests::actual_ai_video_pixels_cancel_device_loss_and_retry ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 50 filtered out; finished in 20.91s
+
+     Running unittests src\main.rs (D:/Libraries/Cargo/CARGO_TARGET_DIR\debug\deps\native_convert-adba1e2d1c303d9c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

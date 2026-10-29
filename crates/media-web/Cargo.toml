@@ -5,6 +5,11 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[features]
+ai-upscale = []
+# Source-only feasibility harness access; ordinary applications leave this disabled.
+gpu-setup-diagnostic = []
+
 [dependencies]
 futures-channel = "=0.3.34"
 js-sys.workspace = true

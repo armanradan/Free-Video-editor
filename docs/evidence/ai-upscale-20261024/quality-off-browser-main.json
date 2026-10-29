@@ -1,0 +1,339 @@
+{
+  "status": "video-pilot-passed-not-release-accepted",
+  "context": "main",
+  "cases": [
+    {
+      "request": {
+        "fixture": "tos-text-texture.mp4",
+        "scale": "off",
+        "fps": "original",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 818.0 ms; 0.704 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.4 ms; 8-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1270; total job 830.5 ms.\nOutput policy: 8 input → 8 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/8/8/0; video packet callbacks 0/1/8/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/3 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=4; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=7.0 ms; cumulative submitted-work completion latency=491.1 ms; slot-reuse wait=0.1 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-text-texture-192x80.mp4",
+      "frameCount": 8,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 250000,
+      "duration": 0.704,
+      "outputBytes": 32112,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 887.8449999999721,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-text-texture.mp4",
+        "scale": "off",
+        "fps": "15/1",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 514.6 ms; 0.733 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 7.6 ms; 11-frame timestamp/duration timeline PASS (maximum container quantization 1 µs); decoded output audio peak=0.1270; total job 522.2 ms.\nOutput policy: 8 input → 11 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/9/11/0; video packet callbacks 0/1/11/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/3 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=5.6 ms; cumulative submitted-work completion latency=241.2 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-text-texture-192x80.mp4",
+      "frameCount": 11,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 250000,
+      "duration": 0.7333333333333333,
+      "outputBytes": 35396,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 540.4899999999907,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-text-texture.mp4",
+        "scale": "off",
+        "fps": "60/1",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 231.8 ms; 0.704 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 9.9 ms; 41-frame timestamp/duration timeline PASS (maximum container quantization 1 µs); decoded output audio peak=0.1270; total job 241.7 ms.\nOutput policy: 8 input → 41 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=632640 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/9/41/0; video packet callbacks 0/1/41/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/3 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=4.0 ms; cumulative submitted-work completion latency=47.5 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-text-texture-192x80.mp4",
+      "frameCount": 41,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 632640,
+      "duration": 0.704,
+      "outputBytes": 48260,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 250.8200000000652,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-face.mp4",
+        "scale": "off",
+        "fps": "original",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 228.3 ms; 0.704 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 8.8 ms; 8-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1270; total job 237.1 ms.\nOutput policy: 8 input → 8 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/8/8/0; video packet callbacks 0/1/8/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=5.3 ms; cumulative submitted-work completion latency=72.9 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-face-192x80.mp4",
+      "frameCount": 8,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 250000,
+      "duration": 0.704,
+      "outputBytes": 33247,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 253.6699999999255,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-face.mp4",
+        "scale": "off",
+        "fps": "15/1",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 252.1 ms; 0.733 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 23.7 ms; 11-frame timestamp/duration timeline PASS (maximum container quantization 1 µs); decoded output audio peak=0.1270; total job 275.8 ms.\nOutput policy: 8 input → 11 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/7/11/0; video packet callbacks 0/1/11/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=4.7 ms; cumulative submitted-work completion latency=79.5 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-face-192x80.mp4",
+      "frameCount": 11,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 250000,
+      "duration": 0.7333333333333333,
+      "outputBytes": 36178,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 299.39999999990687,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-face.mp4",
+        "scale": "off",
+        "fps": "60/1",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 293.8 ms; 0.704 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 13.8 ms; 41-frame timestamp/duration timeline PASS (maximum container quantization 1 µs); decoded output audio peak=0.1270; total job 307.6 ms.\nOutput policy: 8 input → 41 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=666600 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/9/41/0; video packet callbacks 0/1/41/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=5.2 ms; cumulative submitted-work completion latency=53.1 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-face-192x80.mp4",
+      "frameCount": 41,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 666600,
+      "duration": 0.704,
+      "outputBytes": 71668,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 330.5999999998603,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-motion.mp4",
+        "scale": "off",
+        "fps": "original",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 224.0 ms; 0.704 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.6 ms; 8-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1270; total job 236.7 ms.\nOutput policy: 8 input → 8 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/7/8/0; video packet callbacks 0/1/8/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=6.0 ms; cumulative submitted-work completion latency=73.1 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-motion-192x80.mp4",
+      "frameCount": 8,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 250000,
+      "duration": 0.704,
+      "outputBytes": 32882,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 254.40999999991618,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-motion.mp4",
+        "scale": "off",
+        "fps": "15/1",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 236.0 ms; 0.733 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 8.0 ms; 11-frame timestamp/duration timeline PASS (maximum container quantization 1 µs); decoded output audio peak=0.1270; total job 244.0 ms.\nOutput policy: 8 input → 11 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/9/11/0; video packet callbacks 0/1/11/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=5.1 ms; cumulative submitted-work completion latency=71.3 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-motion-192x80.mp4",
+      "frameCount": 11,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 250000,
+      "duration": 0.7333333333333333,
+      "outputBytes": 36233,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 258.2849999999162,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "fixture": "tos-motion.mp4",
+        "scale": "off",
+        "fps": "60/1",
+        "clahe": false
+      },
+      "summary": "PASS: 8 H.264 input frames + 33 decoded audio samples → 192×80 MP4/H.264/AAC converted/finalized in 274.9 ms; 0.704 s; 33 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 10.6 ms; 41-frame timestamp/duration timeline PASS (maximum container quantization 1 µs); decoded output audio peak=0.1270; total job 285.5 ms.\nOutput policy: 8 input → 41 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=565020 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 192×80; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/8/0; GPU 0/1/8/0; video encoder callbacks 0/9/41/0; video packet callbacks 0/1/41/0; decoded-audio 0/1/33/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/33/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=8; leases live/peak=0/4; ingress copies=8; canvas captures=8; capture visible/backing=192×80 / 192×80; CPU submission/bridge=4.4 ms; cumulative submitted-work completion latency=44.2 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).",
+      "fileName": "tos-motion-192x80.mp4",
+      "frameCount": 41,
+      "inputFrameCount": 8,
+      "targetVideoBitrate": 565020,
+      "duration": 0.704,
+      "outputBytes": 54368,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 295.9199999999255,
+      "allocation": {
+        "bufferBytes": 64,
+        "textureBytes": 1167360,
+        "buffers": 2,
+        "textures": 8,
+        "peakBytes": 1167424,
+        "windowPeakBytes": 1167424,
+        "largestBufferBytes": 32,
+        "createdBuffers": 2,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    }
+  ],
+  "ortVersion": "1.30.0",
+  "mode": "decoded-video-ai-composition-pilot",
+  "artifacts": [
+    {
+      "name": "video-main-0.mp4",
+      "bytes": 32112
+    },
+    {
+      "name": "video-main-1.mp4",
+      "bytes": 35396
+    },
+    {
+      "name": "video-main-2.mp4",
+      "bytes": 48260
+    },
+    {
+      "name": "video-main-3.mp4",
+      "bytes": 33247
+    },
+    {
+      "name": "video-main-4.mp4",
+      "bytes": 36178
+    },
+    {
+      "name": "video-main-5.mp4",
+      "bytes": 71668
+    },
+    {
+      "name": "video-main-6.mp4",
+      "bytes": 32882
+    },
+    {
+      "name": "video-main-7.mp4",
+      "bytes": 36233
+    },
+    {
+      "name": "video-main-8.mp4",
+      "bytes": 54368
+    }
+  ],
+  "baseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "modelRuntimeProvisionedForDiagnostic": false,
+  "boundary": "video 8 tos-motion.mp4 off 60/1",
+  "lastStatus": "Inspecting finalized MP4 and decoding video/audio at beginning, midpoint, and end…",
+  "deviceRequests": 1,
+  "gpuValidationError": null,
+  "browserVersion": "155.0.4283.62",
+  "logs": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127"
+  ]
+}

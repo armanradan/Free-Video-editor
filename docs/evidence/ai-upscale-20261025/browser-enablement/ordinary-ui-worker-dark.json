@@ -1,0 +1,72 @@
+{
+  "status": "ordinary-ai-ui-acceptance-passed",
+  "gpuErrors": [],
+  "cases": [
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\quality-temporal-20261025\\tos-face.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": true,
+        "theme": "dark"
+      },
+      "summary": "PASS: 64 H.264 input frames + 251 decoded audio samples \u2192 384\u00d7160 MP4/H.264/AAC converted/finalized in 37761.7 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.0 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 \u00b5s); decoded output audio peak=0.1430; total job 37773.8 ms.\nOutput policy: 64 input \u2192 64 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192\u00d780, visible 192\u00d780+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 384\u00d7160; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.2 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/1/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=16, job reuses=64; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=384\u00d7160 / 384\u00d7160; CPU submission/bridge=46.4 ms; cumulative submitted-work completion latency=363.5 ms; slot-reuse wait=0.7 ms; final-drain wait=0.1 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 1392656 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=37619.7 ms (includes GPU waits; not pure GPU execution).\nExecution: dedicated worker.\nExecution-context startup probe: 360.5 ms once; reused for this command=true.\nStartup stages (cumulative ms): worker construction/message delivery=0.6; worker capability checks=12.1; wasm module import=12.2; wasm initialization=33.3; codec module imports=266.3; WebGPU adapter request=287.1; WebGPU device request=337.9; shared pipeline creation=351.2; surface configure/capture=356.1; ready=360.0.",
+      "fileName": "tos-face-384x160.mp4",
+      "frameCount": 64,
+      "inputFrameCount": 64,
+      "conversionMs": 37761.669999999925,
+      "decoderWaitMs": 12.229999995790422,
+      "encoderSubmissionWaitMs": 10.375000001862645,
+      "verificationMs": 12.035000000149012,
+      "targetVideoBitrate": 250000,
+      "duration": 5.354670138888889,
+      "outputBytes": 216542,
+      "aiSetupMs": 77.80499999970198,
+      "aiProcessingMs": 37619.73000000324,
+      "gpuCpuBridgeMs": 46.404999998398125,
+      "aiSourceFrames": 64,
+      "aiAdmissionBytes": 158533264,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "downloadUrl": "blob:http://127.0.0.1:14977/9d622231-0f4c-4156-b9f6-aa58605d60e0"
+    },
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\quality-temporal-20261025\\tos-face.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": true,
+        "theme": "dark"
+      },
+      "summary": "PASS: 64 H.264 input frames + 251 decoded audio samples \u2192 768\u00d7320 MP4/H.264/AAC converted/finalized in 35742.6 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.1 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 \u00b5s); decoded output audio peak=0.1430; total job 35754.8 ms.\nOutput policy: 64 input \u2192 64 output frames; FPS=Original (source PTS preserved); target video bitrate=257048 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192\u00d780, visible 192\u00d780+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 768\u00d7320; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/1/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=24, job reuses=60; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=768\u00d7320 / 768\u00d7320; CPU submission/bridge=42.7 ms; cumulative submitted-work completion latency=367.3 ms; slot-reuse wait=0.8 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 5259280 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=35608.3 ms (includes GPU waits; not pure GPU execution).\nExecution: dedicated worker.\nExecution-context startup probe: 360.5 ms once; reused for this command=true.\nStartup stages (cumulative ms): worker construction/message delivery=0.6; worker capability checks=12.1; wasm module import=12.2; wasm initialization=33.3; codec module imports=266.3; WebGPU adapter request=287.1; WebGPU device request=337.9; shared pipeline creation=351.2; surface configure/capture=356.1; ready=360.0.",
+      "fileName": "tos-face-768x320.mp4",
+      "frameCount": 64,
+      "inputFrameCount": 64,
+      "conversionMs": 35742.645000000484,
+      "decoderWaitMs": 10.354999999515712,
+      "encoderSubmissionWaitMs": 9.160000002011657,
+      "verificationMs": 12.099999999627471,
+      "targetVideoBitrate": 257048,
+      "duration": 5.354670138888889,
+      "outputBytes": 215767,
+      "aiSetupMs": 72.8050000006333,
+      "aiProcessingMs": 35608.280000003055,
+      "gpuCpuBridgeMs": 42.735000000335276,
+      "aiSourceFrames": 64,
+      "aiAdmissionBytes": 162891408,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "downloadUrl": "blob:http://127.0.0.1:14977/094d4808-325a-4055-817c-92a7e6ae933b"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "video-worker-dark-2x.mp4",
+      "bytes": 216542
+    },
+    {
+      "name": "video-worker-dark-4x.mp4",
+      "bytes": 215767
+    }
+  ],
+  "pageErrors": [],
+  "observationSource": "tmp\\ai-upscale\\ai-enabled-ui-resumed-20261025"
+}

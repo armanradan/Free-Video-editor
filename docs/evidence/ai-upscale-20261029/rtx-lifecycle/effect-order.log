@@ -1,0 +1,14 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-a2c8bd18b6655e9c.exe)
+
+running 1 test
+RTX 2x strength0 -> manual scalar reference: max 1 LSB
+RTX 2x strength50 -> manual scalar reference: max 1 LSB
+RTX 2x strength100 -> manual scalar reference: max 1 LSB
+RTX 4x strength0 -> manual scalar reference: max 1 LSB
+RTX 4x strength50 -> manual scalar reference: max 1 LSB
+RTX 4x strength100 -> manual scalar reference: max 1 LSB
+Effect-order evidence: D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native\../../tmp/ai-upscale/rtx-effect-order-15176
+test rtx_tests::actual_rtx_effect_order_before_fps_at_selected_geometry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 60 filtered out; finished in 23.44s

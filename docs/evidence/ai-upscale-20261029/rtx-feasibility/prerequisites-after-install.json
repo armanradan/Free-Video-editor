@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-10-29T18:07:46.6726380Z",
+  "scope": "Prerequisites only; no backend initialization or inference attempted",
+  "os": {
+    "caption": "Microsoft Windows 11 Home",
+    "version": "10.0.26300",
+    "build": "26300",
+    "architecture": "64-bit"
+  },
+  "sdkPath": "D:\\Libraries\\RTX_Video_SDK_v1.1.0",
+  "sdkFiles": [
+    {
+      "relativePath": "samples/ReadMe.md",
+      "present": true,
+      "bytes": 8293,
+      "sha256": "58b38e02cb80da700325b9764c7e5d51cc4f3847dd2efc2886eef3486a943d1b"
+    },
+    {
+      "relativePath": "samples/RTX_Video_API/rtx_video_api.h",
+      "present": true,
+      "bytes": 5636,
+      "sha256": "3dccb9457bcdae3a23e83e43ca4f500cc831ca2d95f5c94d12db9ece9ec464d6"
+    },
+    {
+      "relativePath": "samples/RTX_Video_API/RTX_Video_API.vcxproj",
+      "present": true,
+      "bytes": 5149,
+      "sha256": "29cd611fb873883732a8589208b23f15a6b337e96e95eecfc9b59b8dffd1fa45"
+    },
+    {
+      "relativePath": "NVIDIA_RTX_Video_SDK_License.pdf",
+      "present": true,
+      "bytes": 136535,
+      "sha256": "5addfcf7c78891a12f1dcd6b5f86c2512351ab71b3872f446ba10e1b6da54464"
+    },
+    {
+      "relativePath": "bin/Windows/x64/rel/nvngx_vsr.dll",
+      "present": true,
+      "bytes": 19140144,
+      "sha256": "c3d88eea5ff7a548edefa66414cf6e77464d0947277c904f324dd23abf58a1ed"
+    }
+  ],
+  "python": {
+    "version": "3.12.9 (main, Feb 12 2025, 14:52:31) [MSC v.1942 64 bit (AMD64)]",
+    "executable": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\venv\\Scripts\\python.exe",
+    "modules": {
+      "torch": true,
+      "numpy": true,
+      "onnx": true,
+      "onnxruntime": true
+    }
+  },
+  "nvidiaDevices": [
+    {
+      "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "uuid": "GPU-17655cfc-aba6-5572-bdec-274f531aefe1",
+      "pciBusId": "00000000:01:00.0",
+      "driverVersion": "621.01",
+      "memoryMiB": "4096"
+    }
+  ],
+  "visualStudioWithCppComponent": [
+    "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise"
+  ],
+  "nvccOnPath": null,
+  "cudaCompilersInDefaultRoot": [],
+  "vulkanSdkEnvironmentPath": null,
+  "runtimeResult": "untested"
+}

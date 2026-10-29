@@ -1,0 +1,178 @@
+{
+  "status": "video-pilot-passed-not-release-accepted",
+  "context": "main",
+  "cases": [
+    {
+      "request": {
+        "color": "10/115/80",
+        "scale": "2x",
+        "fps": "15/1",
+        "clahe": true,
+        "fixture": "ai-upscale-vfr.mp4"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 128\u00d772 MP4/H.264/AAC converted/finalized in 1553.0 ms; 0.333 s; 15 AAC packets; audio queue peak=1; conversion pixel readbacks=5; backend=FFmpeg WASM.\nDiagnostic verification: full re-decode PASS in 24.6 ms; 5-frame timestamp/duration timeline PASS (maximum container quantization 1 \u00b5s); decoded output audio peak=0.1302; total job 1577.8 ms.\nOutput policy: 4 input \u2192 5 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; browser decoder probed, FFmpeg software encoder selected explicitly; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; raw RGBA bridge \u2264one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded.\nFFmpeg WASM: startup=254.9 ms; raw RGBA live ring=184320 bytes in 5 frame readbacks; ring capacity=4194304 bytes, peak ready slots=4, producer waits=0, consumer waits=1, consumed=184320; no raw OPFS spool; source File mounted via WORKERFS (no whole-file application copy); output OPFS device={\"writes\":5,\"maxWriteBytes\":9216,\"writtenBytes\":20075}; explicit GPU\u2192CPU VideoFrame.copyTo readbacks=5; sampled peak allocated WASM linear memory=33554432 bytes (25 ms sampling); total process resident peak not observable; WASM worker terminated=true.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/0/0/0; video packet callbacks 0/0/0/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=4.6 ms; cumulative submitted-work completion latency=81.3 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=1115.0 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.mp4",
+      "frameCount": 5,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.333334,
+      "outputBytes": 10855,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 3648.5250000003725,
+      "allocation": {
+        "bufferBytes": 82416,
+        "textureBytes": 1105920,
+        "buffers": 14,
+        "textures": 10,
+        "peakBytes": 18443024,
+        "windowPeakBytes": 18443024,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 323,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "color": "10/115/80",
+        "scale": "2x",
+        "fps": "60/1",
+        "clahe": true,
+        "fixture": "ai-upscale-vfr.mp4"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 128\u00d772 MP4/H.264/AAC converted/finalized in 743.3 ms; 0.300 s; 15 AAC packets; audio queue peak=1; conversion pixel readbacks=17; backend=FFmpeg WASM.\nDiagnostic verification: full re-decode PASS in 16.1 ms; 17-frame timestamp/duration timeline PASS (maximum container quantization 1 \u00b5s); decoded output audio peak=0.1302; total job 759.4 ms.\nOutput policy: 4 input \u2192 17 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=400320 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; browser decoder probed, FFmpeg software encoder selected explicitly; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; raw RGBA bridge \u2264one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded.\nFFmpeg WASM: startup=203.6 ms; raw RGBA live ring=626688 bytes in 17 frame readbacks; ring capacity=4194304 bytes, peak ready slots=4, producer waits=2, consumer waits=7, consumed=626688; no raw OPFS spool; source File mounted via WORKERFS (no whole-file application copy); output OPFS device={\"writes\":5,\"maxWriteBytes\":8073,\"writtenBytes\":18153}; explicit GPU\u2192CPU VideoFrame.copyTo readbacks=17; sampled peak allocated WASM linear memory=33554432 bytes (25 ms sampling); total process resident peak not observable; WASM worker terminated=true.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/0/0/0; video packet callbacks 0/0/0/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=2.5 ms; cumulative submitted-work completion latency=42.0 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=377.6 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.mp4",
+      "frameCount": 17,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 400320,
+      "duration": 0.300001,
+      "outputBytes": 10076,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 1283.6549999993294,
+      "allocation": {
+        "bufferBytes": 164768,
+        "textureBytes": 1253376,
+        "buffers": 26,
+        "textures": 12,
+        "peakBytes": 18672832,
+        "windowPeakBytes": 18672832,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 644,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "color": "10/115/80",
+        "scale": "4x",
+        "fps": "15/1",
+        "clahe": true,
+        "fixture": "ai-upscale-vfr.mp4"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 256\u00d7144 MP4/H.264/AAC converted/finalized in 1105.0 ms; 0.333 s; 15 AAC packets; audio queue peak=1; conversion pixel readbacks=5; backend=FFmpeg WASM.\nDiagnostic verification: full re-decode PASS in 19.7 ms; 5-frame timestamp/duration timeline PASS (maximum container quantization 0 \u00b5s); decoded output audio peak=0.1302; total job 1124.7 ms.\nOutput policy: 4 input \u2192 5 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; browser decoder probed, FFmpeg software encoder selected explicitly; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; raw RGBA bridge \u2264one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded.\nFFmpeg WASM: startup=222.1 ms; raw RGBA live ring=737280 bytes in 5 frame readbacks; ring capacity=4194304 bytes, peak ready slots=1, producer waits=0, consumer waits=1, consumed=737280; no raw OPFS spool; source File mounted via WORKERFS (no whole-file application copy); output OPFS device={\"writes\":5,\"maxWriteBytes\":11090,\"writtenBytes\":23830}; explicit GPU\u2192CPU VideoFrame.copyTo readbacks=5; sampled peak allocated WASM linear memory=33554432 bytes (25 ms sampling); total process resident peak not observable; WASM worker terminated=true.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/0/0/0; video packet callbacks 0/0/0/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=3.3 ms; cumulative submitted-work completion latency=35.9 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=729.1 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.mp4",
+      "frameCount": 5,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.333334,
+      "outputBytes": 12736,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 1252.0849999999627,
+      "allocation": {
+        "bufferBytes": 443760,
+        "textureBytes": 1880064,
+        "buffers": 39,
+        "textures": 18,
+        "peakBytes": 19431056,
+        "windowPeakBytes": 19431056,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 966,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "color": "10/115/80",
+        "scale": "4x",
+        "fps": "60/1",
+        "clahe": true,
+        "fixture": "ai-upscale-vfr.mp4"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 256\u00d7144 MP4/H.264/AAC converted/finalized in 737.5 ms; 0.300 s; 15 AAC packets; audio queue peak=1; conversion pixel readbacks=17; backend=FFmpeg WASM.\nDiagnostic verification: full re-decode PASS in 14.7 ms; 17-frame timestamp/duration timeline PASS (maximum container quantization 1 \u00b5s); decoded output audio peak=0.1302; total job 752.2 ms.\nOutput policy: 4 input \u2192 17 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=800640 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; browser decoder probed, FFmpeg software encoder selected explicitly; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; raw RGBA bridge \u2264one frame plus 4 MiB shared ring; FFmpeg WASM internal memory is not otherwise bounded.\nFFmpeg WASM: startup=215.2 ms; raw RGBA live ring=2506752 bytes in 17 frame readbacks; ring capacity=4194304 bytes, peak ready slots=4, producer waits=2, consumer waits=6, consumed=2506752; no raw OPFS spool; source File mounted via WORKERFS (no whole-file application copy); output OPFS device={\"writes\":5,\"maxWriteBytes\":10212,\"writtenBytes\":22430}; explicit GPU\u2192CPU VideoFrame.copyTo readbacks=17; sampled peak allocated WASM linear memory=33554432 bytes (25 ms sampling); total process resident peak not observable; WASM worker terminated=true.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/0/0/0; video packet callbacks 0/0/0/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=2.5 ms; cumulative submitted-work completion latency=46.7 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=291.0 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.mp4",
+      "frameCount": 17,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 800640,
+      "duration": 0.300001,
+      "outputBytes": 12214,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 888.125,
+      "allocation": {
+        "bufferBytes": 722720,
+        "textureBytes": 2469888,
+        "buffers": 51,
+        "textures": 20,
+        "peakBytes": 20299840,
+        "windowPeakBytes": 20299840,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 1287,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    }
+  ],
+  "ortVersion": "1.30.0",
+  "mode": "decoded-video-ai-composition-pilot",
+  "artifacts": [
+    {
+      "name": "video-main-0.mp4",
+      "bytes": 10855
+    },
+    {
+      "name": "video-main-1.mp4",
+      "bytes": 10076
+    },
+    {
+      "name": "video-main-2.mp4",
+      "bytes": 12736
+    },
+    {
+      "name": "video-main-3.mp4",
+      "bytes": 12214
+    }
+  ],
+  "codecBackend": "ffmpeg-wasm",
+  "baseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "boundary": "video 3 ai-upscale-vfr.mp4 4x 60/1",
+  "lastStatus": "Inspecting finalized MP4 and decoding video/audio at beginning, midpoint, and end\u2026",
+  "deviceRequests": 1,
+  "gpuValidationError": null,
+  "browserVersion": "155.0.4283.62",
+  "logEntries": 2
+}

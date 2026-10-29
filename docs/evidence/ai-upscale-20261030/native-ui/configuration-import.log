@@ -1,0 +1,9 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.58s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 1 test
+Local configuration imported for Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU; runtime not executed and pending capability rejected
+test ai_configuration::tests::actual_local_configuration_import_keeps_acceptance_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.53s

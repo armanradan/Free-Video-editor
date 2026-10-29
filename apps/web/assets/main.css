@@ -61,3 +61,14 @@ pre { min-height: 4rem; max-height: 12rem; margin: 0; padding: .7rem; overflow: 
 .regression button { margin-top: .35rem; }
 @media (max-width: 760px) { body { padding: 10px; } .shell { padding: 16px; } .page-header { flex-wrap: wrap; gap: 0; } .backend-switch { margin-bottom: 1rem; } .workspace { grid-template-columns: 1fr; gap: 16px; } .monitor-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; } .preview-panel { grid-row: span 3; } #selected-gpu { margin: 0; } }
 @media (max-width: 520px) { .monitor-panel { display: block; } .control-grid, .advanced-field { grid-template-columns: 1fr; gap: .35rem; } .control-grid > label { margin-top: .25rem; } .actions { margin-top: 12px; } }
+
+.ai-panel .color-toggle { display:flex; width:100%; align-items:center; justify-content:space-between; gap:8px; }
+.ai-scales, .ai-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.ai-setup { margin-top:8px; }
+.ai-setup input { max-width:100%; }
+#ai-setup-status { overflow-wrap:anywhere; }
+
+.ai-panel { margin-top:12px; border:1px solid #334155; border-radius:8px; padding:10px; }
+.ai-panel .color-toggle { background:transparent; color:#e2e8f0; padding:0; text-align:left; }
+.ai-panel .color-toggle .note { margin:0; color:#aebbd3; }
+.ai-panel a { color:#7dd3fc; }

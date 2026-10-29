@@ -1,0 +1,48 @@
+{
+  "status": "passed-ordinary-ai-off-handoff-with-separate-source-limitation",
+  "launch": "ordinary converter-native, no diagnostic flag",
+  "route": "Shared GPU/software codecs",
+  "processing_gpu_ui": "NVIDIA GeForce RTX 3050 Laptop GPU / DX12",
+  "renderer_gpu": "not newly measured for the window",
+  "ai": "Off, no helper started",
+  "export": {
+    "fixture": "m2-h264-aac.mp4",
+    "bytes": 254068,
+    "sha256": "6b2bf8856653fe8cdd51c472157a5b94210c634e3575f3532db636dcbc751461",
+    "independent_full_decode": "passed",
+    "streams": [
+      {
+        "codec_type": "video",
+        "width": 640,
+        "height": 360,
+        "start_time": "0.000000",
+        "duration": "2.000000",
+        "nb_read_frames": "60"
+      },
+      {
+        "codec_type": "audio",
+        "start_time": "0.000000",
+        "duration": "2.005000",
+        "nb_read_frames": "94"
+      }
+    ]
+  },
+  "success": "preview hidden/admission disabled during conversion; source reopened paused",
+  "failure": "existing output refused; output hash unchanged; preview reopened paused at a nonzero position",
+  "paused_player_changed_pixels": 0,
+  "player_region": [
+    611,
+    352,
+    320,
+    180
+  ],
+  "source_cut_sha256_matches_manifest": true,
+  "stderr_bytes": 0,
+  "owned_window_closed_normally": true,
+  "remaining_helpers": 0,
+  "limits": [
+    "Actual window run is AI Off, not ordinary AI On acceptance",
+    "AI Off shared-GPU cut fixture rejects invalid final frame duration under its unchanged legacy duration-header policy",
+    "Screenshots precede the final clearer Paused/Preview paused during conversion caption; caption change is build/test checked"
+  ]
+}

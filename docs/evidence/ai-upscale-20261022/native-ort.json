@@ -1,0 +1,133 @@
+{
+  "runtime": "1.23.0",
+  "model_sha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "available_providers": [
+    "DmlExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "adapters": [
+    {
+      "index": 0,
+      "name": "Intel(R) UHD Graphics",
+      "vendor_id": 32902,
+      "device_id": 39528,
+      "dedicated_video_bytes": 134217728,
+      "flags": 0,
+      "luid": "00000000:00012b8c"
+    },
+    {
+      "index": 1,
+      "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "vendor_id": 4318,
+      "device_id": 9634,
+      "dedicated_video_bytes": 4154458112,
+      "flags": 0,
+      "luid": "00000000:00012fb9"
+    },
+    {
+      "index": 2,
+      "name": "Microsoft Basic Render Driver",
+      "vendor_id": 5140,
+      "device_id": 140,
+      "dedicated_video_bytes": 0,
+      "flags": 2,
+      "luid": "00000000:00012f27"
+    }
+  ],
+  "selected": {
+    "index": 1,
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor_id": 4318,
+    "device_id": 9634,
+    "dedicated_video_bytes": 4154458112,
+    "flags": 0,
+    "luid": "00000000:00012fb9"
+  },
+  "cases": [
+    {
+      "input": "1x1",
+      "shape": [
+        1,
+        3,
+        4,
+        4
+      ],
+      "max_abs": 1.4062970876693726e-07,
+      "mae": 6.712313194157105e-08,
+      "seconds": 0.1868949000017892,
+      "host_input_bytes": 12,
+      "host_output_bytes": 192
+    },
+    {
+      "input": "3x5",
+      "shape": [
+        1,
+        3,
+        20,
+        12
+      ],
+      "max_abs": 2.682209014892578e-07,
+      "mae": 6.252020057218033e-08,
+      "seconds": 0.06091329999981099,
+      "host_input_bytes": 180,
+      "host_output_bytes": 2880
+    },
+    {
+      "input": "17x19",
+      "shape": [
+        1,
+        3,
+        76,
+        68
+      ],
+      "max_abs": 2.086162567138672e-06,
+      "mae": 2.861852692603861e-07,
+      "seconds": 0.07103629999983241,
+      "host_input_bytes": 3876,
+      "host_output_bytes": 62016
+    },
+    {
+      "input": "33x31",
+      "shape": [
+        1,
+        3,
+        124,
+        132
+      ],
+      "max_abs": 2.2351741790771484e-06,
+      "mae": 3.057558615182643e-07,
+      "seconds": 0.06574470000123256,
+      "host_input_bytes": 12276,
+      "host_output_bytes": 196416
+    },
+    {
+      "input": "257x259",
+      "shape": [
+        1,
+        3,
+        1036,
+        1028
+      ],
+      "max_abs": 3.4570693969726562e-06,
+      "mae": 3.9699077092336665e-07,
+      "seconds": 0.5916781999985687,
+      "host_input_bytes": 798756,
+      "host_output_bytes": 12780096
+    }
+  ],
+  "transfers": "Explicit CPU input -> DirectML GPU and GPU -> CPU output per run; diagnostic references only",
+  "status": "numeric-gpu-probe-passed-not-product-accepted",
+  "load_seconds": 0.8037258000003931,
+  "actual_providers": [
+    "DmlExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "actual_provider_options": {
+    "DmlExecutionProvider": {},
+    "CPUExecutionProvider": {}
+  },
+  "profile_provider_events": {
+    "DmlExecutionProvider": 350
+  },
+  "cleanup": "Python session reference released and GC collected; opaque driver reclamation unmeasured"
+}

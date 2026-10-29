@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+ai-upscale-pilot = []
+
 [dependencies]
 ctrlc.workspace = true
 media-core.workspace = true
@@ -12,6 +15,7 @@ media-gpu.workspace = true
 pollster.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2 = "=0.10.9"
 wgpu.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

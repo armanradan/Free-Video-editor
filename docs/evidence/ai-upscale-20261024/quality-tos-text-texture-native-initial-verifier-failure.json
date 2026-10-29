@@ -1,0 +1,5 @@
+{
+  "status": "failed",
+  "cases": [],
+  "error": "AssertionError [ERR_ASSERTION]: frame 0: 0 vs 0.021333333333333333\n    at file:///D:/Active_Projects/Rust/Diaxus/Video%20editor/tests/color-timing-reference.mjs:39:12\n    at Array.forEach (<anonymous>)\n    at assertTimeline (file:///D:/Active_Projects/Rust/Diaxus/Video%20editor/tests/color-timing-reference.mjs:36:10)\n    at file:///D:/Active_Projects/Rust/Diaxus/Video%20editor/tools/ai-upscale/verify_video.mjs:56:22\n    at ModuleJob.run (node:internal/modules/esm/module_job:274:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:644:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:98:5)"
+}

@@ -1,0 +1,116 @@
+{
+  "status": "passed",
+  "scope": "Ordinary UI and backend commands; optional engine acceptance build; no diagnostic command substitution",
+  "contexts": [
+    {
+      "mode": "main",
+      "theme": "light",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "2x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=1; renders=7; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "2x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=18; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "2x preview-only controls acceptance",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=19; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=3; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "4x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=23; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=5; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "4x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=10; renders=26; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=5; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "4x preview-only controls acceptance",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=10; renders=28; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history reused for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "Off restores retained ordinary resize",
+          "status": "Ready. Output resolves to 96×40. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=10; renders=29; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=7; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 96×40, display 96×40; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 96×40 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "missing model fails explicitly and stops its clock",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Source preview unavailable: AI model is not cached; explicitly import the validated model.onnx",
+          "error": "Preview playback failed: AI model is not cached; explicitly import the validated model.onnx",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "explicit asset repair and selection retry restore preview without automatic playback",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=15; renders=34; frame time=3.333333 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=11; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 3.36,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        },
+        {
+          "name": "over-envelope source disables both scales while ordinary preview remains usable",
+          "status": "Ready. Output resolves to 320×180. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=16; renders=36; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=13; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 320×180, display 320×180; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.4 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 320×180 (codec-safe)",
+          "estimate": "0.50 Mbps video · Estimated ~0.2 MB (VBR may differ)",
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)"
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "browser": "156.0.4314.42"
+}

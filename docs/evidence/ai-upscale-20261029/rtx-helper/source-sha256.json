@@ -1,0 +1,7 @@
+{
+  "tools/ai-upscale/native-rtx-helper/main.cpp": "03e7011f438534ab91c814b3a21f51c2700cf48f6f58820558559dcf072d429d",
+  "tools/ai-upscale/native-rtx-helper/build.ps1": "d2b26b761d980e95fc18887032b847a6f24240380e76312b4c993b4acd47da69",
+  "tools/ai-upscale/native-rtx-helper/evaluate.py": "1d8cb9a2f9c9682e0131a4518ece97c0c66f7856b69909bff4087aaa4616e3b1",
+  "tools/ai-upscale/native-rtx-probe/sdk_support.h": "c0d29ef0d3962ee673d9c953ce3bc91fdc487bdd26d68ec35d46285cfbf60ba4",
+  "tools/ai-upscale/native-rtx-probe/main.cpp": "8dd8eaa3914cf268d3de1b9113b2431eb334c6a930e7b8d98e88d9a2dadc6d3d"
+}

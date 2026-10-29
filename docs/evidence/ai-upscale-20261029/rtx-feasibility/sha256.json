@@ -1,0 +1,23 @@
+{
+  "tools\\ai-upscale\\native-rtx-probe\\main.cpp": "e544a83267363852716f022e550b5d85544477c012b1186554cb19229d9db2d2",
+  "tools\\ai-upscale\\native-rtx-probe\\build.ps1": "25eadf926a9413550b17793d584206c5642d6d5fe974b9558c5e4a7cc35c7c2e",
+  "tools\\ai-upscale\\native-rtx-probe\\evaluate.py": "6405bcd3c310fdedcba5b659c7a0a8878c937eaa3c9dd1ad28c0724c4ea57e77",
+  "tmp\\ai-upscale\\rtx-msvc-20261029\\probe-cleared.exe": "8185f2632cc3b4735eab792515c0f3905a8792df9a9cc344966a1f258f12256b",
+  "D:\\Libraries\\RTX_Video_SDK_v1.1.0\\lib\\Windows\\x64\\nvsdk_ngx_s.lib": "9faaddbdebce63fc32cd6fba6d78ba305a26965e90f189672f98d5f1a01b60b4",
+  "build-passed.txt": "e3da5daece3d0ba775f818e2b5102ead31750cac53273d51ad16a483fe73697c",
+  "compiler-version.txt": "e5c0407a994ef202e85ff9c18a98a901010d8464abfea66e10b53cd7fe0020e2",
+  "evaluation-final.json": "89e880fd3c1ba0c9eab61df76e03d2dd9c6df5575fc0fc87c46f4b417152fd3b",
+  "evaluation-first.json": "969ecbec00fe15f487bea26f91c222cbd1c41ff2bff3fdb823fe4871c065685b",
+  "first.stdout.jsonl": "83245ed804137278418a97c09683215fb914e63492e9c2f958eb399b65ba4a6c",
+  "fresh-after-failure.stdout.jsonl": "83245ed804137278418a97c09683215fb914e63492e9c2f958eb399b65ba4a6c",
+  "initial-link-failure.txt": "f6f75ce5f1f36f59ae5b7fe001faeac9f9c8cd126ac876b2c46b4fab08ec0564",
+  "initial-repeat-failure.json": "77ba0660cda7f01f1286d3bc1cf8aea570b4845547bf84bcc4e7ada643d96c6e",
+  "missing-input.stdout.jsonl": "508aca7cdada3de4667ca0d584543bfb1daf2e2ce71b641de169aa713892351b",
+  "missing-runtime.stdout.jsonl": "1b5b8f5ef5b8dc893b5cac8eda6899ea430396ba3c29436e2cbd6e9af2dbf828",
+  "prerequisites-after-install.json": "56127e5ee37d81f8f3d3286b3bd8717d5677e0e810cf33ac507073a504a7a185",
+  "repeat.stdout.jsonl": "83245ed804137278418a97c09683215fb914e63492e9c2f958eb399b65ba4a6c",
+  "sdk-bicubic-left-high-right.png": "c8dba7e120fd130436ea01ecb60d62bbc731a4a2e3728a32aceca08c83b638f2",
+  "summary.json": "415156df350c176cdf14ad1d7402f55bc0b6cc5b20994d55820eff335de48208",
+  "unproven-version-rejection.jsonl": "d0671d845f0a30cda45c79c085678c7f9aecd2fa17bc291e577a4ac9f19fdd8a",
+  "wrong-adapter.stdout.jsonl": "0db14d86442b750e4ae78c275945035b381c3c3e870746646cda434c71144dc8"
+}

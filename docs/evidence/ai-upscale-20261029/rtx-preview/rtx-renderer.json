@@ -1,0 +1,202 @@
+{
+  "cases": [
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 0,
+      "scale": "Two",
+      "selected_us": 100000,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 3686400,
+        "inference_readback_bytes": 110592,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 147456,
+        "renderer_upload_bytes": 921600,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 1,
+      "scale": "Two",
+      "selected_us": 100000,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 6451200,
+        "inference_readback_bytes": 110592,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 221184,
+        "renderer_upload_bytes": 921600,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 2,
+      "scale": "Two",
+      "selected_us": 100000,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 153750800,
+        "display_readback_bytes": 9216000,
+        "inference_readback_bytes": 110592,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 294912,
+        "renderer_upload_bytes": 921600,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 3,
+      "scale": "Four",
+      "selected_us": 100000,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 3686400,
+        "inference_readback_bytes": 442368,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 589824,
+        "renderer_upload_bytes": 921600,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 4,
+      "scale": "Four",
+      "selected_us": 100000,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 6451200,
+        "inference_readback_bytes": 442368,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 884736,
+        "renderer_upload_bytes": 921600,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-cut",
+      "index": 5,
+      "scale": "Four",
+      "selected_us": 100000,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 154832144,
+        "display_readback_bytes": 9216000,
+        "inference_readback_bytes": 442368,
+        "inference_upload_bytes": 27648,
+        "original_upload_bytes": 9216,
+        "processing_upload_bytes": 1179648,
+        "renderer_upload_bytes": 921600,
+        "source_frames": 3
+      }
+    },
+    {
+      "fixture": "ai-upscale-preview",
+      "index": 6,
+      "scale": "Four",
+      "selected_us": 0,
+      "strength": 0,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 1638400,
+        "inference_readback_bytes": 1179648,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 2359296,
+        "renderer_upload_bytes": 819200,
+        "source_frames": 1
+      }
+    },
+    {
+      "fixture": "ai-upscale-preview",
+      "index": 7,
+      "scale": "Four",
+      "selected_us": 0,
+      "strength": 50,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 4096000,
+        "inference_readback_bytes": 1179648,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 4718592,
+        "renderer_upload_bytes": 819200,
+        "source_frames": 1
+      }
+    },
+    {
+      "fixture": "ai-upscale-preview",
+      "index": 8,
+      "scale": "Four",
+      "selected_us": 0,
+      "strength": 80,
+      "transfers": {
+        "admission_bytes": 165254480,
+        "display_readback_bytes": 6553600,
+        "inference_readback_bytes": 1179648,
+        "inference_upload_bytes": 73728,
+        "original_upload_bytes": 73728,
+        "processing_upload_bytes": 7077888,
+        "renderer_upload_bytes": 819200,
+        "source_frames": 1
+      }
+    }
+  ],
+  "cold_before": {
+    "display": {
+      "height": 360,
+      "width": 640
+    },
+    "fixture": "ai-upscale-cut",
+    "input": {
+      "height": 36,
+      "width": 64
+    },
+    "source_index": 0,
+    "transfers": {
+      "admission_bytes": 3704832,
+      "display_readback_bytes": 921600,
+      "inference_readback_bytes": 0,
+      "inference_upload_bytes": 0,
+      "original_upload_bytes": 9216,
+      "processing_upload_bytes": 0,
+      "renderer_upload_bytes": 921600,
+      "source_frames": 0
+    }
+  },
+  "device_loss": "renderer device lost; preview retired: native conversion cancelled",
+  "error_pause": "actual worker error pauses service clock; Pause does not restart",
+  "fresh_generation": 43,
+  "handoff": "worker invalidation acknowledged and result empty; fresh request passes; UI conversion handoff remains pending",
+  "helper_error": "Cannot start the configured native AI helper; verify its executable path: The system cannot find the file specified. (os error 2)",
+  "invalidation": "replacement published at correct geometry; worker joined",
+  "playback_active_request_cancelled": false,
+  "playback_published_positions_us": [
+    0,
+    200000
+  ],
+  "playback_samples_submitted": 100,
+  "processing": {
+    "backend": "Vulkan",
+    "device": 9634,
+    "device_type": "DiscreteGpu",
+    "driver": "NVIDIA",
+    "key": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318
+  },
+  "renderer": "AdapterInfo { name: \"Intel(R) UHD Graphics\", vendor: 32902, device: 39528, device_type: IntegratedGpu, driver: \"Intel Corporation\", driver_info: \"Intel driver\", backend: Vulkan }",
+  "status": "renderer GPU runs completed; independent pixels required"
+}

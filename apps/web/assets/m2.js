@@ -199,6 +199,15 @@ function validateSdrColorSpace(colorSpace, hasHdr) {
   return color;
 }
 
+function knownAiBitDepth(codec, format) {
+  // Decoded RGBA alone cannot prove that a higher-precision source was not
+  // truncated. Require both a known 8-bit codec profile and decoded format.
+  if (!["I420", "I422", "I444", "NV12", "RGBA", "RGBX", "BGRA", "BGRX"].includes(format)) return 0;
+  if (/^avc[13]\.(42|4d|58|64)[0-9a-f]{4}$/i.test(codec)) return 8;
+  if (/^(hev1|hvc1)\.1\./i.test(codec)) return 8;
+  return 0;
+}
+
 class MediabunnyInputAdapter {
   static async open(file) {
   if (!(file instanceof File)) fail("Select an MP4 file first.");
@@ -294,6 +303,7 @@ class MediabunnyInputAdapter {
   // authoritative coded grid so non-zero crop offsets remain representable.
   const codedWidth = firstSample.codedWidth;
   const codedHeight = firstSample.codedHeight;
+  const aiBitDepth = knownAiBitDepth(codecString, firstSample.format);
   firstSample.close();
   const audioTrack = audioTracks[0] ?? null;
   let audio = null;
@@ -315,6 +325,7 @@ class MediabunnyInputAdapter {
     track,
     codedWidth,
     codedHeight,
+    aiBitDepth,
     width: squarePixelWidth,
     height: squarePixelHeight,
     displayWidth,
@@ -345,6 +356,7 @@ function inspectionMetadata(opened, file) {
       height: opened.height,
       codedWidth: opened.codedWidth,
       codedHeight: opened.codedHeight,
+      aiBitDepth: opened.aiBitDepth,
       visibleX: opened.visibleRect.left,
       visibleY: opened.visibleRect.top,
       visibleWidth: opened.visibleRect.width,
@@ -472,9 +484,14 @@ async function paritySnapshot(frame, sourceTimestamp, index = null) {
   const pixels = new Uint8Array(frame.allocationSize({format: "RGBA"}));
   if (pixels.length > 1920 * 1080 * 4) fail("Diagnostic parity raster exceeds its byte budget.");
   await frame.copyTo(pixels, {format: "RGBA"});
-  let binary = "";
-  for (let i = 0; i < pixels.length; i += 8192) binary += String.fromCharCode(...pixels.subarray(i, i + 8192));
-  return {width: frame.displayWidth, height: frame.displayHeight, sourceTimestamp, index, data: btoa(binary)};
+  const encode = bytes => {
+    let binary = "";
+    for (let i=0;i<bytes.length;i+=8192) binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+    return btoa(binary);
+  };
+  const ingress = globalThis.__DIAXUS_AI_INGRESS_PARITY__ ? globalThis.__DIAXUS_PREVIEW_INGRESS__ : null;
+  return {width: frame.displayWidth, height: frame.displayHeight, sourceTimestamp, index, data: encode(pixels),
+    ...(ingress ? {ingress:{width:ingress.width,height:ingress.height,data:encode(ingress.pixels)}} : {})};
 }
 async function previewRender(processFrame) {
   if (!previewCache) fail("Preview source frame is no longer available.");
@@ -613,7 +630,7 @@ async function probeProfile(profile, opened, outputWidth, outputHeight, hardware
     if (!videoSupported) {
       return {
         supported: false,
-        reason: `${profile.videoCodec.toUpperCase()} encoding is unsupported at ${outputWidth}×${outputHeight}, ${opened.averagePacketRate.toFixed(3)} fps, hardwareAcceleration=${hardwareAcceleration}.`,
+        reason: `${profile.videoCodec.toUpperCase()} encoding is unsupported at ${outputWidth}×${outputHeight}, ${(options.frameRate ?? opened.averagePacketRate).toFixed(3)} fps, hardwareAcceleration=${hardwareAcceleration}.`,
       };
     }
   } catch (error) {
@@ -1165,8 +1182,14 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     });
   };
   const startedAt = performance.now();
+  let decoderWaitMs = 0, encoderSubmissionWaitMs = 0;
   try {
-    if (opened.displayWidth < outputWidth || opened.displayHeight < outputHeight) {
+    const explicitAi = options.aiExpectedBitDepth === 8 && [2,4].includes(options.aiScale);
+    if (explicitAi && (opened.aiBitDepth !== 8
+        || outputWidth !== opened.displayWidth*options.aiScale || outputHeight !== opened.displayHeight*options.aiScale)) {
+      fail("AI enlargement requires exact normalized-source 2x/4x geometry and known 8-bit source precision.");
+    }
+    if (!explicitAi && (opened.displayWidth < outputWidth || opened.displayHeight < outputHeight)) {
       fail("The half-size preset must not upscale the source.");
     }
     let selectedAcceleration = requested;
@@ -1224,10 +1247,16 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
     const pumpVideo = async () => {
       const sink = new VideoSampleSink(opened.track, { hardwareAcceleration: selectedAcceleration });
       const iterator = sink.samples()[Symbol.asyncIterator]();
+      const nextSample = async () => {
+        const started = performance.now();
+        try { return await iterator.next(); }
+        finally { decoderWaitMs += performance.now() - started; }
+      };
       let previousTimestamp = null;
       let pendingFrame = null;
       let outputIndex = firstIndex;
       const encodeFrame = async (frame, timestamp, duration) => {
+        const started = performance.now();
         ensureActive();
         // VideoSample owns its VideoFrame. Keep the lookahead frame alive across duplicates.
         const outputSample = ffmpeg ? null : new VideoSample(frame.clone());
@@ -1242,7 +1271,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           encoded++;
           lastVideoDurationSeconds = duration / 1_000_000;
           videoEndSeconds = (timestamp + duration) / 1_000_000;
-        } finally { release(outputSample, "samples"); }
+        } finally { encoderSubmissionWaitMs += performance.now() - started; release(outputSample, "samples"); }
       };
       const emitPending = async until => {
         while (outputIndex < until) {
@@ -1281,6 +1310,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
             fail(`Mid-stream geometry change is unsupported: frame ${sample.codedWidth}×${sample.codedHeight}, visible ${visible.width}×${visible.height}+${visible.left},${visible.top}, square-pixel ${sample.squarePixelWidth}×${sample.squarePixelHeight}, rotation ${sample.rotation}°, flip=${sample.flip}.`);
           }
           const sampleColor = validateSdrColorSpace(sample.colorSpace, false);
+          if (options.aiExpectedBitDepth === 8 && knownAiBitDepth(opened.codecString,sample.format) !== 8) {
+            fail("AI requires a known opaque 8-bit decoded source; mid-stream precision is unsupported.");
+          }
           if (sampleColor.primaries !== opened.color.primaries
               || sampleColor.transfer !== opened.color.transfer
               || sampleColor.matrix !== opened.color.matrix
@@ -1378,14 +1410,14 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
         }
       };
       try {
-        const first = await iterator.next();
+        const first = await nextSample();
         if (first.done) return;
         await processItem(createItem(first.value, false));
 
         if (!bitmapIngressRequired()) {
           for (;;) {
             ensureActive();
-            const next = await iterator.next();
+            const next = await nextSample();
             if (next.done) break;
             await processItem(createItem(next.value, false));
           }
@@ -1398,7 +1430,7 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
           try {
             for (let index = 0; index < 4; index++) {
               ensureActive();
-              const next = await iterator.next();
+              const next = await nextSample();
               if (next.done) break;
               group.push(createItem(next.value, true));
             }
@@ -1555,6 +1587,9 @@ async function runBrowserJob(file, outputWidth, outputHeight, profileId, request
       fileName: `${base}-${outputWidth}x${outputHeight}.${profile.extension}`,
       frameCount: encoded,
       inputFrameCount: processed,
+      conversionMs: conversionElapsed,
+      decoderWaitMs, encoderSubmissionWaitMs,
+      verificationMs: verificationElapsed,
       targetVideoBitrate: options[profile.videoCodec] || null,
       duration: verified.duration,
       outputBytes: outputBlob.size,

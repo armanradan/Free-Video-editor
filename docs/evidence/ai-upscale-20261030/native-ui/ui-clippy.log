@@ -1,0 +1,23 @@
+    Checking smallvec v1.16.1
+    Checking futures-util v0.3.34
+    Checking serde v1.0.229
+    Checking thiserror v2.0.20
+    Checking num-traits v0.2.19
+    Checking parking_lot_core v0.9.12
+    Checking parking_lot v0.12.5
+    Checking subsecond-types v0.7.10
+    Checking slotmap v1.1.1
+    Checking bytes v1.12.1
+    Checking keyboard-types v0.7.0
+    Checking media-core v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-core)
+    Checking generational-box v0.7.10
+    Checking subsecond v0.7.10
+    Checking euclid v0.22.14
+    Checking dioxus-core v0.7.10
+    Checking dioxus-signals v0.7.10
+    Checking dioxus-hooks v0.7.10
+    Checking dioxus-stores v0.7.10
+    Checking dioxus-html v0.7.10
+    Checking dioxus v0.7.10
+    Checking ui v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\ui)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.26s

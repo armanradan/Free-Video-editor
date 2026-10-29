@@ -1,0 +1,89 @@
+{
+  "status": "numeric-device-probe-passed-not-product-accepted",
+  "context": "main",
+  "cases": [
+    {
+      "stem": "1x1",
+      "maxAbs": 6.146728992462158e-08,
+      "mae": 2.943852450698614e-08,
+      "inferenceMs": 1814.6849999949336,
+      "inputAllocationBytes": 16,
+      "diagnosticUploadBytes": 12,
+      "diagnosticReadbackBytes": 192,
+      "callerOwnedOutputIdentity": true
+    },
+    {
+      "stem": "3x5",
+      "maxAbs": 3.8743019104003906e-07,
+      "mae": 9.002526187234455e-08,
+      "inferenceMs": 2048.155000001192,
+      "inputAllocationBytes": 192,
+      "diagnosticUploadBytes": 180,
+      "diagnosticReadbackBytes": 2880,
+      "callerOwnedOutputIdentity": true
+    },
+    {
+      "stem": "17x19",
+      "maxAbs": 4.291534423828125e-06,
+      "mae": 4.993614806025698e-07,
+      "inferenceMs": 58.90500000119209,
+      "inputAllocationBytes": 3888,
+      "diagnosticUploadBytes": 3876,
+      "diagnosticReadbackBytes": 62016,
+      "callerOwnedOutputIdentity": true
+    },
+    {
+      "stem": "33x31",
+      "maxAbs": 3.3974647521972656e-06,
+      "mae": 5.284931630497169e-07,
+      "inferenceMs": 78.93500000238419,
+      "inputAllocationBytes": 12288,
+      "diagnosticUploadBytes": 12276,
+      "diagnosticReadbackBytes": 196416,
+      "callerOwnedOutputIdentity": true
+    },
+    {
+      "stem": "257x259",
+      "maxAbs": 6.318092346191406e-06,
+      "mae": 5.62110430231476e-07,
+      "inferenceMs": 2453.1749999970198,
+      "inputAllocationBytes": 798768,
+      "diagnosticUploadBytes": 798756,
+      "diagnosticReadbackBytes": 12780096,
+      "callerOwnedOutputIdentity": true
+    }
+  ],
+  "ortVersion": "1.30.0",
+  "gpu": {
+    "vendor": "intel",
+    "architecture": "gen-12lp",
+    "device": "",
+    "description": ""
+  },
+  "processingLimits": {
+    "maxStorageBufferBindingSize": 134217728,
+    "maxBufferSize": 268435456,
+    "maxStorageBuffersPerShaderStage": 8
+  },
+  "modelAcquisition": "Imported and verified offline AI model cache; inference remains gated",
+  "runtimeAcquisition": "Verified optional AI runtime cache; runtime is not loaded",
+  "verifiedBlobRuntime": true,
+  "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "loadMs": 897.0249999985099,
+  "exactDeviceIdentity": true,
+  "boundary": "session.run GPU input 257x259",
+  "deviceRequests": 1,
+  "sessionReleased": true,
+  "processingDeviceUsableAfterRelease": true,
+  "lifecycleDiagnosticReadbackBytes": 4,
+  "gpuValidationError": null,
+  "browserVersion": "141.0.7390.37",
+  "log_summary": {
+    "count": 2518,
+    "sha256": "a5852eadfdb46a57245da606e30cdf7966a1f818d70824e2e677bcc807108d42",
+    "node_placement": [
+      "2026-10-22 21:39:20.313963 [V:onnxruntime:, session_state.cc:1377 VerifyEachNodeIsAssignedToAnEp] Node placements",
+      "2026-10-22 21:39:20.314583 [V:onnxruntime:, session_state.cc:1380 VerifyEachNodeIsAssignedToAnEp]  All nodes placed on [WebGpuExecutionProvider]. Number of nodes: 73"
+    ]
+  }
+}

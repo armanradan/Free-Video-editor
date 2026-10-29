@@ -1,0 +1,165 @@
+{
+  "status": "passed",
+  "scope": "AI Off ordinary UI; response delivery fault after actual successful decode/GPU work; no AI playback acceptance",
+  "contexts": [
+    {
+      "mode": "main",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "rapid Pause/Play retains fresh producer and clock after old successful completion",
+          "button": "Pause",
+          "position": 0.15,
+          "preview": "Playing source preview: cache loads=6; renders=17; frame time=0.133333 s; cached frames=1; playback lookahead=1; stream opens=1; preroll opens=0; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.3 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 16,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: main-thread compatibility fallback — main-thread mode explicitly requested (?execution=main)"
+        },
+        {
+          "name": "late old-producer error cannot pause resumed playback or publish an error",
+          "button": "Pause",
+          "position": 0.27,
+          "preview": "Playing source preview: cache loads=10; renders=20; frame time=0.266666 s; cached frames=1; playback lookahead=1; stream opens=1; preroll opens=0; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.3 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 19,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: main-thread compatibility fallback — main-thread mode explicitly requested (?execution=main)"
+        },
+        {
+          "name": "current-producer error pauses playback and preserves actionable error",
+          "button": "Play",
+          "position": 0.27,
+          "preview": "Paused source preview: cache loads=12; renders=22; frame time=0.266666 s; cached frames=1; playback lookahead=0; stream opens=1; preroll opens=0; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.3 ms once; reused for this command=true.",
+          "error": "Preview playback failed: injected retired preview completion",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 20,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: main-thread compatibility fallback — main-thread mode explicitly requested (?execution=main)"
+        },
+        {
+          "name": "explicit Play clears the error and retries on the current source",
+          "button": "Pause",
+          "position": 0.29,
+          "preview": "Playing source preview: cache loads=13; renders=23; frame time=0.266666 s; cached frames=1; playback lookahead=1; stream opens=2; preroll opens=0; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.3 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 21,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: main-thread compatibility fallback — main-thread mode explicitly requested (?execution=main)"
+        },
+        {
+          "name": "source replacement ignores old completion error and resets paused timeline",
+          "button": "Play",
+          "position": 0,
+          "preview": "Paused source preview: cache loads=16; renders=25; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=2; preroll opens=0; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.3 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 22,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: main-thread compatibility fallback — main-thread mode explicitly requested (?execution=main)"
+        },
+        {
+          "name": "conversion handoff ignores retired preview error and returns to paused source",
+          "button": "Play",
+          "position": 0.25,
+          "preview": "Paused source preview: cache loads=24; renders=32; frame time=0.233333 s; cached frames=1; playback lookahead=0; stream opens=3; preroll opens=0; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.3 ms once; reused for this command=true.",
+          "status": "PASS: 60 H.264 input frames + 95 decoded audio samples → 640×360 WebM/VP8/Opus converted/finalized in 368.7 ms; 2.040 s; 102 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 27.5 ms; 60-frame timestamp/duration timeline PASS (maximum container quantization 667 µs); decoded output audio peak=0.0424; total job 396.3 ms.\nOutput policy: 60 input → 60 output frames; FPS=Original (source PTS preserved); target video bitrate=1006196 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 640×360, visible 640×360+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 640×360; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/60/0; GPU 0/1/60/0; video encoder callbacks 0/5/60/0; video packet callbacks 0/1/60/0; decoded-audio 0/1/95/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/102/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/3 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=56; leases live/peak=0/4; ingress copies=60; canvas captures=60; capture visible/backing=640×360 / 640×368; CPU submission/bridge=32.9 ms; cumulative submitted-work completion latency=366.9 ms; slot-reuse wait=0.6 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.3 ms once; reused for this command=true.\nOutput: 288382 bytes, 60 frames, 2.040 seconds.",
+          "completed": 28,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: main-thread compatibility fallback — main-thread mode explicitly requested (?execution=main)"
+        }
+      ],
+      "errors": [],
+      "outputName": "main.webm",
+      "outputBytes": 288382,
+      "optionalCaches": [],
+      "independentDecode": {
+        "status": "passed",
+        "videoCodec": "vp8",
+        "audioCodec": "opus",
+        "frames": 60,
+        "width": 640,
+        "height": 360
+      }
+    },
+    {
+      "mode": "worker",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "rapid Pause/Play retains fresh producer and clock after old successful completion",
+          "button": "Pause",
+          "position": 0.12,
+          "preview": "Playing source preview: cache loads=5; renders=4; frame time=0.100000 s; cached frames=1; playback lookahead=1; stream opens=1; preroll opens=0; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 264.6 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 3,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: dedicated worker — WebCodecs + wgpu + OffscreenCanvas; frame handles stay in the worker."
+        },
+        {
+          "name": "late old-producer error cannot pause resumed playback or publish an error",
+          "button": "Pause",
+          "position": 0.24,
+          "preview": "Playing source preview: cache loads=9; renders=7; frame time=0.233333 s; cached frames=1; playback lookahead=1; stream opens=1; preroll opens=0; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 264.6 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 6,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: dedicated worker — WebCodecs + wgpu + OffscreenCanvas; frame handles stay in the worker."
+        },
+        {
+          "name": "current-producer error pauses playback and preserves actionable error",
+          "button": "Play",
+          "position": 0.24,
+          "preview": "Paused source preview: cache loads=11; renders=9; frame time=0.233333 s; cached frames=1; playback lookahead=0; stream opens=1; preroll opens=0; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 264.6 ms once; reused for this command=true.",
+          "error": "Preview playback failed: injected retired preview completion",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 7,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: dedicated worker — WebCodecs + wgpu + OffscreenCanvas; frame handles stay in the worker."
+        },
+        {
+          "name": "explicit Play clears the error and retries on the current source",
+          "button": "Pause",
+          "position": 0.26,
+          "preview": "Playing source preview: cache loads=12; renders=10; frame time=0.233333 s; cached frames=1; playback lookahead=1; stream opens=2; preroll opens=0; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 264.6 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 8,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: dedicated worker — WebCodecs + wgpu + OffscreenCanvas; frame handles stay in the worker."
+        },
+        {
+          "name": "source replacement ignores old completion error and resets paused timeline",
+          "button": "Play",
+          "position": 0,
+          "preview": "Paused source preview: cache loads=15; renders=12; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=2; preroll opens=0; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 264.6 ms once; reused for this command=true.",
+          "status": "Ready. Output resolves to 640×360. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "completed": 9,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: dedicated worker — WebCodecs + wgpu + OffscreenCanvas; frame handles stay in the worker."
+        },
+        {
+          "name": "conversion handoff ignores retired preview error and returns to paused source",
+          "button": "Play",
+          "position": 0.21,
+          "preview": "Paused source preview: cache loads=21; renders=17; frame time=0.200000 s; cached frames=1; playback lookahead=0; stream opens=3; preroll opens=0; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 264.6 ms once; reused for this command=true.",
+          "status": "PASS: 60 H.264 input frames + 95 decoded audio samples → 640×360 WebM/VP8/Opus converted/finalized in 245.1 ms; 2.040 s; 102 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 26.4 ms; 60-frame timestamp/duration timeline PASS (maximum container quantization 667 µs); decoded output audio peak=0.0424; total job 271.6 ms.\nOutput policy: 60 input → 60 output frames; FPS=Original (source PTS preserved); target video bitrate=1006196 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=0, contrast=100%, saturation=100% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 640×360, visible 640×360+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 640×360; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.2 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/60/0; GPU 0/1/60/0; video encoder callbacks 0/6/60/0; video packet callbacks 0/1/60/0; decoded-audio 0/1/95/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/102/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=56; leases live/peak=0/4; ingress copies=60; canvas captures=60; capture visible/backing=640×360 / 640×368; CPU submission/bridge=36.0 ms; cumulative submitted-work completion latency=274.0 ms; slot-reuse wait=0.7 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nExecution: dedicated worker.\nExecution-context startup probe: 264.6 ms once; reused for this command=true.\nStartup stages (cumulative ms): worker construction/message delivery=0.6; worker capability checks=9.1; wasm module import=9.2; wasm initialization=23.9; codec module imports=186.2; WebGPU adapter request=207.2; WebGPU device request=246.7; shared pipeline creation=256.9; surface configure/capture=261.0; ready=264.4.\nOutput: 288382 bytes, 60 frames, 2.040 seconds.",
+          "completed": 13,
+          "gpu": "Selected GPU: intel / gen-12lp (BrowserWebGpu)",
+          "execution": "Execution: dedicated worker — WebCodecs + wgpu + OffscreenCanvas; frame handles stay in the worker."
+        }
+      ],
+      "errors": [],
+      "outputName": "worker.webm",
+      "outputBytes": 288382,
+      "optionalCaches": [],
+      "independentDecode": {
+        "status": "passed",
+        "videoCodec": "vp8",
+        "audioCodec": "opus",
+        "frames": 60,
+        "width": 640,
+        "height": 360
+      }
+    }
+  ],
+  "browser": "156.0.4314.42"
+}

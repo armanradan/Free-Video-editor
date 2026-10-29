@@ -1,0 +1,37 @@
+{
+  "status": "cache-probe-passed-not-inference-acceptance",
+  "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "bytes": 4866413,
+  "importStatus": "Imported and verified offline AI model cache; inference remains gated",
+  "corruptInputRejected": true,
+  "truncatedInputRejected": true,
+  "corruptCacheRejected": true,
+  "incompatibleManifestRejected": true,
+  "explicitRemovalAndRecovery": true,
+  "cancelBeforeAndAfterHash": true,
+  "cancelledRuntimeEntriesRemoved": true,
+  "quotaError": "injected Cache.put error path plus separate actual CDP origin-quota test below",
+  "moduleImportCreatesNoCache": true,
+  "existingCacheReused": true,
+  "explicitRuntimeAcquisition": true,
+  "runtimeAssetsBytes": 26901320,
+  "actualOfflineRead": 4866413,
+  "offlineVerifiedRuntimeModule": true,
+  "realOfflineAcquisitionFailure": true,
+  "realQuotaFailure": true,
+  "recoveredAfterQuota": 4866413,
+  "requests": [
+    "/",
+    "/favicon.ico",
+    "/ai-assets.js",
+    "/model.onnx",
+    "/runtime/ort.webgpu.min.mjs",
+    "/runtime/ort.webgpu.min.mjs",
+    "/runtime/ort-wasm-simd-threaded.asyncify.mjs",
+    "/runtime/ort-wasm-simd-threaded.asyncify.wasm"
+  ],
+  "httpMethods": [
+    "GET"
+  ],
+  "browserVersion": "141.0.7390.37"
+}

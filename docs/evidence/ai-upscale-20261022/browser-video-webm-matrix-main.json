@@ -1,0 +1,485 @@
+{
+  "status": "video-pilot-passed-not-release-accepted",
+  "context": "main",
+  "cases": [
+    {
+      "request": {
+        "scale": "2x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-opus",
+        "color": "10/115/80",
+        "fps": "original",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 128\u00d772 WebM/VP8/Opus converted/finalized in 1261.6 ms; 0.320 s; 16 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.3 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 334 \u00b5s); decoded output audio peak=0.0435; total job 1274.0 ms.\nOutput policy: 4 input \u2192 4 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/1/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/16/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=3.6 ms; cumulative submitted-work completion latency=76.0 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=1207.3 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.webm",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.32,
+      "outputBytes": 10164,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 2249.1949999993667,
+      "allocation": {
+        "bufferBytes": 82416,
+        "textureBytes": 1105920,
+        "buffers": 14,
+        "textures": 10,
+        "peakBytes": 18443024,
+        "windowPeakBytes": 18443024,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 323,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "2x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-opus",
+        "color": "10/115/80",
+        "fps": "15/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 128\u00d772 WebM/VP8/Opus converted/finalized in 331.3 ms; 0.334 s; 16 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 5.8 ms; 5-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); decoded output audio peak=0.0435; total job 337.1 ms.\nOutput policy: 4 input \u2192 5 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/3/5/0; video packet callbacks 0/1/5/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/16/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=2.5 ms; cumulative submitted-work completion latency=31.0 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=288.9 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.webm",
+      "frameCount": 5,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.334,
+      "outputBytes": 10369,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 451.285000000149,
+      "allocation": {
+        "bufferBytes": 164768,
+        "textureBytes": 1253376,
+        "buffers": 26,
+        "textures": 12,
+        "peakBytes": 18672832,
+        "windowPeakBytes": 18672832,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 644,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "2x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-opus",
+        "color": "10/115/80",
+        "fps": "60/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 128\u00d772 WebM/VP8/Opus converted/finalized in 415.0 ms; 0.320 s; 16 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 6.9 ms; 17-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); decoded output audio peak=0.0435; total job 421.9 ms.\nOutput policy: 4 input \u2192 17 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=400320 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/5/17/0; video packet callbacks 0/1/17/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/16/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=8, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=2.5 ms; cumulative submitted-work completion latency=19.4 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=361.6 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.webm",
+      "frameCount": 17,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 400320,
+      "duration": 0.32,
+      "outputBytes": 12922,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 988.8800000008196,
+      "allocation": {
+        "bufferBytes": 247120,
+        "textureBytes": 1400832,
+        "buffers": 38,
+        "textures": 14,
+        "peakBytes": 18902640,
+        "windowPeakBytes": 18902640,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 965,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "4x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-opus",
+        "color": "10/115/80",
+        "fps": "original",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 256\u00d7144 WebM/VP8/Opus converted/finalized in 364.0 ms; 0.320 s; 16 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 6.3 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 334 \u00b5s); decoded output audio peak=0.0435; total job 370.4 ms.\nOutput policy: 4 input \u2192 4 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/1/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/16/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=2.5 ms; cumulative submitted-work completion latency=23.6 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=322.6 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.webm",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.32,
+      "outputBytes": 10499,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 507.8300000000745,
+      "allocation": {
+        "bufferBytes": 526112,
+        "textureBytes": 2027520,
+        "buffers": 51,
+        "textures": 20,
+        "peakBytes": 19660864,
+        "windowPeakBytes": 19660864,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 1287,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "4x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-opus",
+        "color": "10/115/80",
+        "fps": "15/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 256\u00d7144 WebM/VP8/Opus converted/finalized in 333.7 ms; 0.334 s; 16 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 13.5 ms; 5-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); decoded output audio peak=0.0435; total job 347.3 ms.\nOutput policy: 4 input \u2192 5 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/3/5/0; video packet callbacks 0/1/5/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/16/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=2.3 ms; cumulative submitted-work completion latency=23.7 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=291.6 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.webm",
+      "frameCount": 5,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.334,
+      "outputBytes": 10620,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 461.6699999999255,
+      "allocation": {
+        "bufferBytes": 805072,
+        "textureBytes": 2617344,
+        "buffers": 63,
+        "textures": 22,
+        "peakBytes": 20529648,
+        "windowPeakBytes": 20529648,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 1608,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "4x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-opus",
+        "color": "10/115/80",
+        "fps": "60/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples \u2192 256\u00d7144 WebM/VP8/Opus converted/finalized in 424.4 ms; 0.320 s; 16 OPUS packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 7.8 ms; 17-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); decoded output audio peak=0.0435; total job 432.2 ms.\nOutput policy: 4 input \u2192 17 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=800640 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/6/17/0; video packet callbacks 0/1/17/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/16/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=2.2 ms; cumulative submitted-work completion latency=20.4 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=372.9 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.webm",
+      "frameCount": 17,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 800640,
+      "duration": 0.32,
+      "outputBytes": 25046,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 959.125,
+      "allocation": {
+        "bufferBytes": 1084032,
+        "textureBytes": 3207168,
+        "buffers": 75,
+        "textures": 24,
+        "peakBytes": 21398432,
+        "windowPeakBytes": 21398432,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 1929,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "2x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-video-only",
+        "color": "10/115/80",
+        "fps": "original",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames \u2192 128\u00d772 WebM/VP8 video only converted/finalized in 414.9 ms; 0.266 s; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 2.7 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 334 \u00b5s); total job 417.6 ms.\nOutput policy: 4 input \u2192 4 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/1/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/0/0/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=16, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=2.3 ms; cumulative submitted-work completion latency=20.6 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=378.3 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.webm",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.266,
+      "outputBytes": 4442,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 515.2999999998137,
+      "allocation": {
+        "bufferBytes": 1166416,
+        "textureBytes": 3391488,
+        "buffers": 88,
+        "textures": 30,
+        "peakBytes": 21812592,
+        "windowPeakBytes": 21812592,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 2251,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "2x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-video-only",
+        "color": "10/115/80",
+        "fps": "15/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames \u2192 128\u00d772 WebM/VP8 video only converted/finalized in 407.5 ms; 0.267 s; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 4.4 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); total job 411.9 ms.\nOutput policy: 4 input \u2192 4 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/2/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/0/0/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=16, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=2.2 ms; cumulative submitted-work completion latency=22.2 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=369.5 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.webm",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.267,
+      "outputBytes": 4442,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 504.99500000011176,
+      "allocation": {
+        "bufferBytes": 1248768,
+        "textureBytes": 3538944,
+        "buffers": 100,
+        "textures": 32,
+        "peakBytes": 22042400,
+        "windowPeakBytes": 22042400,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 2572,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "2x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-video-only",
+        "color": "10/115/80",
+        "fps": "60/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames \u2192 128\u00d772 WebM/VP8 video only converted/finalized in 423.8 ms; 0.267 s; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 3.5 ms; 16-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); total job 427.3 ms.\nOutput policy: 4 input \u2192 16 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=400320 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 128\u00d772; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/5/16/0; video packet callbacks 0/1/16/0; decoded-audio 0/0/0/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=16, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128\u00d772 / 128\u00d780; CPU submission/bridge=1.8 ms; cumulative submitted-work completion latency=17.6 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=378.2 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-128x72.webm",
+      "frameCount": 16,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 400320,
+      "duration": 0.267,
+      "outputBytes": 7104,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 517.9750000005588,
+      "allocation": {
+        "bufferBytes": 1331120,
+        "textureBytes": 3686400,
+        "buffers": 112,
+        "textures": 34,
+        "peakBytes": 22272208,
+        "windowPeakBytes": 22272208,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 2893,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "4x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-video-only",
+        "color": "10/115/80",
+        "fps": "original",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames \u2192 256\u00d7144 WebM/VP8 video only converted/finalized in 413.1 ms; 0.266 s; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 4.4 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 334 \u00b5s); total job 417.5 ms.\nOutput policy: 4 input \u2192 4 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/1/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/0/0/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=20, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=2.8 ms; cumulative submitted-work completion latency=22.4 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=373.2 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.webm",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.266,
+      "outputBytes": 4777,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 511.464999999851,
+      "allocation": {
+        "bufferBytes": 1610112,
+        "textureBytes": 4313088,
+        "buffers": 125,
+        "textures": 40,
+        "peakBytes": 23030432,
+        "windowPeakBytes": 23030432,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 3215,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "4x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-video-only",
+        "color": "10/115/80",
+        "fps": "15/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames \u2192 256\u00d7144 WebM/VP8 video only converted/finalized in 417.0 ms; 0.267 s; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 3.2 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); total job 420.2 ms.\nOutput policy: 4 input \u2192 4 output frames; FPS=15/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/2/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/0/0/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=20, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=3.1 ms; cumulative submitted-work completion latency=26.7 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=377.3 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.webm",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 250000,
+      "duration": 0.267,
+      "outputBytes": 4777,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 520.5099999997765,
+      "allocation": {
+        "bufferBytes": 1889072,
+        "textureBytes": 4902912,
+        "buffers": 137,
+        "textures": 42,
+        "peakBytes": 23899216,
+        "windowPeakBytes": 23899216,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 3536,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    },
+    {
+      "request": {
+        "scale": "4x",
+        "fixture": "ai-upscale-vfr.mp4",
+        "profile": "webm-vp8-video-only",
+        "color": "10/115/80",
+        "fps": "60/1",
+        "clahe": true
+      },
+      "summary": "PASS: 4 H.264 input frames \u2192 256\u00d7144 WebM/VP8 video only converted/finalized in 427.4 ms; 0.267 s; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 4.5 ms; 16-frame timestamp/duration timeline PASS (maximum container quantization 666 \u00b5s); total job 431.9 ms.\nOutput policy: 4 input \u2192 16 output frames; FPS=60/1 (duplicate/drop resampling, unchanged playback speed); target video bitrate=800640 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64\u00d736, visible 64\u00d736+0,0, PAR 1:1, rotation 0\u00b0, flip=false; baked square-pixel output 256\u00d7144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache \u22648 MiB; Mediabunny decoder combined packet/callback queue \u226440 before output and \u22648 with decoded samples; bitmap preparation and retained GPU submissions are each \u22644; fixed-FPS lookahead \u2264one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue \u22644; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/6/16/0; video packet callbacks 0/1/16/0; decoded-audio 0/0/0/0; audio encoder callbacks 0/0/0/0; audio packet callbacks 0/0/0/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 3/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame\u2192ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=20, job reuses=4; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256\u00d7144 / 256\u00d7144; CPU submission/bridge=2.4 ms; cumulative submitted-work completion latency=20.8 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=376.2 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-vfr-256x144.webm",
+      "frameCount": 16,
+      "inputFrameCount": 4,
+      "targetVideoBitrate": 800640,
+      "duration": 0.267,
+      "outputBytes": 19018,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "intel / gen-12lp (BrowserWebGpu)",
+      "totalDiagnosticMs": 521.2799999993294,
+      "allocation": {
+        "bufferBytes": 2168032,
+        "textureBytes": 5492736,
+        "buffers": 149,
+        "textures": 44,
+        "peakBytes": 24768000,
+        "windowPeakBytes": 24768000,
+        "largestBufferBytes": 7375872,
+        "createdBuffers": 3857,
+        "unknownTextureRequests": 0,
+        "rejectedRequests": 0,
+        "capBytes": 402653184
+      }
+    }
+  ],
+  "ortVersion": "1.30.0",
+  "mode": "decoded-video-ai-composition-pilot",
+  "artifacts": [
+    {
+      "name": "video-main-0.webm",
+      "bytes": 10164
+    },
+    {
+      "name": "video-main-1.webm",
+      "bytes": 10369
+    },
+    {
+      "name": "video-main-2.webm",
+      "bytes": 12922
+    },
+    {
+      "name": "video-main-3.webm",
+      "bytes": 10499
+    },
+    {
+      "name": "video-main-4.webm",
+      "bytes": 10620
+    },
+    {
+      "name": "video-main-5.webm",
+      "bytes": 25046
+    },
+    {
+      "name": "video-main-6.webm",
+      "bytes": 4442
+    },
+    {
+      "name": "video-main-7.webm",
+      "bytes": 4442
+    },
+    {
+      "name": "video-main-8.webm",
+      "bytes": 7104
+    },
+    {
+      "name": "video-main-9.webm",
+      "bytes": 4777
+    },
+    {
+      "name": "video-main-10.webm",
+      "bytes": 4777
+    },
+    {
+      "name": "video-main-11.webm",
+      "bytes": 19018
+    }
+  ],
+  "baseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "boundary": "video 11 ai-upscale-vfr.mp4 4x 60/1",
+  "lastStatus": "Inspecting finalized WEBM and decoding video/audio at beginning, midpoint, and end\u2026",
+  "deviceRequests": 1,
+  "gpuValidationError": null,
+  "browserVersion": "155.0.4283.62",
+  "logEntries": 2
+}

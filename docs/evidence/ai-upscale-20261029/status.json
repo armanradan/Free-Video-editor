@@ -1,0 +1,34 @@
+{
+  "change": "ai-upscale",
+  "priority": "Native first; RTX task 1.5 before further browser work or native ONNX polish",
+  "progress": {
+    "complete": 20,
+    "total": 32
+  },
+  "authorization": {
+    "local_sdk_evaluation": "User explicitly accepted supplied NVIDIA terms and authorized local SDK compile/run on 2026-10-29",
+    "redistribution": "not authorized or reviewed",
+    "automatic_installation": "not authorized",
+    "v143_toolchain_installation": "explicit user choice requested; pending"
+  },
+  "observed": {
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "driver": "621.01",
+    "sdk": "D:/Libraries/RTX_Video_SDK_v1.1.0",
+    "visual_studio": "Enterprise 2026 18.7.11903.348, no registered VC.Tools.x86.x64 or installed VC/Tools/MSVC",
+    "llvm": "clang-cl 18.1.2 x86_64-pc-windows-msvc",
+    "windows_sdk": "10.0.26100.0",
+    "compile_result": "Stops at missing excpt.h from Windows.h, before compiling SDK code; no SDK init/evaluation attempted",
+    "candidate_installer_component": "Microsoft.VisualStudio.Component.VC.14.44.17.14.x86.x64, present in installed Visual Studio 18.7 catalog",
+    "disk_free_gib": {
+      "C": 21.02,
+      "D": 14.7
+    }
+  },
+  "prepared": "Source-only D3D11 standalone probe/build script, exact device check, two synthetic SDR inputs, 2x/4x High vs SDK Bicubic, precise NGX statuses, explicit staged IO and cleanup. Uncompiled draft; no product support claim.",
+  "verification": [
+    "Build script PowerShell AST parse passed",
+    "Whitespace check passed",
+    "Prior Rust/browser/native product code unchanged in this slice"
+  ]
+}

@@ -1,0 +1,10 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.12s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-a2c8bd18b6655e9c.exe)
+
+running 1 test
+native AI identity: {"protocol":2,"pid":29128,"runtime":"1.23.0","model_sha256":"1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5","dxgi_index":1,"adapter_name":"NVIDIA GeForce RTX 3050 Laptop GPU","vendor_id":4318,"device_id":9634,"luid_high":0,"luid_low":78108,"cpu_fallback":false,"tile_interior":128,"halo":34}
+native AI actual helper: repeated-frame/pixel/transfer/generation gates, active-request cancel+reap, retired rejection, fresh-child retry and helper crash cleanup passed
+test ai_inference::tests::actual_helper_reuses_frames_matches_reference_and_retires_cancelled_child ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 60 filtered out; finished in 2.28s

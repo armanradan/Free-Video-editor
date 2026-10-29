@@ -1,0 +1,176 @@
+{
+  "status": "measured",
+  "browser": "Edge 156.0.4314.42 Windows",
+  "gpu": "intel / gen-12lp (BrowserWebGpu)",
+  "diagnostic_arguments": [
+    "--disable-dawn-features=use_dxc"
+  ],
+  "pixel_readbacks": 0,
+  "scope": "Three 192x80 64-frame 12-FPS clips; both scales; same output size, CLAHE and manual controls, H264/AAC Original; sequential main/worker with no concurrent evaluation GPU work. Timers overlap; opaque allocations and pure hardware timings unknown. Default compiler separately passes raw FP32, tiles and ordinary UI.",
+  "rows": [
+    {
+      "context": "main",
+      "operation": "bilinear",
+      "cases": 6,
+      "ranges_ms": {
+        "conversionMs": [
+          323.4900000002235,
+          705.4749999996275
+        ],
+        "aiSetupMs": [
+          0,
+          0
+        ],
+        "aiProcessingMs": [
+          0,
+          0
+        ],
+        "decoderWaitMs": [
+          105.61500000022352,
+          158.9500000011176
+        ],
+        "encoderSubmissionWaitMs": [
+          119.2950000045821,
+          236.13500000257045
+        ],
+        "gpuCpuBridgeMs": [
+          30.670000000856817,
+          44.81000000331551
+        ],
+        "verificationMs": [
+          7.485000000335276,
+          14.740000000223517
+        ],
+        "totalDiagnosticMs": [
+          345.62000000011176,
+          749.3050000006333
+        ]
+      },
+      "maximum_requested_window_peak_bytes": 37116656,
+      "unknown_texture_requests": 0
+    },
+    {
+      "context": "main",
+      "operation": "onnx",
+      "cases": 6,
+      "ranges_ms": {
+        "conversionMs": [
+          37532.58999999985,
+          46922.830000000075
+        ],
+        "aiSetupMs": [
+          69.86000000033528,
+          551.1999999992549
+        ],
+        "aiProcessingMs": [
+          37433.71499999892,
+          46818.53000000492
+        ],
+        "decoderWaitMs": [
+          4.28999999910593,
+          6.809999997727573
+        ],
+        "encoderSubmissionWaitMs": [
+          8.920000000856817,
+          11.609999995678663
+        ],
+        "gpuCpuBridgeMs": [
+          25.37000000104308,
+          30.129999997094274
+        ],
+        "verificationMs": [
+          8.754999999888241,
+          18.610000000335276
+        ],
+        "totalDiagnosticMs": [
+          37626.25499999989,
+          47034.27500000037
+        ]
+      },
+      "maximum_requested_window_peak_bytes": 78448736,
+      "unknown_texture_requests": 0
+    },
+    {
+      "context": "worker",
+      "operation": "bilinear",
+      "cases": 6,
+      "ranges_ms": {
+        "conversionMs": [
+          335.945000000298,
+          489.75499999988824
+        ],
+        "aiSetupMs": [
+          0,
+          0
+        ],
+        "aiProcessingMs": [
+          0,
+          0
+        ],
+        "decoderWaitMs": [
+          116.03999999817461,
+          132.38499999977648
+        ],
+        "encoderSubmissionWaitMs": [
+          132.1499999994412,
+          249.58499999996275
+        ],
+        "gpuCpuBridgeMs": [
+          31.58500000461936,
+          41.974999997764826
+        ],
+        "verificationMs": [
+          7.495000000111759,
+          12.084999999962747
+        ],
+        "totalDiagnosticMs": [
+          356.66500000003725,
+          516.3199999993667
+        ]
+      },
+      "maximum_requested_window_peak_bytes": 37116656,
+      "unknown_texture_requests": 0
+    },
+    {
+      "context": "worker",
+      "operation": "onnx",
+      "cases": 6,
+      "ranges_ms": {
+        "conversionMs": [
+          38162.41500000004,
+          44352.04000000004
+        ],
+        "aiSetupMs": [
+          69.34499999973923,
+          579.7649999996647
+        ],
+        "aiProcessingMs": [
+          38067.539999999106,
+          44253.63999999594
+        ],
+        "decoderWaitMs": [
+          4.53000000026077,
+          14.029999997466803
+        ],
+        "encoderSubmissionWaitMs": [
+          9.535000007599592,
+          13.225000001490116
+        ],
+        "gpuCpuBridgeMs": [
+          25.414999997243285,
+          28.77500000037253
+        ],
+        "verificationMs": [
+          8.334999999962747,
+          16.184999999590218
+        ],
+        "totalDiagnosticMs": [
+          38272.78000000026,
+          44963.59999999963
+        ]
+      },
+      "maximum_requested_window_peak_bytes": 78448736,
+      "unknown_texture_requests": 0
+    }
+  ]
+}

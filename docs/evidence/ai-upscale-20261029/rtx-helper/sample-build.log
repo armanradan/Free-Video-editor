@@ -1,0 +1,9 @@
+rtx_video_api_dx11_impl.cpp
+main.cpp
+D:\Libraries\RTX_Video_SDK_v1.1.0\include\nvsdk_ngx_helpers_vsr.h(35): warning C4100: 'pInVSRCreateParams': unreferenced parameter
+D:\Libraries\RTX_Video_SDK_v1.1.0\include\nvsdk_ngx_helpers_vsr.h(77): warning C4100: 'pInVSRCreateParams': unreferenced parameter
+   Creating library D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-sample-accepted-20261029\reference.lib and object D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-sample-accepted-20261029\reference.exp
+
+Algorithm       Hash                                                                   Path
+---------       ----                                                                   ----
+SHA256          2D6A12A15975280238DD21B335A9276B9314EE65D990650E60CBD57BFCBE236E       D:\Active_Projects\Rust\Diaxus\V…

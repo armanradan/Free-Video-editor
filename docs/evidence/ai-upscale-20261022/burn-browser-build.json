@@ -1,0 +1,8 @@
+{
+  "wasm_sha256": "7013fe6e21a5fba09421d0bc9ecd092602caa78a082686370b43e38eb96924b7",
+  "bytes": 53886648,
+  "wasm_bindgen": "0.2.128",
+  "wasm_bindgen_archive_sha256": "8fd8e2165da16b21ee3f5efd19e7f97d8d27cb7832f54edaef4b18e830283ec0",
+  "target": "wasm32-unknown-unknown",
+  "features": "media-web/gpu-setup-diagnostic enabled only in standalone harness"
+}

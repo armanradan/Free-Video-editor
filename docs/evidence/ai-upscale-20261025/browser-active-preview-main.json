@@ -1,0 +1,1717 @@
+{
+  "status": "video-pilot-passed-not-release-accepted",
+  "context": "main",
+  "cases": [],
+  "ortVersion": "1.30.0",
+  "mode": "decoded-video-ai-composition-pilot",
+  "artifacts": [],
+  "baseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "modelRuntimeProvisionedForDiagnostic": true,
+  "previewCases": [
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "reference",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=1; renders=1; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=1; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 3,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-0.rgba"
+          },
+          "dataFile": "preview-main-0.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "cancel-active-retry",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=3; renders=2; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=3; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 6,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-1.rgba"
+          },
+          "dataFile": "preview-main-1.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "label": "cancel-active-source-replacement",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=4; renders=3; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=4; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 9,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-2.rgba"
+          },
+          "dataFile": "preview-main-2.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "cancel-active-source-restore",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=5; renders=4; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=5; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 12,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-3.rgba"
+          },
+          "dataFile": "preview-main-3.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "runtime-error-retry",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=7; renders=5; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=7; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 15,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-4.rgba"
+          },
+          "dataFile": "preview-main-4.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "label": "runtime-error-source-replacement",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=8; renders=6; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=8; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 18,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-5.rgba"
+          },
+          "dataFile": "preview-main-5.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "runtime-error-source-restore",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=9; renders=7; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=9; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 21,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-6.rgba"
+          },
+          "dataFile": "preview-main-6.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "device-loss-active-retry",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=11; renders=8; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=11; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 24,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-7.rgba"
+          },
+          "dataFile": "preview-main-7.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "label": "device-loss-active-source-replacement",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=12; renders=9; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=12; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 27,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-8.rgba"
+          },
+          "dataFile": "preview-main-8.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "device-loss-active-source-restore",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=13; renders=10; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=13; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 30,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-9.rgba"
+          },
+          "dataFile": "preview-main-9.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "reference",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=14; renders=11; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=14; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 33,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-10.rgba"
+          },
+          "dataFile": "preview-main-10.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "cancel-active-retry",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=16; renders=12; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=16; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 36,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-11.rgba"
+          },
+          "dataFile": "preview-main-11.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "label": "cancel-active-source-replacement",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=17; renders=13; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=17; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 39,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-12.rgba"
+          },
+          "dataFile": "preview-main-12.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "cancel-active-source-restore",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=18; renders=14; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=18; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 42,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-13.rgba"
+          },
+          "dataFile": "preview-main-13.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "runtime-error-retry",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=20; renders=15; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=20; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 45,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-14.rgba"
+          },
+          "dataFile": "preview-main-14.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "label": "runtime-error-source-replacement",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=21; renders=16; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=21; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 48,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-15.rgba"
+          },
+          "dataFile": "preview-main-15.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "runtime-error-source-restore",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=22; renders=17; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=22; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 51,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-16.rgba"
+          },
+          "dataFile": "preview-main-16.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "device-loss-active-retry",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=24; renders=18; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=24; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 3.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 54,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 3,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-17.rgba"
+          },
+          "dataFile": "preview-main-17.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "label": "device-loss-active-source-replacement",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=25; renders=19; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=25; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 3.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 57,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 3,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-18.rgba"
+          },
+          "dataFile": "preview-main-18.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "device-loss-active-source-restore",
+        "seconds": 0.1,
+        "playback": true
+      },
+      "summary": "Playing sampled source preview: cache loads=26; renders=20; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=26; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 3.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 60,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 3,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-19.rgba"
+          },
+          "dataFile": "preview-main-19.rgba"
+        }
+      ]
+    }
+  ],
+  "activePreviewCases": [
+    {
+      "scale": "2x",
+      "mode": "cancel-active",
+      "failure": "CANCELLED: preview stopped and drained",
+      "failedCommandReturnedOutput": false,
+      "successfulCanvasCaptureDelta": 0,
+      "canvasPixels": "exact RGBA8 equality before/after failure; separate diagnostic readbacks",
+      "before": {
+        "liveLeases": 0,
+        "canvasCaptures": 3,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "after": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 3,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 1,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 73,
+          "submittedDuringRun": 5
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 6,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "selectedPixels": "exact retry/restore equality; different-source pixels differ"
+    },
+    {
+      "scale": "2x",
+      "mode": "runtime-error",
+      "failure": "preview/drain failed: Err(JsValue(\"AI upscaling unavailable: AI GPU runtime: JsValue(Error: input 'input' is missing in 'feeds'.\nError: input 'input' is missing in 'feeds'.\n    at t.run (blob:http://127.0.0.1:4675/46ef45eb-1c7a-46bd-be87-9aa9056e6297:6:18204)\n    at session.run (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:109:22)\n    at runTileInner (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:52:35)\n    at runAiTile (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:37:18)\n    at http://127.0.0.1:4675/tile/probe.js:715:25\n    at handleError (http://127.0.0.1:4675/tile/probe.js:1715:18)\n    at __wbg_runAiTile_f1e1af038e973a72 (http://127.0.0.1:4675/tile/probe.js:714:63)\n    at ai_upscale_tile_browser_probe.wasm.media_web[e1884dc73cfba2c9]::ai_inference::run_tile::__wbg_runAiTile_f1e1af038e973a72 externref shim (http://127.0.0.1:4675/tile/probe_bg.wasm:wasm-function[1271]:0x87eb1)\n    at ai_upscale_tile_browser_probe.wasm.media_web[e1884dc73cfba2c9]::ai_inference::run_tile (http://127.0.0.1:4675/tile/probe_bg.wasm:wasm-function[1125]:0x85e41)\n    at ai_upscale_tile_browser_probe.wasm.<media_web[e1884dc73cfba2c9]::browser::GpuSession>::process::{closure#0} (http://127.0.0.1:4675/tile/probe_bg.wasm:wasm-function[369]:0x15b66))\")); Ok(())",
+      "failedCommandReturnedOutput": false,
+      "successfulCanvasCaptureDelta": 0,
+      "canvasPixels": "exact RGBA8 equality before/after failure; separate diagnostic readbacks",
+      "before": {
+        "liveLeases": 0,
+        "canvasCaptures": 12,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "after": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 12,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 1,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 0,
+          "submittedDuringRun": 0
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 15,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "selectedPixels": "exact retry/restore equality; different-source pixels differ"
+    },
+    {
+      "scale": "2x",
+      "mode": "device-loss-active",
+      "failure": "preview/drain failed: Err(JsValue(\"AI upscaling unavailable: AI GPU runtime: JsValue(Error: AI processing device lost: destroyed: Device was destroyed.\nError: AI processing device lost: destroyed: Device was destroyed.\n    at checkDevice (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:18:11)\n    at finishAiWork (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:71:3))\")); Ok(()); preview cleanup also failed: preview retirement failed; retry requires a fresh GPU context: processing device lost",
+      "failedCommandReturnedOutput": false,
+      "successfulCanvasCaptureDelta": 0,
+      "canvasPixels": "lost-device display content not asserted",
+      "before": {
+        "liveLeases": 0,
+        "canvasCaptures": 21,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "after": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 21,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 0,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 73,
+          "submittedDuringRun": 5
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 24,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "selectedPixels": "exact retry/restore equality; different-source pixels differ"
+    },
+    {
+      "scale": "4x",
+      "mode": "cancel-active",
+      "failure": "CANCELLED: preview stopped and drained",
+      "failedCommandReturnedOutput": false,
+      "successfulCanvasCaptureDelta": 0,
+      "canvasPixels": "exact RGBA8 equality before/after failure; separate diagnostic readbacks",
+      "before": {
+        "liveLeases": 0,
+        "canvasCaptures": 33,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "after": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 33,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 2,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 73,
+          "submittedDuringRun": 5
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 36,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "selectedPixels": "exact retry/restore equality; different-source pixels differ"
+    },
+    {
+      "scale": "4x",
+      "mode": "runtime-error",
+      "failure": "preview/drain failed: Err(JsValue(\"AI upscaling unavailable: AI GPU runtime: JsValue(Error: input 'input' is missing in 'feeds'.\nError: input 'input' is missing in 'feeds'.\n    at t.run (blob:http://127.0.0.1:4675/46ef45eb-1c7a-46bd-be87-9aa9056e6297:6:18204)\n    at session.run (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:109:22)\n    at runTileInner (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:52:35)\n    at runAiTile (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:37:18)\n    at http://127.0.0.1:4675/tile/probe.js:715:25\n    at handleError (http://127.0.0.1:4675/tile/probe.js:1715:18)\n    at __wbg_runAiTile_f1e1af038e973a72 (http://127.0.0.1:4675/tile/probe.js:714:63)\n    at ai_upscale_tile_browser_probe.wasm.media_web[e1884dc73cfba2c9]::ai_inference::run_tile::__wbg_runAiTile_f1e1af038e973a72 externref shim (http://127.0.0.1:4675/tile/probe_bg.wasm:wasm-function[1271]:0x87eb1)\n    at ai_upscale_tile_browser_probe.wasm.media_web[e1884dc73cfba2c9]::ai_inference::run_tile (http://127.0.0.1:4675/tile/probe_bg.wasm:wasm-function[1125]:0x85e41)\n    at ai_upscale_tile_browser_probe.wasm.<media_web[e1884dc73cfba2c9]::browser::GpuSession>::process::{closure#0} (http://127.0.0.1:4675/tile/probe_bg.wasm:wasm-function[369]:0x15b66))\")); Ok(())",
+      "failedCommandReturnedOutput": false,
+      "successfulCanvasCaptureDelta": 0,
+      "canvasPixels": "exact RGBA8 equality before/after failure; separate diagnostic readbacks",
+      "before": {
+        "liveLeases": 0,
+        "canvasCaptures": 42,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "after": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 42,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 2,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 0,
+          "submittedDuringRun": 0
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 45,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "selectedPixels": "exact retry/restore equality; different-source pixels differ"
+    },
+    {
+      "scale": "4x",
+      "mode": "device-loss-active",
+      "failure": "preview/drain failed: Err(JsValue(\"AI upscaling unavailable: AI GPU runtime: JsValue(Error: AI processing device lost: destroyed: Device was destroyed.\nError: AI processing device lost: destroyed: Device was destroyed.\n    at checkDevice (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:18:11)\n    at finishAiWork (http://127.0.0.1:4675/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:71:3))\")); Ok(()); preview cleanup also failed: preview retirement failed; retry requires a fresh GPU context: processing device lost",
+      "failedCommandReturnedOutput": false,
+      "successfulCanvasCaptureDelta": 0,
+      "canvasPixels": "lost-device display content not asserted",
+      "before": {
+        "liveLeases": 0,
+        "canvasCaptures": 51,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "after": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 51,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 0,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 1,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 73,
+          "submittedDuringRun": 5
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 54,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 3,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "selectedPixels": "exact retry/restore equality; different-source pixels differ"
+    }
+  ],
+  "retiredDeviceValidationErrors": [
+    null,
+    null
+  ],
+  "boundary": "active preview 4x device-loss-active-source-restore",
+  "finalOwnership": {
+    "liveLeases": 0,
+    "canvasCaptures": 60,
+    "pendingSubmissions": 0,
+    "aiCreditHeld": false,
+    "aiVideoRetained": false,
+    "aiVideoActive": false,
+    "deviceLost": false,
+    "deviceGeneration": 3,
+    "aiProcessedFrames": 0,
+    "aiPreviewCached": false
+  },
+  "expectedDeviceRequests": 3,
+  "retiredInitialScope": true,
+  "previewStatus": "active-sampled-preview-failure-source-replacement-pilot",
+  "deviceRequests": 3,
+  "gpuValidationError": null,
+  "browserVersion": "156.0.4314.42",
+  "logs": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+    "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+    "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127"
+  ]
+}

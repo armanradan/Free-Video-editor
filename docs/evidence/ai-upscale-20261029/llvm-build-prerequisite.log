@@ -1,0 +1,9 @@
+tools/ai-upscale/native-rtx-probe/main.cpp(5,10): warning: non-portable path to file '<Windows.h>'; specified path differs in case from file name on disk [-Wnonportable-include-path]
+    5 | #include <windows.h>
+      |          ^~~~~~~~~~~
+      |          <Windows.h>
+In file included from tools/ai-upscale/native-rtx-probe/main.cpp:5:
+C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um\windows.h(171,10): fatal error: 'excpt.h' file not found
+  171 | #include <excpt.h>
+      |          ^~~~~~~~~
+1 warning and 1 error generated.

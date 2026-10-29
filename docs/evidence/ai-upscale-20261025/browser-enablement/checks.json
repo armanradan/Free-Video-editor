@@ -1,0 +1,66 @@
+{
+  "change": "ai-upscale",
+  "progress": {
+    "complete": 20,
+    "total": 32
+  },
+  "accepted": "Scoped ordinary browser ONNX controls; native ordinary AI remains disabled",
+  "commands": [
+    {
+      "command": "cargo fmt --all --check",
+      "result": "passed after formatting the HEVC rejection patch"
+    },
+    {
+      "command": "cargo clippy --locked --target wasm32-unknown-unknown -p media-web -p converter-web --all-targets -- -D warnings",
+      "result": "passed with normal application ai-upscale dependency feature"
+    },
+    {
+      "command": "cargo clippy --locked --target wasm32-unknown-unknown -p media-web --features gpu-setup-diagnostic --all-targets -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "dx build --web --locked --package converter-web",
+      "result": "passed; no extra engine feature argument"
+    },
+    {
+      "command": "cargo test --locked -p ui",
+      "result": "2 tests passed"
+    },
+    {
+      "command": "cargo check --locked -p media-core -p media-gpu",
+      "result": "passed"
+    },
+    {
+      "command": "node --test tests/worker-transport.test.mjs tests/browser-preview-clock.test.mjs tests/preview-history.test.mjs",
+      "result": "16 passed"
+    },
+    {
+      "command": "node --check tests/ai-enabled-ui.mjs; node --check tools/ai-upscale/browser.mjs; node --check tools/ai-upscale/verify_video.mjs; node --check apps/web/assets/m2.js",
+      "result": "all passed"
+    },
+    {
+      "command": "openspec validate ai-upscale --strict",
+      "result": "passed"
+    },
+    {
+      "command": "git -c core.safecrlf=false diff --check",
+      "result": "passed"
+    }
+  ],
+  "runtime": {
+    "ordinary_ui": "four contexts, two themes/scales, eight exports independently decoded; no default compiler override",
+    "normal_build": "main/light 2x/4x controls, preview, recovery and source limits passed; AI_UI_PREVIEW_ONLY=1, other three contexts skipped explicitly",
+    "default_compiler": "FP32 five shapes and shared tiles six shapes per context, no experimental Dawn argument",
+    "isolated_benchmark": "24 independently verified AI/bilinear exports with --disable-dawn-features=use_dxc; separate default compiler evidence",
+    "reference": "192 matching-weight PyTorch/DirectML frames; 13440 DML node events",
+    "temporal": "all64-frame overviews at both scales and detailed samples inspected; not ground truth or universal flicker proof"
+  },
+  "limits": [
+    "Windows Edge 156 Intel gen-12lp secure isolated origin",
+    "Opaque 8-bit SDR normalized source <=577x579",
+    "Exact imported model and pinned ORT Web 1.30.0",
+    "AI HEVC unvalidated; native ordinary AI, Burn and RTX unavailable",
+    "GPU driver and opaque memory/copies unknown"
+  ],
+  "evidence_storage": "Large contact sheets, encoded videos, profiles, model and runtimes remain ignored under tmp/ai-upscale; only bounded reports and selected screenshots copied here."
+}

@@ -1,0 +1,52 @@
+{
+  "status": "failed",
+  "gate_max_lsb": 2,
+  "cases": [
+    {
+      "context": "main",
+      "label": "neutral",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 640,
+      "height": 320,
+      "max_lsb": 1,
+      "mae_lsb": 0.023328857421875
+    },
+    {
+      "context": "main",
+      "label": "manual",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 640,
+      "height": 320,
+      "max_lsb": 1,
+      "mae_lsb": 0.021690673828125
+    },
+    {
+      "context": "main",
+      "label": "clahe-50",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 640,
+      "height": 320,
+      "max_lsb": 1,
+      "mae_lsb": 0.019603271484375
+    },
+    {
+      "context": "main",
+      "label": "clahe-80",
+      "reference": "actual selected-resolution pre-encoder export, then independent display resize",
+      "width": 640,
+      "height": 320,
+      "max_lsb": 1,
+      "mae_lsb": 0.02014892578125
+    },
+    {
+      "context": "main",
+      "label": "before",
+      "reference": "independent neutral normalized source resize",
+      "width": 640,
+      "height": 320,
+      "max_lsb": 13,
+      "mae_lsb": 0.142366943359375
+    }
+  ],
+  "error": "{'context': 'main', 'label': 'before', 'reference': 'independent neutral normalized source resize', 'width': 640, 'height': 320, 'max_lsb': 13, 'mae_lsb': 0.142366943359375}"
+}

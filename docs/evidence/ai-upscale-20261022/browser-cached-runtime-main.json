@@ -1,0 +1,85 @@
+{
+  "status": "numeric-device-probe-passed-not-product-accepted",
+  "context": "main",
+  "cases": [
+    {
+      "stem": "1x1",
+      "maxAbs": 6.146728992462158e-08,
+      "mae": 2.943852450698614e-08,
+      "inferenceMs": 1828.289999999106,
+      "inputAllocationBytes": 16,
+      "diagnosticUploadBytes": 12,
+      "diagnosticReadbackBytes": 192
+    },
+    {
+      "stem": "3x5",
+      "maxAbs": 3.8743019104003906e-07,
+      "mae": 9.002526187234455e-08,
+      "inferenceMs": 2087.2300000041723,
+      "inputAllocationBytes": 192,
+      "diagnosticUploadBytes": 180,
+      "diagnosticReadbackBytes": 2880
+    },
+    {
+      "stem": "17x19",
+      "maxAbs": 4.291534423828125e-06,
+      "mae": 4.993614806025698e-07,
+      "inferenceMs": 65.20000000298023,
+      "inputAllocationBytes": 3888,
+      "diagnosticUploadBytes": 3876,
+      "diagnosticReadbackBytes": 62016
+    },
+    {
+      "stem": "33x31",
+      "maxAbs": 3.3974647521972656e-06,
+      "mae": 5.284931630497169e-07,
+      "inferenceMs": 92.97499999403954,
+      "inputAllocationBytes": 12288,
+      "diagnosticUploadBytes": 12276,
+      "diagnosticReadbackBytes": 196416
+    },
+    {
+      "stem": "257x259",
+      "maxAbs": 6.318092346191406e-06,
+      "mae": 5.62110430231476e-07,
+      "inferenceMs": 2199.564999997616,
+      "inputAllocationBytes": 798768,
+      "diagnosticUploadBytes": 798756,
+      "diagnosticReadbackBytes": 12780096
+    }
+  ],
+  "ortVersion": "1.30.0",
+  "gpu": {
+    "vendor": "intel",
+    "architecture": "gen-12lp",
+    "device": "",
+    "description": ""
+  },
+  "processingLimits": {
+    "maxStorageBufferBindingSize": 134217728,
+    "maxBufferSize": 268435456,
+    "maxStorageBuffersPerShaderStage": 8
+  },
+  "modelAcquisition": "Imported and verified offline AI model cache; inference remains gated",
+  "runtimeAcquisition": "Verified optional AI runtime cache; runtime is not loaded",
+  "verifiedBlobRuntime": true,
+  "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5",
+  "loadMs": 903.1049999967217,
+  "exactDeviceIdentity": true,
+  "boundary": "session.run GPU input 257x259",
+  "deviceRequests": 1,
+  "sessionReleased": true,
+  "processingDeviceUsableAfterRelease": true,
+  "lifecycleDiagnosticReadbackBytes": 4,
+  "gpuValidationError": null,
+  "browserVersion": "141.0.7390.37",
+  "selected_logs": [
+    "2026-10-22 21:21:30.733460 [V:onnxruntime:, session_state.cc:1380 VerifyEachNodeIsAssignedToAnEp]  All nodes placed on [WebGpuExecutionProvider]. Number of nodes: 73"
+  ],
+  "runtime_source": "Hash-verified CacheStorage assets -> module Blob URLs and verified wasmBinary; diagnostic HTTP mirror of pinned bytes.",
+  "diagnostic_flags": [
+    "--enable-unsafe-webgpu",
+    "--use-angle=d3d11",
+    "--disable-dawn-features=use_dxc"
+  ]
+}

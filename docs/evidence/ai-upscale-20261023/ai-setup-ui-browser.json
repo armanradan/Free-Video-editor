@@ -1,0 +1,204 @@
+{
+  "status": "passed",
+  "contexts": [
+    {
+      "mode": "main",
+      "requests": [
+        {
+          "url": "http://127.0.0.1:8961/?execution=main",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/converter-web.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/converter-web-b88d9cf8f73041be/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-cli-config-74c4aa43f52789a0/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-interpreter-js-20451f6aefec841d/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-interpreter-js-20451f6aefec841d/src/js/set_attribute.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-web-eae67878b22d6805/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-web-eae67878b22d6805/src/js/eval.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/src/ai-assets.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/src/preview-clock.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/src/worker-host.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/converter-web_bg.wasm",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/assets/main-dxh34d1304ac6269122.css",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/assets/m1-dxh5a7ee917f1aef495.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/assets/m2-dxh21419d8f461fdad.js",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.asyncify.mjs",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.asyncify.wasm",
+          "method": "GET"
+        }
+      ],
+      "errors": [],
+      "status": "passed",
+      "cases": [
+        "collapsed Off startup without cache/download",
+        "unavailable choices reject DOM bypass",
+        "browser never offers RTX",
+        "UTF-8 and narrow layout",
+        "missing/truncated recovery",
+        "exact local model import/check",
+        "full-size checksum rejection preserves valid cache",
+        "cancelled runtime acquisition leaves no partial assets",
+        "explicit pinned runtime acquisition",
+        "explicit model/runtime removal"
+      ]
+    },
+    {
+      "mode": "worker",
+      "requests": [
+        {
+          "url": "http://127.0.0.1:8961/",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/converter-web.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/converter-web-b88d9cf8f73041be/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-cli-config-74c4aa43f52789a0/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-interpreter-js-20451f6aefec841d/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-interpreter-js-20451f6aefec841d/src/js/set_attribute.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-web-eae67878b22d6805/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/dioxus-web-eae67878b22d6805/src/js/eval.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/inline0.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/src/ai-assets.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/src/preview-clock.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/snippets/media-web-da7e96919465a5a2/src/worker-host.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/wasm/converter-web_bg.wasm",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/assets/main-dxh34d1304ac6269122.css",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/assets/m1-dxh5a7ee917f1aef495.js",
+          "method": "GET"
+        },
+        {
+          "url": "http://127.0.0.1:8961/assets/m2-dxh21419d8f461fdad.js",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.asyncify.mjs",
+          "method": "GET"
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.asyncify.wasm",
+          "method": "GET"
+        }
+      ],
+      "errors": [],
+      "status": "passed",
+      "cases": [
+        "collapsed Off startup without cache/download",
+        "unavailable choices reject DOM bypass",
+        "browser never offers RTX",
+        "UTF-8 and narrow layout",
+        "missing/truncated recovery",
+        "exact local model import/check",
+        "full-size checksum rejection preserves valid cache",
+        "cancelled runtime acquisition leaves no partial assets",
+        "explicit pinned runtime acquisition",
+        "explicit model/runtime removal"
+      ]
+    }
+  ],
+  "browser": "155.0.4283.62"
+}

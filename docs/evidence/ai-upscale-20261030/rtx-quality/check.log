@@ -1,0 +1,15 @@
+    Checking media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+error[E0603]: function `codec_size` is private
+    --> crates\media-native\src\lib.rs:2068:21
+     |
+2068 |         media_core::codec_size(Size::new(
+     |                     ^^^^^^^^^^ private function
+     |
+note: the function `codec_size` is defined here
+    --> crates\media-core\src\lib.rs:727:1
+     |
+ 727 | fn codec_size(value: Size) -> Result<Size, MediaError> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0603`.
+error: could not compile `media-native` (lib) due to 1 previous error

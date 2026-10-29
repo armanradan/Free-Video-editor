@@ -1,0 +1,65 @@
+{
+  "status": "diagnostic-window-and-worker-scope-passed-product-gates-still-open",
+  "date": "2026-10-23",
+  "launch": "converter-native --ai-preview-check",
+  "window": {
+    "width": 960,
+    "height": 760,
+    "renderer": "Dioxus Native/Blitz; no webview"
+  },
+  "model": "realesr-general-x4v3 strong FP32; same pinned ONNX export",
+  "inference": "ONNX Runtime DirectML 1.23.0; explicitly configured NVIDIA DXGI 1",
+  "processing": "NVIDIA RTX 3050 Laptop GPU / Vulkan / wgpu 30",
+  "renderer_gpu": "Intel UHD Graphics / Vulkan / wgpu 26 (worker probe); actual window has its own renderer",
+  "assets": "existing local helper/runtime/cache; no new acquisition or installation",
+  "fixture": "CC0 ai-upscale-cut.mp4, 64x36, four VFR frames, cut at 100000us",
+  "cases": [
+    "2x and 4x actual presentation",
+    "Before/After preserves cache and restores observed pixels exactly",
+    "2x Strength edit and Reset color do not increase inference counters",
+    "4x seek across cut prepares 3 frames at selected-size history",
+    "4x Play then Pause; observed player region unchanged after 500ms",
+    "missing-helper error is visible; cold Before still presents original with zero inference transfers",
+    "dark and light inspection; collapsed default layout fits",
+    "owned windows closed normally; no converter/helper processes remain"
+  ],
+  "window_pixels": {
+    "two_x_before_changed_pixels": 57279,
+    "two_x_restored_changed_pixels": 0,
+    "four_x_restored_changed_pixels": 0,
+    "four_x_pause_stable_player_changed_pixels": 0
+  },
+  "numeric": {
+    "comparisons": 55,
+    "max_lsb": 1,
+    "gate_lsb": 2
+  },
+  "worker_lifecycle": [
+    "100 playback metadata samples preserve active preparation; active and latest positions completed",
+    "seek/source invalidation; missing-helper error then explicit valid-policy retry",
+    "actual renderer destruction; fresh generation 43 succeeds",
+    "cache retirement acknowledgement with empty result; fresh request succeeds",
+    "actual worker error fed to service pauses clock; Pause does not restart"
+  ],
+  "initial_findings": [
+    "Small AI rasters were copied into the fixed 640x360 player without fitting; corrected final display sizing.",
+    "New lifecycle test changed seek position to zero but retained old 3-frame retry assertion; corrected explicit retry position to 100000us. This was test bookkeeping, not a model failure.",
+    "Initial missing-helper UI error was a generic OS error; helper spawn now adds component and path-recovery context."
+  ],
+  "limits": [
+    "Diagnostic launch is not ordinary selectable AI acceptance; 6.2/6.4/7.1-7.3 remain open.",
+    "Ordinary conversion handoff and complete browser/native lifecycle matrix still pending.",
+    "No sustained error-state Pause UI claim on this very short fixture; separate worker/service assertions pass.",
+    "No synchronized real-time playback, representative temporal quality, release performance or broad-device claim.",
+    "All product AI controls remain unavailable; diagnostic export is rejected in button and handler.",
+    "Renderer probe identity does not by itself establish the actual window adapter identity."
+  ],
+  "ordinary_startup_regression": {
+    "launch": "no arguments; optional asset/device environment variables populated",
+    "ai": "Off; setup collapsed; source empty",
+    "helper_processes": 0,
+    "stderr_bytes": 0,
+    "layout": "960x760 fits without page scroll",
+    "window_closed": true
+  }
+}

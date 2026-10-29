@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "source_license": "CC0-1.0",
+  "source_provenance": "Original deterministic RGB pattern authored for this repository on 2026-10-22; no downloaded photographs or private media",
+  "generator": "tools/ai-upscale/reference.py::fixture",
+  "formula": "R=(17*x+13*y)%256; G=((x//3+y//5)%2)*255; B=(7*x*y+31)%256",
+  "geometry": [
+    [
+      1,
+      1
+    ],
+    [
+      3,
+      5
+    ],
+    [
+      17,
+      19
+    ],
+    [
+      33,
+      31
+    ],
+    [
+      257,
+      259
+    ]
+  ],
+  "normalization": "RGB uint8 / 255, NCHW batch 1, encoded sRGB, opaque, FP32",
+  "checked_in_input": "ai-upscale/17x19.ppm",
+  "checked_in_trusted_outputs": [
+    "ai-upscale/1x1-fp32.npy",
+    "ai-upscale/3x5-fp32.npy"
+  ],
+  "trusted_output_provenance": "CPU PyTorch 2.8.0+cpu, original hash-verified SRVGGNetCompact, strong-denoise weights, x4, params, FP32 eval; unclamped/unquantized. Model-derived reference tensors retain the upstream BSD-3-Clause notice in tools/ai-upscale/Real-ESRGAN-LICENSE.txt",
+  "model_manifest": "../tools/ai-upscale/candidate.json",
+  "expected_tensor_hashes_and_shapes": "../docs/evidence/ai-upscale-20261022/reference.json",
+  "large_outputs": "Generated only under ignored tmp storage; no weights, ONNX graph or full-resolution tensor set is checked in",
+  "limitations": "Synthetic spatial reference and tiling only; no video timing, faces, natural-image quality, temporal artifacts or codec evidence",
+  "checked_in_file_sha256": {
+    "ai-upscale\\17x19.ppm": "a33374b22ef5acd2a50f725aa8bf11421791e94c6d5b617a85d4ce50ad496df4",
+    "ai-upscale\\1x1-fp32.npy": "7fa8f98041f71c2d952c0067aeea4f1651e5607e8c77fa7ea351df6a6f0505b8",
+    "ai-upscale\\3x5-fp32.npy": "340c2d75492329fdb816c6ce117346b48c893b03af48545404ed20faab760d0b"
+  }
+}

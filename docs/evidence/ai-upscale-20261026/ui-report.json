@@ -1,0 +1,325 @@
+{
+  "status": "passed",
+  "scope": "Ordinary UI and backend commands; optional engine acceptance build; no diagnostic command substitution",
+  "contexts": [
+    {
+      "mode": "main",
+      "theme": "light",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "2x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=1; renders=7; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=8; renders=19; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 384×160 MP4/H.264/AAC converted/finalized in 3659.4 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 13.3 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3672.9 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 384×160; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.2 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/3/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=64; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=384×160 / 384×160; CPU submission/bridge=43.0 ms; cumulative submitted-work completion latency=535.3 ms; slot-reuse wait=0.7 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 1392656 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3292.5 ms (includes GPU waits; not pure GPU execution).\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.\nOutput: 213125 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=9; renders=21; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=4; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=9; renders=25; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=12; renders=29; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 768×320 MP4/H.264/AAC converted/finalized in 3586.2 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 11.6 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3597.9 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=257048 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 768×320; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/3/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=20, job reuses=60; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=768×320 / 768×320; CPU submission/bridge=43.0 ms; cumulative submitted-work completion latency=467.1 ms; slot-reuse wait=0.8 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 5259280 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3280.3 ms (includes GPU waits; not pure GPU execution).\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.\nOutput: 221714 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=13; renders=31; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=8; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "Off restores retained ordinary resize",
+          "status": "Ready. Output resolves to 96×40. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=13; renders=32; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=9; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 96×40, display 96×40; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 96×40 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "mode": "main",
+      "theme": "dark",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "2x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=1; renders=7; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=14; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 384×160 MP4/H.264/AAC converted/finalized in 3574.1 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.6 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3586.9 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 384×160; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/2/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=64; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=384×160 / 384×160; CPU submission/bridge=40.6 ms; cumulative submitted-work completion latency=490.7 ms; slot-reuse wait=0.7 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 1392656 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3236.1 ms (includes GPU waits; not pure GPU execution).\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.\nOutput: 213125 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=8; renders=16; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=4; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=8; renders=19; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=11; renders=23; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 768×320 MP4/H.264/AAC converted/finalized in 3560.5 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 13.6 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3574.3 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=257048 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 768×320; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/2/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=20, job reuses=60; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=768×320 / 768×320; CPU submission/bridge=40.4 ms; cumulative submitted-work completion latency=442.5 ms; slot-reuse wait=0.6 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 5259280 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3267.1 ms (includes GPU waits; not pure GPU execution).\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.\nOutput: 221714 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=12; renders=25; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=8; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "Off restores retained ordinary resize",
+          "status": "Ready. Output resolves to 96×40. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=12; renders=26; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=9; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 96×40, display 96×40; device generation 1.\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 96×40 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "mode": "worker",
+      "theme": "light",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "2x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=1; renders=7; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=13; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 384×160 MP4/H.264/AAC converted/finalized in 3695.7 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 30.7 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3726.6 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 384×160; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.2 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/3/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=16, job reuses=64; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=384×160 / 384×160; CPU submission/bridge=56.5 ms; cumulative submitted-work completion latency=368.6 ms; slot-reuse wait=1.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 1392656 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3525.7 ms (includes GPU waits; not pure GPU execution).\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.\nStartup stages (cumulative ms): worker construction/message delivery=0.6; worker capability checks=10.2; wasm module import=10.4; wasm initialization=31.9; codec module imports=239.4; WebGPU adapter request=258.1; WebGPU device request=329.4; shared pipeline creation=353.9; surface configure/capture=358.6; ready=362.7.\nOutput: 213125 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=8; renders=15; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=4; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=8; renders=19; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=11; renders=22; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 768×320 MP4/H.264/AAC converted/finalized in 4057.2 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 15.4 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 4072.7 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=257048 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 768×320; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/3/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=24, job reuses=60; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=768×320 / 768×320; CPU submission/bridge=62.5 ms; cumulative submitted-work completion latency=389.6 ms; slot-reuse wait=1.3 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 5259280 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3885.9 ms (includes GPU waits; not pure GPU execution).\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.\nStartup stages (cumulative ms): worker construction/message delivery=0.6; worker capability checks=10.2; wasm module import=10.4; wasm initialization=31.9; codec module imports=239.4; WebGPU adapter request=258.1; WebGPU device request=329.4; shared pipeline creation=353.9; surface configure/capture=358.6; ready=362.7.\nOutput: 221714 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=12; renders=25; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=8; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "Off restores retained ordinary resize",
+          "status": "Ready. Output resolves to 96×40. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=12; renders=26; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=9; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 96×40, display 96×40; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 362.9 ms once; reused for this command=true.",
+          "position": 1.01,
+          "play": "Play",
+          "size": "Output: 96×40 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "mode": "worker",
+      "theme": "dark",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "2x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=1; renders=7; frame time=0.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0. CLAHE paused preroll: 0 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.",
+          "position": 0,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 384×160. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=7; renders=13; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "2x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 384×160 MP4/H.264/AAC converted/finalized in 3694.6 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.7 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3707.4 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 384×160; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.2 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/3/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=16, job reuses=64; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=384×160 / 384×160; CPU submission/bridge=51.2 ms; cumulative submitted-work completion latency=357.8 ms; slot-reuse wait=1.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 1392656 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3533.2 ms (includes GPU waits; not pure GPU execution).\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.\nStartup stages (cumulative ms): worker construction/message delivery=0.5; worker capability checks=12.0; wasm module import=12.1; wasm initialization=34.1; codec module imports=260.0; WebGPU adapter request=285.3; WebGPU device request=348.6; shared pipeline creation=370.1; surface configure/capture=374.7; ready=378.3.\nOutput: 213125 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=8; renders=15; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=4; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 384×160, display 384×160; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 384×160 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x controls, geometry/estimates, Before and Reset retain AI",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=8; renders=19; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x actual AI Play/Pause and seek recover without starvation",
+          "status": "Ready. Output resolves to 768×320. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=11; renders=23; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=0.\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "4x ordinary verified 64-frame AI export and paused handoff return",
+          "status": "PASS: 64 H.264 input frames + 251 decoded audio samples → 768×320 MP4/H.264/AAC converted/finalized in 4050.3 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.1 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 4062.5 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=257048 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 768×320; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/2/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=24, job reuses=60; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=768×320 / 768×320; CPU submission/bridge=56.2 ms; cumulative submitted-work completion latency=355.8 ms; slot-reuse wait=1.2 ms; final-drain wait=0.1 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 5259280 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3902.1 ms (includes GPU waits; not pure GPU execution).\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.\nStartup stages (cumulative ms): worker construction/message delivery=0.5; worker capability checks=12.0; wasm module import=12.1; wasm initialization=34.1; codec module imports=260.0; WebGPU adapter request=285.3; WebGPU device request=348.6; shared pipeline creation=370.1; surface configure/capture=374.7; ready=378.3.\nOutput: 221714 bytes, 64 frames, 5.355 seconds.",
+          "preview": "Paused source preview: cache loads=12; renders=25; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=8; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 768×320, display 640×266; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 768×320 (codec-safe)",
+          "estimate": "0.26 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        },
+        {
+          "name": "Off restores retained ordinary resize",
+          "status": "Ready. Output resolves to 96×40. Supported profiles: WebM/VP8/Opus, MP4/H.264/AAC.",
+          "preview": "Paused source preview: cache loads=12; renders=26; frame time=1.000000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=9; explicit pixel readbacks=0. CLAHE paused preroll: 1 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 96×40, display 96×40; device generation 1.\nExecution: dedicated worker.\nExecution-context startup probe: 378.5 ms once; reused for this command=true.",
+          "position": 1,
+          "play": "Play",
+          "size": "Output: 96×40 (codec-safe)",
+          "estimate": "0.25 Mbps video · Estimated ~0.3 MB (VBR may differ)",
+          "gpu": "Selected GPU: nvidia / ampere (BrowserWebGpu)"
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "launch": {
+    "headless": true,
+    "extraArgs": [
+      "--force-high-performance-gpu"
+    ]
+  },
+  "browser": "156.0.4314.42"
+}

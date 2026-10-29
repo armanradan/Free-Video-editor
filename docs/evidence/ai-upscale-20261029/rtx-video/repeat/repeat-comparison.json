@@ -1,0 +1,95 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\fixtures\\ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": false,
+        "backend": "rtx"
+      },
+      "file_sha256": [
+        "308bd1dd385ef800ac77242a3b9fb3ad9c685a41e9ecd5035e550df49a9cfd61",
+        "308bd1dd385ef800ac77242a3b9fb3ad9c685a41e9ecd5035e550df49a9cfd61"
+      ],
+      "decoded_rgba_sha256": "dc4bfac0902482b971cf3162f88458362c7c6dc5c3266591eb6010e23188a664",
+      "exact_file_repeat": true
+    },
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\fixtures\\ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "fps": "15/1",
+        "clahe": false,
+        "backend": "rtx"
+      },
+      "file_sha256": [
+        "552ada86378902bcb0b45cfd8c1a2c74876d650fb696fcecdbe2d34607b7e43e",
+        "552ada86378902bcb0b45cfd8c1a2c74876d650fb696fcecdbe2d34607b7e43e"
+      ],
+      "decoded_rgba_sha256": "adbe2676d8f11201937aaad9b097499a748ef8939e090461f258a6c8212de478",
+      "exact_file_repeat": true
+    },
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\fixtures\\ai-upscale-vfr.mp4",
+        "scale": "2x",
+        "fps": "60/1",
+        "clahe": false,
+        "backend": "rtx"
+      },
+      "file_sha256": [
+        "5400bf75e102332a9cf971c30920cb07108e06c4541d4818a935dd647eaa8ba7",
+        "5400bf75e102332a9cf971c30920cb07108e06c4541d4818a935dd647eaa8ba7"
+      ],
+      "decoded_rgba_sha256": "ab1470e2106b9a2d4c81cbe91fd4e8a88c5a5f52834f91e3fa6fe6454747f889",
+      "exact_file_repeat": true
+    },
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\fixtures\\ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": false,
+        "backend": "rtx"
+      },
+      "file_sha256": [
+        "cb0a0ebc7ef3c05e875ec031812f73977dc442ff6881fc98c57d67fa5e41111f",
+        "cb0a0ebc7ef3c05e875ec031812f73977dc442ff6881fc98c57d67fa5e41111f"
+      ],
+      "decoded_rgba_sha256": "6eff7c199ce53be839951d23f1ae91685906ddf462eab172311da05732834edf",
+      "exact_file_repeat": true
+    },
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\fixtures\\ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "fps": "15/1",
+        "clahe": false,
+        "backend": "rtx"
+      },
+      "file_sha256": [
+        "2be1a0fbe38782da4effa851e960c6afe97d36af3e4a753e2c22139a0b8a36ec",
+        "2be1a0fbe38782da4effa851e960c6afe97d36af3e4a753e2c22139a0b8a36ec"
+      ],
+      "decoded_rgba_sha256": "9d03543a8cd618da0a8298d6d65bea56dd6a89f0f68aed5272ccbc9167082d16",
+      "exact_file_repeat": true
+    },
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\fixtures\\ai-upscale-vfr.mp4",
+        "scale": "4x",
+        "fps": "60/1",
+        "clahe": false,
+        "backend": "rtx"
+      },
+      "file_sha256": [
+        "20ace583e5281188d408d48caf14001f7496e27cc5fbbb529cec00d293305ede",
+        "20ace583e5281188d408d48caf14001f7496e27cc5fbbb529cec00d293305ede"
+      ],
+      "decoded_rgba_sha256": "a285da8993d74278071ad2042b35cdb7a962bcc0ea4b919bab018963bc392d58",
+      "exact_file_repeat": true
+    }
+  ]
+}

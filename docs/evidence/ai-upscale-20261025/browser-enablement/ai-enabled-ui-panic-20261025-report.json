@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "scope": "Ordinary UI and backend commands; optional engine acceptance build; no diagnostic command substitution",
+  "contexts": [],
+  "browser": "156.0.4314.42",
+  "error": "AssertionError [ERR_ASSERTION]: [\"The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127\",\"AI UI session create started\",\"panicked at apps\\\\web\\\\src\\\\main.rs:766:70:\\ncalled `Result::unwrap()` on an `Err` value: AlreadyBorrowed(AlreadyBorrowedError { borrowed_at: [Location { file: \\\"apps\\\\\\\\web\\\\\\\\src\\\\\\\\main.rs\\\", line: 185, column: 61 }] })\"]"
+}

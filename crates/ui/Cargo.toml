@@ -8,3 +8,6 @@ rust-version.workspace = true
 [dependencies]
 dioxus = { workspace = true, features = ["minimal"] }
 media-core.workspace = true
+
+[dev-dependencies]
+dioxus-html = { version = "=0.7.10", default-features = false, features = ["serialize"] }

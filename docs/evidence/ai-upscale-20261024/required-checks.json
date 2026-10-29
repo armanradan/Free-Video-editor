@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-24",
+  "status": "passed-in-recorded-scope",
+  "task": "8.1",
+  "tests": {
+    "media_core": {
+      "passed": 38,
+      "ignored": 0
+    },
+    "media_native_regular": {
+      "passed": 46,
+      "ignored": 9
+    },
+    "converter_native_regular": {
+      "passed": 16,
+      "ignored": 5
+    },
+    "ui": {
+      "passed": 2
+    },
+    "gpu_explicit": {
+      "passed": 3
+    },
+    "native_off_loss_retry_explicit": {
+      "passed": 1
+    },
+    "worker_transport": {
+      "passed": 9
+    }
+  },
+  "checks": [
+    "locked host core/GPU",
+    "locked host all-target Clippy -D warnings",
+    "locked wasm web/app all-target Clippy -D warnings",
+    "format",
+    "13 JavaScript syntax checks",
+    "three Python syntax checks",
+    "strict OpenSpec",
+    "diff whitespace"
+  ],
+  "ordinary_browser_off_release_exports": 18,
+  "limits": [
+    "Ignored tests are not passes except the separately named explicit tests",
+    "Ordinary AI On and full release acceptance remain open"
+  ],
+  "linker_warning": "corrupt .drectve at end of def file"
+}

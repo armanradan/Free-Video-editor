@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "task": "1.5 complete",
+  "progress": {
+    "total": 32,
+    "complete": 21,
+    "remaining": 11
+  },
+  "actual_checks": [
+    "MSVC19.51 x64 optimized SDK-linked C++ build passed; two SDK unused-parameter warnings recorded",
+    "Two six-run independent GPU evaluator suites passed; each first/repeat/fresh-after-error has eight identical outputs",
+    "Wrong-adapter, absent runtime, actual NGX missing-resource platform error and cleanup verified",
+    "Python syntax compilation passed",
+    "PowerShell build-script AST parse passed",
+    "openspec validate ai-upscale --strict passed",
+    "git -c core.safecrlf=false diff --check passed"
+  ],
+  "not_claimed": [
+    "No native UI, video export, SDK-demo equivalence or 5.x task completion",
+    "No Rust source changes or Rust test rerun",
+    "No proprietary redistribution/deployment acceptance",
+    "No driver/SDK internal memory/copy or real-time performance guarantee"
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "status": "passed",
+  "date": "2026-10-25",
+  "environment": {
+    "os": "Windows",
+    "browser": "Microsoft Edge 155.0.4283.62",
+    "gpu": "intel / gen-12lp (BrowserWebGpu)",
+    "driver": "not available from browser evidence",
+    "rust": "1.98.1 GNU",
+    "runtime": "ONNX Runtime Web 1.30.0",
+    "modelSha256": "1793a6e7fdf15a53eed213ba269ea768b5373858ae433d56ee8e1b0424377cc5"
+  },
+  "commands": [
+    {
+      "command": "dx build --web --locked (apps/web)",
+      "result": "passed"
+    },
+    {
+      "command": "cargo build --locked --offline --manifest-path tools/ai-upscale/tile-browser/Cargo.toml --target wasm32-unknown-unknown --release",
+      "result": "passed"
+    },
+    {
+      "command": "cargo clippy --locked --target wasm32-unknown-unknown -p media-web -p converter-web --all-targets -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo clippy --locked --target wasm32-unknown-unknown -p media-web --features gpu-setup-diagnostic --all-targets -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo check --locked -p media-core -p media-gpu",
+      "result": "passed"
+    },
+    {
+      "command": "node --test tests/browser-preview-clock.test.mjs tests/worker-transport.test.mjs tests/preview-history.test.mjs",
+      "result": "13 passed"
+    },
+    {
+      "command": "node tests/browser-preview-lifecycle-ui.mjs tmp/ai-upscale <public> <fresh-result>",
+      "result": "both contexts, six cases each, two 60-frame VP8/Opus exports independently decoded"
+    },
+    {
+      "command": "node tests/ai-selection-preview-ui.mjs tmp/ai-upscale <public> <fresh-result>",
+      "result": "both contexts passed existing FFmpeg-independent Off CLAHE/Before/Play-Pause regression"
+    },
+    {
+      "command": "browser.mjs with VIDEO=1 PREVIEW=1 PREVIEW_LIFECYCLE=1 VIDEO_CASES=[]; verify_video.mjs",
+      "result": "both contexts; 2x/4x implicit retirement/failure/fresh-context/pixel equality; eight exports independently verified"
+    },
+    {
+      "command": "browser.mjs with VIDEO=1 VIDEO_FAILURES=1 VIDEO_CASES=[]; verify_video.mjs",
+      "result": "both contexts; five active failure/retry cases each; ten exports independently verified"
+    },
+    {
+      "command": "cargo fmt --all --check; JS syntax; openspec validate ai-upscale --strict; git -c core.safecrlf=false diff --check",
+      "result": "passed"
+    }
+  ],
+  "scope": "Diagnostic AI pilot plus ordinary AI Off UI. Ordinary AI On, full interactive lifecycle and quality/performance release acceptance remain open. No product capability granted. Physical OOM/spontaneous driver loss not claimed.",
+  "initialFailure": "New cleanup checking exposed a retained lost conversion context: the first retry rejected at preview retirement. Preserved initial reports. Conversion now retires the lost context on failure; same failure suite passes with one explicit retry.",
+  "noNewDownloads": true,
+  "progress": {
+    "complete": 20,
+    "total": 32
+  },
+  "artifacts": "Raw diagnostic rasters and encoded media stay under corresponding ignored tmp/ai-upscale result directories; reports copied here. No models or runtime binaries added."
+}

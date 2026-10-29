@@ -1,0 +1,24 @@
+{
+  "main": {
+    "status": "failed",
+    "context": "main",
+    "cases": [],
+    "ortVersion": "1.23.0",
+    "mode": "exact-enlarged-codec-probe-no-inference",
+    "error": "This browser cannot decode the selected H.264/AVC track with its exact codec configuration.",
+    "browserVersion": "141.0.7390.37",
+    "logs": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  "worker": {
+    "status": "failed",
+    "context": "worker",
+    "cases": [],
+    "ortVersion": "1.23.0",
+    "mode": "exact-enlarged-codec-probe-no-inference",
+    "error": "This browser cannot decode the selected H.264/AVC track with its exact codec configuration.",
+    "browserVersion": "141.0.7390.37",
+    "logs": []
+  }
+}

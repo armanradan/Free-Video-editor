@@ -1,0 +1,13 @@
+[package]
+name = "ai-upscale-burn-native-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+burn = { version = "=0.22.1", default-features = false, features = ["std", "wgpu"] }
+burn-store = { version = "=0.22.1", default-features = false, features = ["std"] }
+serde_json = "=1.0.154"
+sha2 = "=0.10.9"

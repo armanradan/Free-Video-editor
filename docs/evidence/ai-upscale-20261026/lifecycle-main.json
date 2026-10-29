@@ -1,0 +1,1062 @@
+{
+  "status": "video-pilot-passed-not-release-accepted",
+  "context": "main",
+  "cases": [
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": true,
+        "label": "successful-handoff"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples → 128×72 MP4/H.264/AAC converted/finalized in 274.3 ms; 0.299 s; 14 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 7.8 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1485; total job 282.2 ms.\nDeveloper parity: 4 explicit test-only pre-encoder pixel readbacks; reported job time includes them and is not conversion throughput.\nOutput policy: 4 input → 4 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64×36, visible 64×36+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 128×72; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/4/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/14/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128×72 / 128×80; CPU submission/bridge=21.9 ms; cumulative submitted-work completion latency=33.1 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=79.2 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-cut-128x72.mp4",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "conversionMs": 274.2649999987334,
+      "decoderWaitMs": 9.249999998137355,
+      "encoderSubmissionWaitMs": 65.25999999977648,
+      "verificationMs": 7.799999998882413,
+      "targetVideoBitrate": 250000,
+      "duration": 0.2986666666666667,
+      "outputBytes": 17821,
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1250000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-0-0.rgba"
+          },
+          "dataFile": "parity-main-0-0.rgba"
+        },
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1316666,
+          "index": 1,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-0-1.rgba"
+          },
+          "dataFile": "parity-main-0-1.rgba"
+        },
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 2,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-0-2.rgba"
+          },
+          "dataFile": "parity-main-0-2.rgba"
+        },
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1483333,
+          "index": 3,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-0-3.rgba"
+          },
+          "dataFile": "parity-main-0-3.rgba"
+        }
+      ],
+      "aiSetupMs": 121.24499999918044,
+      "aiProcessingMs": 79.16999999806285,
+      "gpuCpuBridgeMs": 21.885000001639128,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "nvidia / ampere (BrowserWebGpu)"
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": true,
+        "label": "fresh-context-handoff"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples → 128×72 MP4/H.264/AAC converted/finalized in 233.7 ms; 0.299 s; 14 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 5.7 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1485; total job 239.4 ms.\nDeveloper parity: 4 explicit test-only pre-encoder pixel readbacks; reported job time includes them and is not conversion throughput.\nOutput policy: 4 input → 4 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64×36, visible 64×36+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 128×72; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/4/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/14/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 2; bounded input texture pool slots=4, lifetime allocations=8, job reuses=0; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=128×72 / 128×80; CPU submission/bridge=18.7 ms; cumulative submitted-work completion latency=27.4 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 229392 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=65.7 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-cut-128x72.mp4",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "conversionMs": 233.67999999970198,
+      "decoderWaitMs": 5.444999998435378,
+      "encoderSubmissionWaitMs": 63.85500000230968,
+      "verificationMs": 5.650000000372529,
+      "targetVideoBitrate": 250000,
+      "duration": 0.2986666666666667,
+      "outputBytes": 17821,
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1250000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-1-0.rgba"
+          },
+          "dataFile": "parity-main-1-0.rgba"
+        },
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1316666,
+          "index": 1,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-1-1.rgba"
+          },
+          "dataFile": "parity-main-1-1.rgba"
+        },
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 2,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-1-2.rgba"
+          },
+          "dataFile": "parity-main-1-2.rgba"
+        },
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1483333,
+          "index": 3,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-1-3.rgba"
+          },
+          "dataFile": "parity-main-1-3.rgba"
+        }
+      ],
+      "aiSetupMs": 93.875,
+      "aiProcessingMs": 65.66000000014901,
+      "gpuCpuBridgeMs": 18.71000000089407,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 151677520,
+      "gpu": "nvidia / ampere (BrowserWebGpu)"
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": true,
+        "label": "successful-handoff"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples → 256×144 MP4/H.264/AAC converted/finalized in 191.3 ms; 0.299 s; 14 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 6.6 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1485; total job 197.9 ms.\nDeveloper parity: 4 explicit test-only pre-encoder pixel readbacks; reported job time includes them and is not conversion throughput.\nOutput policy: 4 input → 4 output frames; FPS=Original (source PTS preserved); target video bitrate=280200 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64×36, visible 64×36+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 256×144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/4/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/14/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 2; bounded input texture pool slots=4, lifetime allocations=12, job reuses=3; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256×144 / 256×144; CPU submission/bridge=10.7 ms; cumulative submitted-work completion latency=33.7 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=55.1 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-cut-256x144.mp4",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "conversionMs": 191.3250000011176,
+      "decoderWaitMs": 1.8899999987334013,
+      "encoderSubmissionWaitMs": 44.17000000178814,
+      "verificationMs": 6.560000000521541,
+      "targetVideoBitrate": 280200,
+      "duration": 0.2986666666666667,
+      "outputBytes": 26862,
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1250000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-2-0.rgba"
+          },
+          "dataFile": "parity-main-2-0.rgba"
+        },
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1316666,
+          "index": 1,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-2-1.rgba"
+          },
+          "dataFile": "parity-main-2-1.rgba"
+        },
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 2,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-2-2.rgba"
+          },
+          "dataFile": "parity-main-2-2.rgba"
+        },
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1483333,
+          "index": 3,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-2-3.rgba"
+          },
+          "dataFile": "parity-main-2-3.rgba"
+        }
+      ],
+      "aiSetupMs": 79.8899999987334,
+      "aiProcessingMs": 55.104999996721745,
+      "gpuCpuBridgeMs": 10.670000003650784,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "nvidia / ampere (BrowserWebGpu)"
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": true,
+        "label": "fresh-context-handoff"
+      },
+      "summary": "PASS: 4 H.264 input frames + 14 decoded audio samples → 256×144 MP4/H.264/AAC converted/finalized in 190.9 ms; 0.299 s; 14 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 6.0 ms; 4-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1485; total job 196.9 ms.\nDeveloper parity: 4 explicit test-only pre-encoder pixel readbacks; reported job time includes them and is not conversion throughput.\nOutput policy: 4 input → 4 output frames; FPS=Original (source PTS preserved); target video bitrate=280200 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 64×36, visible 64×36+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 256×144; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.0 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/4/0; GPU 0/1/4/0; video encoder callbacks 0/4/4/0; video packet callbacks 0/1/4/0; decoded-audio 0/1/14/0; audio encoder callbacks 0/1/1/0; audio packet callbacks 0/1/14/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 3; bounded input texture pool slots=4, lifetime allocations=4, job reuses=3; leases live/peak=0/4; ingress copies=4; canvas captures=4; capture visible/backing=256×144 / 256×144; CPU submission/bridge=20.3 ms; cumulative submitted-work completion latency=44.3 ms; slot-reuse wait=0.0 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 4 recorded source frames; 16 nominal compute passes plus geometry/final renders; 868368 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=87.0 ms (includes GPU waits; not pure GPU execution).",
+      "fileName": "ai-upscale-cut-256x144.mp4",
+      "frameCount": 4,
+      "inputFrameCount": 4,
+      "conversionMs": 190.86500000022352,
+      "decoderWaitMs": 4.074999999254942,
+      "encoderSubmissionWaitMs": 2.8549999967217445,
+      "verificationMs": 5.994999999180436,
+      "targetVideoBitrate": 280200,
+      "duration": 0.2986666666666667,
+      "outputBytes": 26862,
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1250000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-3-0.rgba"
+          },
+          "dataFile": "parity-main-3-0.rgba"
+        },
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1316666,
+          "index": 1,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-3-1.rgba"
+          },
+          "dataFile": "parity-main-3-1.rgba"
+        },
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 2,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-3-2.rgba"
+          },
+          "dataFile": "parity-main-3-2.rgba"
+        },
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1483333,
+          "index": 3,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "ingress-main-3-3.rgba"
+          },
+          "dataFile": "parity-main-3-3.rgba"
+        }
+      ],
+      "aiSetupMs": 68.53500000014901,
+      "aiProcessingMs": 87.04499999806285,
+      "gpuCpuBridgeMs": 20.275000002235174,
+      "aiSourceFrames": 4,
+      "aiAdmissionBytes": 152390224,
+      "gpu": "nvidia / ampere (BrowserWebGpu)"
+    }
+  ],
+  "ortVersion": "1.30.0",
+  "mode": "decoded-video-ai-composition-pilot",
+  "artifacts": [
+    {
+      "name": "video-main-0.mp4",
+      "bytes": 17821
+    },
+    {
+      "name": "video-main-1.mp4",
+      "bytes": 17821
+    },
+    {
+      "name": "video-main-2.mp4",
+      "bytes": 26862
+    },
+    {
+      "name": "video-main-3.mp4",
+      "bytes": 26862
+    }
+  ],
+  "baseline": {
+    "bufferBytes": 32,
+    "textureBytes": 921600,
+    "buffers": 1,
+    "textures": 4,
+    "peakBytes": 921632,
+    "windowPeakBytes": 921632,
+    "largestBufferBytes": 32,
+    "createdBuffers": 1,
+    "unknownTextureRequests": 0,
+    "rejectedRequests": 0,
+    "capBytes": 402653184
+  },
+  "modelRuntimeProvisionedForDiagnostic": true,
+  "previewCases": [
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "before-conversion"
+      },
+      "summary": "Paused source preview: cache loads=1; renders=1; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=1; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 3,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-0.rgba"
+          },
+          "dataFile": "preview-main-0.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "after-conversion"
+      },
+      "summary": "Paused source preview: cache loads=2; renders=2; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=2; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 1.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 7,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-1.rgba"
+          },
+          "dataFile": "preview-main-1.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "label": "explicit-fresh-context-retry"
+      },
+      "summary": "Paused source preview: cache loads=3; renders=3; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=3; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 128×72, display 128×72; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 10,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 128,
+          "height": 72,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-2.rgba"
+          },
+          "dataFile": "preview-main-2.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "before-conversion"
+      },
+      "summary": "Paused source preview: cache loads=4; renders=4; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=4; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 7,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-3.rgba"
+          },
+          "dataFile": "preview-main-3.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "after-conversion"
+      },
+      "summary": "Paused source preview: cache loads=5; renders=5; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=5; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 2.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 7,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-4.rgba"
+          },
+          "dataFile": "preview-main-4.rgba"
+        }
+      ]
+    },
+    {
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "4x",
+        "label": "explicit-fresh-context-retry"
+      },
+      "summary": "Paused source preview: cache loads=6; renders=6; frame time=0.100000 s; cached frames=1; playback lookahead=0; stream opens=0; preroll opens=6; explicit pixel readbacks=3. CLAHE paused preroll: 2 predecessor frames; 100 ms window; history rebuilt for this request (experimental); statistics/adjustments 256×144, display 256×144; device generation 3.",
+      "ownership": {
+        "liveLeases": 0,
+        "canvasCaptures": 10,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 3,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "parityFrames": [
+        {
+          "width": 256,
+          "height": 144,
+          "sourceTimestamp": 1350000,
+          "index": 0,
+          "ingress": {
+            "width": 64,
+            "height": 36,
+            "dataFile": "preview-ingress-main-5.rgba"
+          },
+          "dataFile": "preview-main-5.rgba"
+        }
+      ]
+    }
+  ],
+  "lifecycleCases": [
+    {
+      "scale": "2x",
+      "initial": {
+        "liveLeases": 0,
+        "canvasCaptures": 3,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 1,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "afterSuccess": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 4,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 1,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": false,
+          "dispatchesDuringRun": 511,
+          "submittedDuringRun": 35
+        }
+      },
+      "failure": "preview retirement failed; retry requires a fresh GPU context: AI upscaling unavailable: AI GPU runtime: JsValue(Error: INJECTED: session release response failed after actual runtime release\nError: INJECTED: session release response failed after actual runtime release\n    at session.release (http://127.0.0.1:4933/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:119:13)\n    at async releaseAiSession (http://127.0.0.1:4933/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:83:18))",
+      "progressCalls": 0,
+      "afterFailure": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 7,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 0,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 730,
+          "submittedDuringRun": 50
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 10,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "afterRetry": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 4,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 2,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 1241,
+          "submittedDuringRun": 85
+        }
+      },
+      "pixelEquality": "exact RGBA8, before/after conversion and explicit fresh-context retry",
+      "faultScope": "injected release response failure after actual runtime release; not a real broken-runtime cleanup claim"
+    },
+    {
+      "scale": "4x",
+      "initial": {
+        "liveLeases": 0,
+        "canvasCaptures": 7,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 2,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "afterSuccess": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 4,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 2,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 1752,
+          "submittedDuringRun": 120
+        }
+      },
+      "failure": "preview retirement failed; retry requires a fresh GPU context: AI upscaling unavailable: AI GPU runtime: JsValue(Error: INJECTED: session release response failed after actual runtime release\nError: INJECTED: session release response failed after actual runtime release\n    at session.release (http://127.0.0.1:4933/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:119:13)\n    at async releaseAiSession (http://127.0.0.1:4933/tile/snippets/media-web-da7e96919465a5a2/src/ai-inference.js:83:18))",
+      "progressCalls": 0,
+      "afterFailure": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 7,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 0,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 1971,
+          "submittedDuringRun": 135
+        }
+      },
+      "retried": {
+        "liveLeases": 0,
+        "canvasCaptures": 10,
+        "pendingSubmissions": 0,
+        "aiCreditHeld": true,
+        "aiVideoRetained": true,
+        "aiVideoActive": true,
+        "deviceLost": false,
+        "deviceGeneration": 3,
+        "aiProcessedFrames": 3,
+        "aiPreviewCached": true
+      },
+      "afterRetry": {
+        "owned": {
+          "liveLeases": 0,
+          "canvasCaptures": 4,
+          "pendingSubmissions": 0,
+          "aiCreditHeld": false,
+          "aiVideoRetained": false,
+          "aiVideoActive": false,
+          "deviceLost": false,
+          "deviceGeneration": 3,
+          "aiProcessedFrames": 0,
+          "aiPreviewCached": false
+        },
+        "runtime": {
+          "activeRuns": 0,
+          "callerTensors": 0,
+          "resources": [],
+          "sessions": [
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 3,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            },
+            {
+              "released": true,
+              "runs": 4,
+              "busy": false,
+              "poisoned": true,
+              "active": false,
+              "sessionRetained": false
+            }
+          ],
+          "triggered": true,
+          "dispatchesDuringRun": 2482,
+          "submittedDuringRun": 170
+        }
+      },
+      "pixelEquality": "exact RGBA8, before/after conversion and explicit fresh-context retry",
+      "faultScope": "injected release response failure after actual runtime release; not a real broken-runtime cleanup claim"
+    }
+  ],
+  "boundary": "implicit handoff 4x fresh-context-handoff",
+  "expectedDeviceRequests": 3,
+  "finalOwnership": {
+    "liveLeases": 0,
+    "canvasCaptures": 4,
+    "pendingSubmissions": 0,
+    "aiCreditHeld": false,
+    "aiVideoRetained": false,
+    "aiVideoActive": false,
+    "deviceLost": false,
+    "deviceGeneration": 3,
+    "aiProcessedFrames": 0,
+    "aiPreviewCached": false
+  },
+  "previewStatus": "implicit-preview-conversion-retirement-lifecycle-pilot",
+  "deviceRequests": 3,
+  "gpuValidationError": null,
+  "browserVersion": "156.0.4314.42",
+  "logs": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+    "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+    "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127"
+  ]
+}

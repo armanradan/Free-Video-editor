@@ -1,4 +1,6 @@
+mod ai_setup;
 use dioxus::prelude::*;
+use media_core::ai_upscale::AiSettings;
 use media_core::{
     CodecAcceleration, ColorAdjustments, FrameRateSpec, OutputProfileId, ResizeSpec, Size,
     VideoBitrate,
@@ -15,11 +17,13 @@ const FFMPEG_CORE_WASM: Asset = asset!("/node_modules/@ffmpeg/core/dist/esm/ffmp
 const FFMPEG_WORKER_SCRIPT: Asset = asset!("/assets/ffmpeg-worker.js");
 
 #[wasm_bindgen::prelude::wasm_bindgen(
-    inline_js = "export function previewDelay() { return new Promise(resolve => setTimeout(resolve, 34)); } export function ffmpegSpikeSelected() { return new URL(location.href).searchParams.get('backend') === 'ffmpeg-wasm'; } export function backendHref(backend) { const url = new URL(location.href); if (backend === 'webcodecs') url.searchParams.delete('backend'); else url.searchParams.set('backend', 'ffmpeg-wasm'); return url.href; }"
+    inline_js = "export function reportRustPanic(message) { console.error(message); } export function previewDelay() { return new Promise(resolve => setTimeout(resolve, 34)); } export function ffmpegSpikeSelected() { return new URL(location.href).searchParams.get('backend') === 'ffmpeg-wasm'; } export function backendHref(backend) { const url = new URL(location.href); if (backend === 'webcodecs') url.searchParams.delete('backend'); else url.searchParams.set('backend', 'ffmpeg-wasm'); return url.href; }"
 )]
 extern "C" {
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = previewDelay)]
     fn preview_delay() -> js_sys::Promise;
+    #[wasm_bindgen::prelude::wasm_bindgen(js_name = reportRustPanic)]
+    fn report_rust_panic(message: &str);
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = ffmpegSpikeSelected)]
     fn ffmpeg_spike_selected() -> bool;
     #[wasm_bindgen::prelude::wasm_bindgen(js_name = backendHref)]
@@ -27,6 +31,7 @@ extern "C" {
 }
 
 fn main() {
+    std::panic::set_hook(Box::new(|info| report_rust_panic(&info.to_string())));
     // The dedicated media worker initializes this same bundle, but never mounts UI.
     if !js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("document"))
         .unwrap_or(JsValue::UNDEFINED)
@@ -49,6 +54,7 @@ fn App() -> Element {
             &FFMPEG_WORKER_SCRIPT.to_string(),
         );
     });
+    let mut ai = use_signal(AiSettings::default);
     let mut color = use_signal(ColorAdjustments::default);
     let mut equalization = use_signal(media_core::equalization::Equalization::default);
     let mut before = use_signal(|| false);
@@ -85,6 +91,31 @@ fn App() -> Element {
     let mut custom_bitrate = use_signal(|| "4".to_string());
     let mut frame_rate = use_signal(|| "original".to_string());
     let mut inspected_source = use_signal(|| None::<SourceMetadata>);
+    let ai_choices = use_memo(move || {
+        let capability = |scale| {
+            let cap = media_web::onnx_capability(scale, &selected_gpu());
+            let Some(source) = inspected_source() else {
+                return media_core::ai_upscale::AiCapability::Unavailable {
+                    reason: "Inspect a source before selecting AI.".into(),
+                };
+            };
+            let settings = ui::onnx_selection(scale);
+            match settings
+                .output_size(source.display_size, ResizeSpec::Original, &cap)
+                .and_then(|_| {
+                    settings.validate_format(source.ai_bit_depth, true, OutputProfileId::Mp4H264Aac)
+                }) {
+                Ok(()) => cap,
+                Err(error) => media_core::ai_upscale::AiCapability::Unavailable {
+                    reason: error.to_string(),
+                },
+            }
+        };
+        ui::AiChoices {
+            two: capability(media_core::ai_upscale::AiScale::Two),
+            four: capability(media_core::ai_upscale::AiScale::Four),
+        }
+    });
     let output_size = use_signal(|| None::<Size>);
     let resolved_size = use_signal(String::new);
     let mut source_metadata = use_signal(String::new);
@@ -98,6 +129,7 @@ fn App() -> Element {
     let hevc_reason = use_signal(String::new);
     let mut probe_generation = use_signal(|| 0_u64);
     let probe_signals = ProbeSignals {
+        ai,
         ffmpeg_spike,
         generation: probe_generation,
         running,
@@ -121,6 +153,7 @@ fn App() -> Element {
     // One producer task and one latest desired state, never a task/command per event.
     use_effect(move || {
         let _desired = (
+            ai(),
             color(),
             equalization(),
             before(),
@@ -155,29 +188,28 @@ fn App() -> Element {
                 }
                 let revision = *preview_revision.peek();
                 let resize = requested_resize(
+                    *ai.peek(),
                     &resize_mode.peek(),
                     &exact_width.peek(),
                     &exact_height.peek(),
                     *preserve_aspect_ratio.peek(),
                 );
                 if let Ok(resize) = resize {
-                    let selected_color = if *before.peek() {
-                        ColorAdjustments::default()
-                    } else {
-                        *color.peek()
-                    };
-                    let result = media_web::preview_source(
-                        *source_key.peek(),
-                        *preview_seconds.peek(),
+                    // Drop reactive read guards before entering asynchronous
+                    // processing so controls can update the next request.
+                    let key = *source_key.peek();
+                    let seconds = *preview_seconds.peek();
+                    let settings = media_web::SourcePreviewSettings {
                         resize,
-                        selected_color,
-                        if *before.peek() {
-                            media_core::equalization::Equalization::default()
-                        } else {
-                            *equalization.peek()
+                        output: VideoSettings {
+                            ai: *ai.peek(),
+                            color: *color.peek(),
+                            equalization: *equalization.peek(),
+                            ..Default::default()
                         },
-                    )
-                    .await;
+                        before: *before.peek(),
+                    };
+                    let result = media_web::preview_source(key, seconds, settings).await;
                     if revision == *preview_revision.peek() && !*running.peek() {
                         update_gpu(selected_gpu);
                         preview_status.set(match result {
@@ -199,17 +231,19 @@ fn App() -> Element {
     });
 
     let mut toggle_preview = move || {
-        if running() || !preview_ready() || !has_source() {
-            return;
-        }
-        let next_token = playback_token.peek().wrapping_add(1);
-        playback_token.set(next_token);
         if preview_playing() {
+            let next_token = playback_token.peek().wrapping_add(1);
+            playback_token.set(next_token);
             media_web::pause_preview_playback();
             preview_seconds.set(media_web::preview_playback_position());
             preview_playing.set(false);
             return;
         }
+        if running() || !preview_ready() || !has_source() {
+            return;
+        }
+        let next_token = playback_token.peek().wrapping_add(1);
+        playback_token.set(next_token);
         let Some(source) = inspected_source() else {
             return;
         };
@@ -247,9 +281,17 @@ fn App() -> Element {
             let key = *source_key.peek();
             let mut last_position = -1.0_f64;
             let mut last_revision = 0;
-            while *preview_playing.peek() && !*running.peek() && key == *source_key.peek() {
+            while token == *playback_token.peek()
+                && *preview_playing.peek()
+                && !*running.peek()
+                && key == *source_key.peek()
+            {
                 let _ = wasm_bindgen_futures::JsFuture::from(preview_delay()).await;
-                if !*preview_playing.peek() || *running.peek() || key != *source_key.peek() {
+                if token != *playback_token.peek()
+                    || !*preview_playing.peek()
+                    || *running.peek()
+                    || key != *source_key.peek()
+                {
                     break;
                 }
                 if *preview_busy.peek() {
@@ -273,37 +315,40 @@ fn App() -> Element {
                     continue;
                 }
                 let resize = requested_resize(
+                    *ai.peek(),
                     &resize_mode.peek(),
                     &exact_width.peek(),
                     &exact_height.peek(),
                     *preserve_aspect_ratio.peek(),
                 );
-                let selected_color = if *before.peek() {
-                    ColorAdjustments::default()
-                } else {
-                    *color.peek()
+                let output = VideoSettings {
+                    ai: *ai.peek(),
+                    color: *color.peek(),
+                    equalization: *equalization.peek(),
+                    ..Default::default()
                 };
+                let comparison = *before.peek();
                 let result = match resize {
-                    Ok(resize) => {
-                        media_web::preview_playback_source(
-                            key,
-                            seconds,
+                    Ok(resize) => media_web::preview_playback_source(
+                        key,
+                        seconds,
+                        media_web::SourcePreviewSettings {
                             resize,
-                            selected_color,
-                            if *before.peek() {
-                                media_core::equalization::Equalization::default()
-                            } else {
-                                *equalization.peek()
-                            },
-                        )
-                        .await
-                    }
-                    Err(error) => {
-                        playback_error.set(error);
-                        break;
-                    }
+                            output,
+                            before: comparison,
+                        },
+                    )
+                    .await
+                    .map_err(|error| error.to_string()),
+                    Err(error) => Err(error),
                 };
-                if key != *source_key.peek() || *running.peek() {
+                // A pause/resume, replacement or conversion can retire this
+                // producer while its serialized media command is awaiting IO.
+                if token != *playback_token.peek()
+                    || !*preview_playing.peek()
+                    || *running.peek()
+                    || key != *source_key.peek()
+                {
                     break;
                 }
                 match result {
@@ -315,14 +360,16 @@ fn App() -> Element {
                         }
                     }
                     Err(error) => {
-                        playback_error.set(format!("Preview playback failed: {error}"));
-                        break;
+                        if revision == *preview_revision.peek() {
+                            playback_error.set(format!("Preview playback failed: {error}"));
+                            break;
+                        }
                     }
                 }
                 last_position = seconds;
-                last_revision = *preview_revision.peek();
+                last_revision = revision;
             }
-            if key == *source_key.peek() {
+            if token == *playback_token.peek() && key == *source_key.peek() {
                 media_web::pause_preview_playback();
                 preview_playing.set(false);
             }
@@ -335,11 +382,19 @@ fn App() -> Element {
     };
 
     let convert = move |_| {
+        if running() {
+            return;
+        }
+        if let Err(error) = ai_choices().select(ai()) {
+            status.set(format!("AI unavailable: {error}"));
+            return;
+        }
         if !profile_ready() {
             status.set("Select an input and wait for its output profile checks.".to_string());
             return;
         }
         let selected_resize = match requested_resize(
+            ai(),
             &resize_mode(),
             &exact_width(),
             &exact_height(),
@@ -351,15 +406,22 @@ fn App() -> Element {
                 return;
             }
         };
-        let mut settings = match video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate()) {
-            Ok(settings) => settings,
-            Err(error) => {
-                status.set(display_error(error));
-                return;
-            }
-        };
+        let mut settings =
+            match video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate(), ai()) {
+                Ok(settings) => settings,
+                Err(error) => {
+                    status.set(display_error(error));
+                    return;
+                }
+            };
         settings.color = color();
         settings.equalization = equalization();
+        let next_token = playback_token.peek().wrapping_add(1);
+        playback_token.set(next_token);
+        if preview_playing() {
+            media_web::pause_preview_playback();
+            preview_seconds.set(media_web::preview_playback_position());
+        }
         preview_playing.set(false);
         media_web::pause_preview_playback();
         running.set(true);
@@ -401,12 +463,36 @@ fn App() -> Element {
         });
     };
     let profile_changed = move |event: FormEvent| {
+        if running() {
+            return;
+        }
+        if ai() != AiSettings::Off
+            && match event.value().as_str() {
+                "mp4-h264-aac" => !mp4_supported(),
+                "mp4-h265-aac" => !hevc_supported(),
+                "webm-vp8-opus" | "webm-vp8-video-only" => false,
+                _ => true,
+            }
+        {
+            status.set("The selected AI output profile is unavailable; choose a supported profile explicitly.".into());
+            return;
+        }
         profile.set(match event.value().as_str() {
             "webm-vp8-video-only" => OutputProfileId::WebmVp8VideoOnly,
             "mp4-h264-aac" if mp4_supported() => OutputProfileId::Mp4H264Aac,
             "mp4-h265-aac" if hevc_supported() => OutputProfileId::Mp4H265Aac,
             _ => OutputProfileId::WebmVp8Opus,
         });
+        if ai() != AiSettings::Off {
+            reprobe_if_ready(
+                has_source(),
+                &resize_mode(),
+                &exact_width(),
+                &exact_height(),
+                preserve_aspect_ratio(),
+                probe_signals,
+            );
+        }
     };
     let acceleration_changed = move |event: FormEvent| {
         acceleration.set(match event.value().as_str() {
@@ -415,6 +501,7 @@ fn App() -> Element {
         });
     };
     let file_changed = move |_| {
+        media_web::invalidate_source_preview();
         playback_error.set(String::new());
         let next_token = playback_token.peek().wrapping_add(1);
         playback_token.set(next_token);
@@ -433,6 +520,7 @@ fn App() -> Element {
         source_metadata.set(String::new());
         inspected_source.set(None);
         let resize = match requested_resize(
+            ai(),
             &resize_mode(),
             &exact_width(),
             &exact_height(),
@@ -449,6 +537,9 @@ fn App() -> Element {
         spawn(probe_resize(resize, generation, probe_signals));
     };
     let resize_mode_changed = move |event: FormEvent| {
+        if running() || ai() != AiSettings::Off {
+            return;
+        }
         resize_mode.set(event.value());
         reprobe_if_ready(
             has_source(),
@@ -460,6 +551,9 @@ fn App() -> Element {
         );
     };
     let exact_width_changed = move |event: FormEvent| {
+        if running() || ai() != AiSettings::Off {
+            return;
+        }
         exact_width.set(event.value());
         reprobe_if_ready(
             has_source(),
@@ -471,6 +565,9 @@ fn App() -> Element {
         );
     };
     let exact_height_changed = move |event: FormEvent| {
+        if running() || ai() != AiSettings::Off {
+            return;
+        }
         exact_height.set(event.value());
         reprobe_if_ready(
             has_source(),
@@ -482,6 +579,9 @@ fn App() -> Element {
         );
     };
     let aspect_ratio_changed = move |event: FormEvent| {
+        if running() || ai() != AiSettings::Off {
+            return;
+        }
         preserve_aspect_ratio.set(event.checked());
         reprobe_if_ready(
             has_source(),
@@ -532,6 +632,12 @@ fn App() -> Element {
         );
     };
     let run_m1 = move |_| {
+        let next_token = playback_token.peek().wrapping_add(1);
+        playback_token.set(next_token);
+        if preview_playing() {
+            media_web::pause_preview_playback();
+            preview_seconds.set(media_web::preview_playback_position());
+        }
         preview_playing.set(false);
         media_web::pause_preview_playback();
         running.set(true);
@@ -555,7 +661,7 @@ fn App() -> Element {
         });
     };
 
-    let settings = video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate());
+    let settings = video_settings(&bitrate_mode(), &custom_bitrate(), &frame_rate(), ai());
     let bitrate_options = ui::BITRATE_PRESETS
         .iter()
         .copied()
@@ -637,6 +743,7 @@ fn App() -> Element {
                 section { class: "controls-panel", aria_label: "Conversion settings",
                     ConverterControls {
                         ffmpeg_spike,
+                        ai_on: ai() != AiSettings::Off,
                         running: running(),
                         download_url: download_url(),
                         download_name: download_name(),
@@ -667,6 +774,27 @@ fn App() -> Element {
                         on_convert: convert,
                         on_cancel: cancel,
                     }
+                    ai_setup::AiSetup { disabled: running(), selected:ai(), choices:ai_choices(),
+                        on_select: move |requested| {
+                            if running() {return;}
+                            match ai_choices().select(requested) {
+                                Ok(value) => {
+                                    playback_error.set(String::new());
+                                    if value != *ai.peek() {
+                                        media_web::invalidate_source_preview();
+                                    }
+                                    media_web::pause_preview_playback();
+                                    preview_playing.set(false);
+                                    let token = playback_token.peek().wrapping_add(1);
+                                    playback_token.set(token);
+                                    ai.set(value);
+                                    before.set(false);
+                                    reprobe_if_ready(has_source(), &resize_mode(), &exact_width(), &exact_height(), preserve_aspect_ratio(), probe_signals);
+                                },
+                                Err(error) => status.set(format!("AI unavailable: {error}")),
+                            }
+                        }
+                    }
                     ColorControls { color: color(), disabled: running() || !has_source(), before: before(),
                         equalization: equalization(),
                         on_equalization: move |value| { equalization.set(value); before.set(false); },
@@ -694,7 +822,7 @@ fn App() -> Element {
                     if let Some(source) = inspected_source() {
                         div { class: "preview-playback-controls",
                         div { class: "preview-transport",
-                            button { id: "source-preview-play", disabled: running() || !preview_ready(), onclick: move |_| toggle_preview(),
+                            button { id: "source-preview-play", disabled: !preview_playing() && (running() || !preview_ready()), onclick: move |_| toggle_preview(),
                                 if preview_playing() { "Pause" } else { "Play" }
                             }
                             span { class: "note", "{preview_seconds():.2} / {source.duration_seconds:.2} s" }
@@ -705,7 +833,12 @@ fn App() -> Element {
                         }
                         label { r#for: "source-preview-position", class: "note", "Source preview position: {preview_seconds():.2} s" }
                         input { id: "source-preview-position", r#type: "range", min: "0", max: "{source.duration_seconds.max(0.001)}", step: "0.01", value: "{preview_seconds()}", disabled: running(),
-                            oninput: move |event| { if let Ok(value) = event.value().parse::<f64>() && value.is_finite() && value >= 0.0 { media_web::seek_preview_playback(value); preview_seconds.set(value); } }
+                            oninput: move |event| { if let Ok(value) = event.value().parse::<f64>() && value.is_finite() && value >= 0.0 {
+                                media_web::invalidate_source_preview();
+                                let revision = preview_revision.peek().wrapping_add(1);
+                                preview_revision.set(revision);
+                                media_web::seek_preview_playback(value); preview_seconds.set(value);
+                            } }
                         }
                         }
                     }
@@ -727,6 +860,7 @@ fn App() -> Element {
 
 #[derive(Clone, Copy)]
 struct ProbeSignals {
+    ai: Signal<AiSettings>,
     bitrate_mode: Signal<String>,
     custom_bitrate: Signal<String>,
     frame_rate: Signal<String>,
@@ -747,7 +881,12 @@ struct ProbeSignals {
     status: Signal<String>,
 }
 
-fn video_settings(mode: &str, custom: &str, fps: &str) -> Result<VideoSettings, String> {
+fn video_settings(
+    mode: &str,
+    custom: &str,
+    fps: &str,
+    ai: AiSettings,
+) -> Result<VideoSettings, String> {
     let bitrate = match mode {
         "smaller" => VideoBitrate::Smaller,
         "recommended" => VideoBitrate::Recommended,
@@ -759,6 +898,7 @@ fn video_settings(mode: &str, custom: &str, fps: &str) -> Result<VideoSettings, 
         .parse::<FrameRateSpec>()
         .map_err(|error| error.to_string())?;
     Ok(VideoSettings {
+        ai,
         bitrate,
         frame_rate,
         ..Default::default()
@@ -766,11 +906,15 @@ fn video_settings(mode: &str, custom: &str, fps: &str) -> Result<VideoSettings, 
 }
 
 fn requested_resize(
+    ai: AiSettings,
     mode: &str,
     exact_width: &str,
     exact_height: &str,
     preserve_aspect_ratio: bool,
 ) -> Result<ResizeSpec, String> {
+    if ai != AiSettings::Off {
+        return Ok(ResizeSpec::Original);
+    }
     match mode {
         "original" => Ok(ResizeSpec::Original),
         "percent-75" => Ok(ResizeSpec::Percent(75)),
@@ -811,7 +955,13 @@ fn reprobe_if_ready(
     if !has_source || (signals.running)() {
         return;
     }
-    let resize = match requested_resize(mode, exact_width, exact_height, preserve_aspect_ratio) {
+    let resize = match requested_resize(
+        (signals.ai)(),
+        mode,
+        exact_width,
+        exact_height,
+        preserve_aspect_ratio,
+    ) {
         Ok(resize) => resize,
         Err(error) => {
             signals.profile_ready.set(false);
@@ -850,6 +1000,7 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
         &(signals.bitrate_mode)(),
         &(signals.custom_bitrate)(),
         &(signals.frame_rate)(),
+        (signals.ai)(),
     ) {
         Ok(settings) => settings,
         Err(error) => {
@@ -870,6 +1021,15 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
             // Inspection and selected geometry succeeded. Encoder restrictions
             // (VFR/raw bridge, audio, isolation or unavailable codec) must not
             // suppress the independently validated source preview command.
+            if settings.ai != AiSettings::Off && !capabilities.ai_available {
+                signals.preview_ready.set(false);
+                signals.profile_ready.set(false);
+                signals.status.set(format!(
+                    "AI unavailable: {} Select AI Off to restore ordinary resizing.",
+                    capabilities.ai_reason
+                ));
+                return;
+            }
             signals.preview_ready.set(true);
             signals.mp4_supported.set(capabilities.mp4_supported);
             signals.mp4_reason.set(capabilities.mp4_reason.clone());
@@ -891,14 +1051,40 @@ async fn probe_resize(resize: ResizeSpec, generation: u64, mut signals: ProbeSig
                 ));
                 return;
             }
-            if !capabilities.mp4_supported && (signals.profile)() == OutputProfileId::Mp4H264Aac {
+            if settings.ai != AiSettings::Off {
+                let reason = match (signals.profile)() {
+                    OutputProfileId::WebmVp8Opus | OutputProfileId::WebmVp8VideoOnly
+                        if !capabilities.webm_reason.is_empty() =>
+                    {
+                        Some(&capabilities.webm_reason)
+                    }
+                    OutputProfileId::Mp4H264Aac if !capabilities.mp4_supported => {
+                        Some(&capabilities.mp4_reason)
+                    }
+                    OutputProfileId::Mp4H265Aac if !capabilities.hevc_supported => {
+                        Some(&capabilities.hevc_reason)
+                    }
+                    _ => None,
+                };
+                if let Some(reason) = reason {
+                    signals.status.set(format!("Selected AI output profile is unavailable: {reason}. Choose a supported profile explicitly."));
+                    return;
+                }
+            }
+            if settings.ai == AiSettings::Off
+                && !capabilities.mp4_supported
+                && (signals.profile)() == OutputProfileId::Mp4H264Aac
+            {
                 signals.profile.set(OutputProfileId::PREFERRED);
             }
-            if !capabilities.hevc_supported && (signals.profile)() == OutputProfileId::Mp4H265Aac {
+            if settings.ai == AiSettings::Off
+                && !capabilities.hevc_supported
+                && (signals.profile)() == OutputProfileId::Mp4H265Aac
+            {
                 signals.profile.set(OutputProfileId::PREFERRED);
             }
             signals.profile_ready.set(true);
-            let mut available = if signals.ffmpeg_spike {
+            let mut available = if signals.ffmpeg_spike || !capabilities.webm_reason.is_empty() {
                 vec![]
             } else {
                 vec!["WebM/VP8/Opus"]

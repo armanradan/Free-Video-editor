@@ -1,0 +1,2 @@
+{"stage":"adapter","dxgi_index":0,"name":"Intel(R) UHD Graphics","vendor":32902,"device":39528,"luid_high":0,"luid_low":77022}
+{"status":"failed","error":"explicit NVIDIA adapter identity mismatch; no fallback"}

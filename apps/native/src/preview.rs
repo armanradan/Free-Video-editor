@@ -82,6 +82,9 @@ pub struct FrameSlot {
     color: media_core::ColorAdjustments,
     color_revision: u64,
     color_updates: ColorUpdates,
+    ai_transfers: Option<media_native::ai_preview::Transfers>,
+    ai_policy: Option<media_native::ai_preview::PreviewPolicy>,
+    before: bool,
     history_policy: Option<(media_core::Size, media_core::equalization::Equalization)>,
     history_request: Option<crate::preview_gpu::worker::Request>,
     history_error: Option<String>,
@@ -89,6 +92,7 @@ pub struct FrameSlot {
     completed_revision: u64,
     published_completion: u64,
     history_controls: Vec<crate::preview_gpu::worker::Control>,
+    converting: bool,
 }
 
 struct Job {
@@ -109,10 +113,12 @@ struct Request {
 struct Requests {
     latest: Option<Request>,
     stopping: bool,
+    active: bool,
 }
 
 #[derive(Clone, Default, PartialEq)]
 pub struct PlayerState {
+    pub converting: bool,
     pub ready: bool,
     pub paused: bool,
     pub ended: bool,
@@ -135,11 +141,108 @@ pub struct PreviewService {
     pub frames: Arc<Mutex<FrameSlot>>,
     job: Mutex<Option<Job>>,
     closed: AtomicBool,
+    converting: AtomicBool,
     #[cfg(test)]
     publication_gate: Arc<Mutex<()>>,
 }
 
+/// A conversion owns preview admission until its worker exits, including errors
+/// and cancellation. Only commands/retirement metadata cross this boundary.
+pub struct ConversionHandoff<'a> {
+    service: &'a PreviewService,
+    controls: Vec<crate::preview_gpu::worker::Control>,
+    playback: Option<Arc<(Mutex<Requests>, Condvar)>>,
+}
+
+impl ConversionHandoff<'_> {
+    pub fn wait_retired(&self, cancel: &CancellationToken) -> Result<(), String> {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        if let Some(mailbox) = &self.playback {
+            let mut requests = mailbox.0.lock().map_err(|_| "preview mailbox poisoned")?;
+            while requests.active {
+                if cancel.is_cancelled() {
+                    return Err("Preview handoff cancelled; conversion was not started".into());
+                }
+                if Instant::now() >= deadline {
+                    return Err(
+                        "Timed out retiring preview playback; conversion was not started".into(),
+                    );
+                }
+                requests = mailbox
+                    .1
+                    .wait_timeout(requests, Duration::from_millis(10))
+                    .map_err(|_| "preview retirement mailbox poisoned")?
+                    .0;
+            }
+        }
+        for control in &self.controls {
+            control.wait_retired(cancel, deadline)?;
+        }
+        if cancel.is_cancelled() {
+            Err("Preview handoff cancelled; conversion was not started".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl Drop for ConversionHandoff<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut slot) = self.service.frames.lock() {
+            for control in &slot.history_controls {
+                control.resume();
+            }
+            slot.converting = false;
+            slot.color_revision = slot.color_revision.wrapping_add(1);
+        }
+        self.service.converting.store(false, Ordering::Release);
+    }
+}
+
 impl PreviewService {
+    pub fn begin_conversion(&self) -> Result<ConversionHandoff<'_>, String> {
+        let job = self.job.lock().map_err(|_| "preview job lock poisoned")?;
+        if self.closed.load(Ordering::Acquire) {
+            return Err("Preview service is shut down".into());
+        }
+        if self.converting.swap(true, Ordering::AcqRel) {
+            return Err("Preview is already reserved for conversion".into());
+        }
+        let mut slot = match self.frames.lock() {
+            Ok(slot) => slot,
+            Err(_) => {
+                self.converting.store(false, Ordering::Release);
+                return Err("preview frame lock poisoned".into());
+            }
+        };
+        slot.converting = true;
+        slot.history_playing = false;
+        slot.frame = None;
+        slot.history_request = None;
+        slot.ai_transfers = None;
+        slot.revision = slot.revision.wrapping_add(1);
+        let controls = slot.history_controls.clone();
+        for control in &controls {
+            control.suspend();
+        }
+        let playback = job.as_ref().map(|job| {
+            job.control.paused.store(true, Ordering::Release);
+            job.cancel.cancel();
+            // No queued seek may start after retirement acknowledgement.
+            job.mailbox.0.lock().unwrap().latest = None;
+            job.mailbox.1.notify_all();
+            job.mailbox.clone()
+        });
+        Ok(ConversionHandoff {
+            service: self,
+            controls,
+            playback,
+        })
+    }
+    pub fn ai_transfers(&self) -> Option<media_native::ai_preview::Transfers> {
+        self.frames.lock().ok()?.ai_transfers.clone()
+    }
+
     pub fn presentation_revision(&self) -> (u64, u64) {
         let slot = self.frames.lock().unwrap();
         (
@@ -154,6 +257,58 @@ impl PreviewService {
         }
     }
 
+    pub fn set_before(&self, before: bool) {
+        if let Ok(mut slot) = self.frames.lock()
+            && slot.before != before
+        {
+            slot.before = before;
+            slot.color_revision = slot.color_revision.wrapping_add(1);
+        }
+    }
+
+    /// Explicit pilot configuration; normal Off never discovers or starts AI.
+    /// UI controls are gated separately from this renderer/service bridge.
+    pub fn set_ai_preview(
+        &self,
+        policy: Option<media_native::ai_preview::PreviewPolicy>,
+        selected: media_core::Size,
+        settings: media_core::equalization::Equalization,
+    ) -> Result<(), String> {
+        let ai_on = policy.is_some();
+        if (ai_on || settings.active())
+            && self
+                .job
+                .lock()
+                .map_err(|_| "preview job lock poisoned")?
+                .is_none()
+        {
+            return Err("open a paused source preview first".into());
+        }
+        {
+            let mut slot = self
+                .frames
+                .lock()
+                .map_err(|_| "preview frame lock poisoned")?;
+            if slot.converting {
+                return Err("Preview is paused for conversion".into());
+            }
+            if slot.ai_policy != policy {
+                slot.ai_policy = policy;
+                slot.history_policy = None;
+                slot.history_request = None;
+                slot.ai_transfers = None;
+                for control in &slot.history_controls {
+                    control.invalidate();
+                }
+            }
+        }
+        self.set_history_preview(if ai_on || settings.active() {
+            Some((selected, settings))
+        } else {
+            None
+        })
+    }
+
     /// Exact finite-preroll preview policy. None restores the original player.
     pub fn set_history_preview(
         &self,
@@ -164,6 +319,9 @@ impl PreviewService {
             .frames
             .lock()
             .map_err(|_| "preview frame lock poisoned")?;
+        if slot.converting {
+            return Err("Preview is paused for conversion".into());
+        }
         if slot.history_policy == policy {
             if policy.is_none() {
                 slot.history_error = None;
@@ -176,6 +334,8 @@ impl PreviewService {
                 return Err("invalid selected preview geometry".into());
             }
             slot.history_request = Some(crate::preview_gpu::worker::Request {
+                before: false,
+                ai: slot.ai_policy.clone(),
                 path: job.path.clone(),
                 position_us: job.control.position_us.load(Ordering::Acquire),
                 selected,
@@ -227,6 +387,9 @@ impl PreviewService {
         muted: bool,
     ) -> Result<(), String> {
         let mut job = self.job.lock().map_err(|_| "preview job lock poisoned")?;
+        if self.converting.load(Ordering::Acquire) {
+            return Err("Preview is paused for conversion".into());
+        }
         if self.closed.load(Ordering::Acquire) {
             return Err("Preview service is shut down".into());
         }
@@ -262,6 +425,8 @@ impl PreviewService {
                 .map_err(|_| "preview frame lock poisoned")?;
             if let Some((selected, settings)) = slot.history_policy {
                 slot.history_request = Some(crate::preview_gpu::worker::Request {
+                    before: false,
+                    ai: slot.ai_policy.clone(),
                     path: path.clone(),
                     position_us,
                     selected,
@@ -291,6 +456,7 @@ impl PreviewService {
                 Mutex::new(Requests {
                     latest: Some(request),
                     stopping: false,
+                    active: false,
                 }),
                 Condvar::new(),
             ));
@@ -309,6 +475,7 @@ impl PreviewService {
                         if requests.stopping {
                             break;
                         }
+                        requests.active = true;
                         requests.latest.take().unwrap()
                     };
                     let result = playback::play(
@@ -343,6 +510,8 @@ impl PreviewService {
                         request.control.paused.store(true, Ordering::Release);
                         request.control.ready.store(true, Ordering::Release);
                     }
+                    worker_mailbox.0.lock().unwrap().active = false;
+                    worker_mailbox.1.notify_all();
                 }
             });
             *job = Some(Job {
@@ -360,6 +529,9 @@ impl PreviewService {
         if let Ok(job) = self.job.lock()
             && let Some(job) = job.as_ref()
         {
+            if !paused && self.converting.load(Ordering::Acquire) {
+                return;
+            }
             job.control.paused.store(paused, Ordering::Release);
             if let Ok(mut slot) = self.frames.lock() {
                 slot.history_playing = !paused;
@@ -375,8 +547,10 @@ impl PreviewService {
             return PlayerState::default();
         };
         let c = &job.control;
+        let converting = self.converting.load(Ordering::Acquire);
         PlayerState {
-            ready: c.ready.load(Ordering::Acquire),
+            converting,
+            ready: !converting && c.ready.load(Ordering::Acquire),
             paused: c.paused.load(Ordering::Acquire),
             ended: c.ended.load(Ordering::Acquire),
             position_us: c.position_us.load(Ordering::Acquire),
@@ -395,6 +569,7 @@ impl PreviewService {
     fn clear(&self) {
         if let Ok(mut slot) = self.frames.lock() {
             slot.frame = None;
+            slot.ai_transfers = None;
             slot.history_request = None;
             slot.history_error = None;
             for control in &slot.history_controls {
@@ -477,6 +652,9 @@ impl Presenter {
             ));
             if let Ok(mut slot) = self.frames.lock() {
                 slot.history_controls.retain(|control| control.live());
+                if slot.converting {
+                    self.history_worker.as_ref()?.control().suspend();
+                }
                 slot.history_controls
                     .push(self.history_worker.as_ref()?.control());
             }
@@ -495,10 +673,20 @@ impl Presenter {
             self.texture = None;
         }
         self.history_source = Some(source);
+        let before = request.before;
         worker.request_sample(request, playing);
         if let Some(result) = worker.take_result() {
             match result {
                 Ok(output) => {
+                    if crate::ai_preview_check::requested() {
+                        eprintln!(
+                            "AI preview diagnostic displayed: {}x{}, comparison_before={}, transfers={:?}",
+                            output.texture.width(),
+                            output.texture.height(),
+                            before,
+                            output.ai_transfers
+                        );
+                    }
                     let _uploads = output.uploads;
                     if self.texture.as_ref().is_none() {
                         if let Some(handle) = self.handle.take() {
@@ -535,6 +723,7 @@ impl Presenter {
                     );
                     if let Ok(mut slot) = self.frames.lock() {
                         slot.history_error = None;
+                        slot.ai_transfers = output.ai_transfers;
                     }
                 }
                 Err(error) => {
@@ -548,7 +737,11 @@ impl Presenter {
                 }
             }
         }
-        self.handle.clone()
+        if self.frames.lock().ok()?.converting {
+            None
+        } else {
+            self.handle.clone()
+        }
     }
 
     pub fn new(frames: Arc<Mutex<FrameSlot>>) -> Self {
@@ -626,11 +819,22 @@ impl CustomPaintSource for Presenter {
             return None;
         }
         let slot = self.frames.lock().ok()?;
+        if slot.converting {
+            drop(slot);
+            if let Some(handle) = self.handle.take() {
+                ctx.unregister_texture(handle);
+            }
+            self.texture = None;
+            self.color_pass = None;
+            self.revision = None;
+            return None;
+        }
         if slot.history_error.is_some() && slot.history_request.is_none() {
             return None;
         }
         if let Some(mut request) = slot.history_request.clone() {
             request.color = slot.color;
+            request.before = slot.before;
             let playing = slot.history_playing;
             drop(slot);
             return self.render_history(ctx, request, playing);
@@ -732,6 +936,340 @@ pub fn format_time(us: u64) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn conversion_handoff_retires_playback_and_rejects_new_commands() {
+        let service = super::PreviewService::default();
+        let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/m35-vfr-offset.mp4");
+        service.start(source.clone(), 500_000, false, true).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !service.state().ready {
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        let position = service.state().position_us;
+        let handoff = service.begin_conversion().unwrap();
+        handoff
+            .wait_retired(&media_native::CancellationToken::default())
+            .unwrap();
+        assert!(!service.state().ready);
+        assert!(service.state().converting);
+        service.pause(false);
+        assert!(service.state().paused);
+        assert!(service.start(source.clone(), 0, true, false).is_err());
+        assert!(service.begin_conversion().is_err());
+        assert!(service.set_history_preview(None).is_err());
+        assert!(service.frames.lock().unwrap().frame.is_none());
+        let cancelled = media_native::CancellationToken::default();
+        cancelled.cancel();
+        assert!(
+            handoff
+                .wait_retired(&cancelled)
+                .unwrap_err()
+                .contains("cancelled")
+        );
+        drop(handoff);
+        service.start(source, position, false, true).unwrap();
+        service.shutdown();
+        assert!(service.begin_conversion().is_err());
+    }
+
+    #[test]
+    #[ignore = "actual configured DirectML, renderer GPU, AI preview retirement and verified AI conversion"]
+    fn actual_ai_conversion_handoff_retires_and_retries() {
+        use crate::preview_gpu::worker::{Request, Worker};
+        use media_core::{
+            ColorAdjustments, FrameRateSpec, OutputProfileId, ResizeSpec, Size,
+            ai_upscale::{AiModel, AiScale, AiSettings},
+            equalization::Equalization,
+        };
+        use media_native::{
+            CancellationToken, NativeJob, NativeSession, ProcessingRoute,
+            ai_inference::OnnxHelperConfig, ai_preview::PreviewPolicy,
+        };
+        let rtx = std::env::var("DIAXUS_TEST_PREVIEW_BACKEND").as_deref() == Ok("rtx");
+        let helper: media_native::ai_preview::PreviewHelper = if rtx {
+            media_native::rtx_inference::RtxHelperConfig {
+                executable: std::env::var_os("DIAXUS_RTX_HELPER").unwrap().into(),
+                sdk_root: std::env::var_os("DIAXUS_RTX_SDK").unwrap().into(),
+                cache_parent: std::env::var_os("DIAXUS_RTX_CACHE").unwrap().into(),
+                dxgi_index: 1,
+                exact_adapter_name: "NVIDIA GeForce RTX 3050 Laptop GPU".into(),
+                expected_luid_high: std::env::var("DIAXUS_RTX_LUID_HIGH")
+                    .unwrap()
+                    .parse()
+                    .unwrap(),
+                expected_luid_low: std::env::var("DIAXUS_RTX_LUID_LOW")
+                    .unwrap()
+                    .parse()
+                    .unwrap(),
+            }
+            .into()
+        } else {
+            OnnxHelperConfig {
+                executable: std::env::var_os("DIAXUS_AI_HELPER").unwrap().into(),
+                runtime_directory: std::env::var_os("DIAXUS_ORT_DIRECTORY").unwrap().into(),
+                model_cache: std::env::var_os("DIAXUS_AI_MODEL_CACHE").unwrap().into(),
+                dxgi_index: 1,
+                exact_adapter_name: "NVIDIA GeForce RTX 3050 Laptop GPU".into(),
+            }
+            .into()
+        };
+        let helper_name = match &helper {
+            media_native::ai_preview::PreviewHelper::Onnx(c) => &c.exact_adapter_name,
+            media_native::ai_preview::PreviewHelper::Rtx(c) => &c.exact_adapter_name,
+        };
+        let processing = media_native::enumerate_adapters()
+            .into_iter()
+            .find(|a| a.name == *helper_name && a.backend == "Vulkan")
+            .unwrap();
+        let instance = wgpu_blitz::Instance::default();
+        let renderer = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(renderer.request_device(&Default::default())).unwrap();
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let directory = root.join(format!(
+            "tmp/ai-upscale/native-{}-conversion-handoff-{}",
+            if rtx { "rtx" } else { "onnx" },
+            std::process::id()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let source = root.join("fixtures/ai-upscale-cut.mp4");
+        let session = NativeSession::new(Some(&processing.key)).unwrap();
+        let wait = |worker: &Worker| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            loop {
+                if let Some(result) = worker.take_result() {
+                    break result.unwrap();
+                }
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+        let mut cases = Vec::new();
+        for scale in [AiScale::Two, AiScale::Four] {
+            let service = super::PreviewService::default();
+            service.start(source.clone(), 100_000, false, true).unwrap();
+            let ai = if rtx {
+                AiSettings::RtxVideo {
+                    configuration: media_core::ai_upscale::RtxConfiguration::Sdk11SdrV1,
+                    scale,
+                }
+            } else {
+                AiSettings::OnnxRuntime {
+                    model: AiModel::RealEsrGeneralX4v3StrongFp32V1,
+                    scale,
+                }
+            };
+            let selected = ai
+                .requested_output_size(Size::new(64, 36).unwrap(), ResizeSpec::Original)
+                .unwrap();
+            let policy = PreviewPolicy {
+                ai,
+                helper: helper.clone(),
+                processing_adapter: processing.key.clone(),
+            };
+            let config = media_native::ai_configuration::NativeAiConfiguration {
+                helper: helper.clone(),
+                processing_adapter: processing.key.clone(),
+            };
+            // Acceptance metadata is injected only in this opt-in test. The
+            // ordinary app still supplies pending capabilities until release.
+            let capability = media_core::ai_upscale::AiCapability::Validated {
+                settings: ai,
+                limits: media_core::ai_upscale::AiGeometryLimits {
+                    max_source: Size::new(64, 36).unwrap(),
+                    max_output: selected,
+                    max_output_pixels: u64::from(selected.width) * u64::from(selected.height),
+                },
+            };
+            assert_eq!(
+                config
+                    .preview_policy(ai, Size::new(64, 36).unwrap(), &capability)
+                    .unwrap(),
+                (policy.clone(), selected)
+            );
+            let settings = Equalization::new(true, 50).unwrap();
+            service
+                .set_ai_preview(Some(policy.clone()), selected, settings)
+                .unwrap();
+            let worker = Worker::new(device.clone(), queue.clone(), 51, || {});
+            service
+                .frames
+                .lock()
+                .unwrap()
+                .history_controls
+                .push(worker.control());
+            let mut request = Request {
+                before: false,
+                ai: Some(policy.clone()),
+                path: source.clone(),
+                position_us: 100_000,
+                selected,
+                settings,
+                color: ColorAdjustments::default(),
+            };
+            worker.request(request.clone());
+            let prepared = wait(&worker);
+            assert_eq!(prepared.ai_transfers.as_ref().unwrap().source_frames, 3);
+            let pixels =
+                crate::preview_gpu::diagnostic_readback(&device, &queue, &prepared.texture);
+            drop(prepared);
+            request.position_us = 200_000;
+            worker.request(request.clone());
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+            while !worker.preparing() {
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            let handoff = service.begin_conversion().unwrap();
+            worker.request(request.clone()); // A stale paint/sample cannot requeue work.
+            handoff.wait_retired(&CancellationToken::default()).unwrap();
+            assert!(!worker.preparing());
+            assert!(worker.take_result().is_none());
+            assert!(service.start(source.clone(), 0, true, false).is_err());
+            assert!(
+                service
+                    .set_ai_preview(Some(policy.clone()), selected, settings)
+                    .is_err()
+            );
+            let output = directory.join(format!("{}x.mp4", scale.factor()));
+            let job = || NativeJob {
+                input: &source,
+                output: &output,
+                resize: ResizeSpec::Original,
+                profile: OutputProfileId::Mp4H264Aac,
+                route: ProcessingRoute::SharedWgpu,
+                bitrate: None,
+                frame_rate: FrameRateSpec::Original,
+                color: ColorAdjustments::default(),
+                equalization: settings,
+                ai,
+            };
+            let cancelled = CancellationToken::default();
+            cancelled.cancel();
+            assert!(
+                session
+                    .convert_configured_job(job(), &config, &capability, &cancelled, |_| {})
+                    .is_err()
+            );
+            assert!(!output.exists());
+            drop(handoff); // Failed/cancelled conversion releases admission too.
+            let handoff = service.begin_conversion().unwrap();
+            handoff.wait_retired(&CancellationToken::default()).unwrap();
+            let report = session
+                .convert_configured_job(
+                    job(),
+                    &config,
+                    &capability,
+                    &CancellationToken::default(),
+                    |_| {},
+                )
+                .unwrap();
+            assert_eq!(report.conversion.frames_processed, 4);
+            assert_eq!(report.conversion.ai.source_frames, 4);
+            assert!(worker.take_result().is_none());
+            drop(handoff);
+            service.start(source.clone(), 100_000, false, true).unwrap();
+            service
+                .set_ai_preview(Some(policy), selected, settings)
+                .unwrap();
+            request.position_us = 100_000;
+            worker.request(request);
+            let fresh = wait(&worker);
+            assert_eq!(
+                pixels,
+                crate::preview_gpu::diagnostic_readback(&device, &queue, &fresh.texture)
+            );
+            assert!(service.state().paused);
+            cases.push(
+                serde_json::json!({"scale":scale.factor(),"conversion":report.conversion,
+                "active_preparation_retired":true,"stale_request_rejected":true,
+                "cancelled_conversion_unpublished":true,"fresh_paused_preview_pixels_equal":true}),
+            );
+            drop(fresh);
+            let closing = service.begin_conversion().unwrap();
+            std::thread::scope(|scope| {
+                let retiring = scope.spawn(|| closing.wait_retired(&CancellationToken::default()));
+                drop(worker); // Renderer closes concurrently with handoff.
+                retiring.join().unwrap().unwrap();
+            });
+            drop(closing);
+            service.shutdown();
+        }
+        session.shutdown();
+        std::fs::write(
+            directory.join("report.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+            "status":"passed-diagnostic-handoff-not-ordinary-ai-acceptance",
+            "renderer":format!("{:?}",renderer.get_info()),"cases":cases}))
+            .unwrap(),
+        )
+        .unwrap();
+        println!(
+            "Native conversion handoff evidence: {}",
+            directory.display()
+        );
+    }
+
+    #[test]
+    fn ai_policy_requires_a_source_and_off_restores_ordinary_player() {
+        use media_core::ai_upscale::{AiModel, AiScale, AiSettings};
+        let service = super::PreviewService::default();
+        let policy = media_native::ai_preview::PreviewPolicy {
+            ai: AiSettings::OnnxRuntime {
+                model: AiModel::RealEsrGeneralX4v3StrongFp32V1,
+                scale: AiScale::Two,
+            },
+            helper: media_native::ai_inference::OnnxHelperConfig {
+                executable: "missing-helper.exe".into(),
+                runtime_directory: "missing-runtime".into(),
+                model_cache: "missing-cache".into(),
+                dxgi_index: 0,
+                exact_adapter_name: "unavailable adapter".into(),
+            }
+            .into(),
+            processing_adapter: "unavailable adapter".into(),
+        };
+        let selected = media_core::Size::new(128, 72).unwrap();
+        let neutral = media_core::equalization::Equalization::default();
+        assert!(
+            service
+                .set_ai_preview(Some(policy.clone()), selected, neutral)
+                .is_err()
+        );
+        service.set_ai_preview(None, selected, neutral).unwrap();
+        let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/ai-upscale-cut.mp4");
+        service.start(source, 0, false, true).unwrap();
+        // Queuing intent starts no helper; acquisition/runtime failures belong
+        // to the worker, and Off remains available without working assets.
+        service
+            .set_ai_preview(Some(policy), selected, neutral)
+            .unwrap();
+        assert!(
+            service
+                .frames
+                .lock()
+                .unwrap()
+                .history_request
+                .as_ref()
+                .unwrap()
+                .ai
+                .is_some()
+        );
+        service
+            .set_ai_preview(None, media_core::Size::new(32, 18).unwrap(), neutral)
+            .unwrap();
+        let slot = service.frames.lock().unwrap();
+        assert!(
+            slot.ai_policy.is_none()
+                && slot.history_policy.is_none()
+                && slot.history_request.is_none()
+        );
+        drop(slot);
+        service.shutdown();
+    }
     use super::*;
     #[test]
     #[ignore = "real renderer ABI device, presenter suspension and fresh worker"]
@@ -750,6 +1288,8 @@ mod tests {
         let frames = Arc::new(Mutex::new(FrameSlot::default()));
         let mut presenter = Presenter::new(frames);
         let request = crate::preview_gpu::worker::Request {
+            before: false,
+            ai: None,
             path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../../fixtures/m35-vfr-offset.mp4"),
             position_us: 500_000,
@@ -793,6 +1333,8 @@ mod tests {
                 reference = Some(pixels);
             }
             worker.request(crate::preview_gpu::worker::Request {
+                before: false,
+                ai: None,
                 position_us: 1_900_000,
                 ..request.clone()
             });

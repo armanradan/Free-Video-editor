@@ -1,0 +1,1 @@
+native output changed frame 0 timing: expected 22000µs, got 0µs

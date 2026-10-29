@@ -1,0 +1,81 @@
+{
+  "default": {
+    "onnx": [
+      {
+        "path": null,
+        "status": "missing",
+        "reason": "Set an explicit ONNX directory or DIAXUS_ORT_DIRECTORY; no runtime is installed automatically",
+        "product_version": null
+      }
+    ],
+    "rtx": [
+      {
+        "path": null,
+        "status": "missing",
+        "reason": "Set an explicit RTX SDK root or DIAXUS_RTX_SDK; proprietary SDK assets are never bundled or installed automatically",
+        "product_version": null
+      }
+    ],
+    "inference_available": false,
+    "sdk_terms_accepted_by_this_operation": false
+  },
+  "explicit": {
+    "onnx": [
+      {
+        "path": "tmp/ai-upscale/venv/Lib/site-packages/onnxruntime/capi\\onnxruntime.dll",
+        "status": "present-unvalidated",
+        "reason": "x64 DLL and assessed PE product version found; C API/provider/device/model execution and cleanup remain separate gates. No library was loaded",
+        "product_version": [
+          1,
+          23,
+          25,
+          924
+        ]
+      },
+      {
+        "path": "tmp/ai-upscale/venv/Lib/site-packages/onnxruntime/capi\\DirectML.dll",
+        "status": "present-unvalidated",
+        "reason": "x64 DLL and assessed PE product version found; C API/provider/device/model execution and cleanup remain separate gates. No library was loaded",
+        "product_version": [
+          1,
+          15,
+          4,
+          0
+        ]
+      }
+    ],
+    "rtx": [
+      {
+        "path": "D:/Libraries/RTX_Video_SDK_v1.1.0\\bin/Windows/x64/rel/nvngx_vsr.dll",
+        "status": "present-unvalidated",
+        "reason": "x64 DLL and assessed PE product version found; C API/provider/device/model execution and cleanup remain separate gates. No library was loaded",
+        "product_version": [
+          1,
+          6,
+          0,
+          0
+        ]
+      },
+      {
+        "path": "D:/Libraries/RTX_Video_SDK_v1.1.0\\include/nvsdk_ngx.h",
+        "status": "present-unvalidated",
+        "reason": "Assessed SDK layout only; package identity, API/driver/toolchain and terms still require their separate gates",
+        "product_version": null
+      },
+      {
+        "path": "D:/Libraries/RTX_Video_SDK_v1.1.0\\include/nvsdk_ngx_helpers_vsr.h",
+        "status": "present-unvalidated",
+        "reason": "Assessed SDK layout only; package identity, API/driver/toolchain and terms still require their separate gates",
+        "product_version": null
+      },
+      {
+        "path": "D:/Libraries/RTX_Video_SDK_v1.1.0\\NVIDIA_RTX_Video_SDK_License.pdf",
+        "status": "present-unvalidated",
+        "reason": "Assessed SDK layout only; package identity, API/driver/toolchain and terms still require their separate gates",
+        "product_version": null
+      }
+    ],
+    "inference_available": false,
+    "sdk_terms_accepted_by_this_operation": false
+  }
+}

@@ -1,0 +1,69 @@
+[
+  {
+    "extra": [],
+    "browser": "156.0.4314.42",
+    "gpu": [
+      {
+        "powerPreference": "low-power",
+        "info": {
+          "vendor": "intel",
+          "architecture": "gen-12lp",
+          "device": "",
+          "description": ""
+        }
+      },
+      {
+        "powerPreference": "high-performance",
+        "info": {
+          "vendor": "intel",
+          "architecture": "gen-12lp",
+          "device": "",
+          "description": ""
+        }
+      }
+    ]
+  },
+  {
+    "extra": [
+      "--force-high-performance-gpu"
+    ],
+    "browser": "156.0.4314.42",
+    "gpu": [
+      {
+        "powerPreference": "low-power",
+        "info": {
+          "vendor": "nvidia",
+          "architecture": "ampere",
+          "device": "",
+          "description": ""
+        }
+      },
+      {
+        "powerPreference": "high-performance",
+        "info": {
+          "vendor": "nvidia",
+          "architecture": "ampere",
+          "device": "",
+          "description": ""
+        }
+      }
+    ]
+  },
+  {
+    "extra": [
+      "--use-angle=vulkan",
+      "--force-high-performance-gpu"
+    ],
+    "browser": "156.0.4314.42",
+    "gpu": [
+      {
+        "powerPreference": "low-power",
+        "info": null
+      },
+      {
+        "powerPreference": "high-performance",
+        "info": null
+      }
+    ]
+  }
+]

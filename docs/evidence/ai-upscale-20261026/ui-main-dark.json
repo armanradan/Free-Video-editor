@@ -1,0 +1,71 @@
+{
+  "status": "ordinary-ai-ui-acceptance-passed",
+  "gpuErrors": [],
+  "cases": [
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\quality-temporal-20261025\\tos-face.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": true,
+        "theme": "dark"
+      },
+      "summary": "PASS: 64 H.264 input frames + 251 decoded audio samples → 384×160 MP4/H.264/AAC converted/finalized in 3574.1 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 12.6 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3586.9 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=250000 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 384×160; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/2/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=12, job reuses=64; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=384×160 / 384×160; CPU submission/bridge=40.6 ms; cumulative submitted-work completion latency=490.7 ms; slot-reuse wait=0.7 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 1392656 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3236.1 ms (includes GPU waits; not pure GPU execution).\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+      "fileName": "tos-face-384x160.mp4",
+      "frameCount": 64,
+      "inputFrameCount": 64,
+      "conversionMs": 3574.135000001639,
+      "decoderWaitMs": 9.834999993443489,
+      "encoderSubmissionWaitMs": 9.155000001192093,
+      "verificationMs": 12.605000000447035,
+      "targetVideoBitrate": 250000,
+      "duration": 5.354670138888889,
+      "outputBytes": 213125,
+      "aiSetupMs": 75.74499999918044,
+      "aiProcessingMs": 3236.085000000894,
+      "gpuCpuBridgeMs": 40.565000005066395,
+      "aiSourceFrames": 64,
+      "aiAdmissionBytes": 158533264,
+      "gpu": "nvidia / ampere (BrowserWebGpu)",
+      "downloadUrl": "blob:http://127.0.0.1:9084/44056994-b28e-4f94-9841-9796e15b52df"
+    },
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\quality-temporal-20261025\\tos-face.mp4",
+        "scale": "4x",
+        "fps": "original",
+        "clahe": true,
+        "theme": "dark"
+      },
+      "summary": "PASS: 64 H.264 input frames + 251 decoded audio samples → 768×320 MP4/H.264/AAC converted/finalized in 3560.5 ms; 5.355 s; 251 AAC packets; audio queue peak=1; conversion pixel readbacks=0; backend=WebCodecs.\nDiagnostic verification: full re-decode PASS in 13.6 ms; 64-frame timestamp/duration timeline PASS (maximum container quantization 4 µs); decoded output audio peak=0.1430; total job 3574.3 ms.\nOutput policy: 64 input → 64 output frames; FPS=Original (source PTS preserved); target video bitrate=257048 bps (VBR, not a file-size guarantee).\nColor adjustments: brightness=10, contrast=115%, saturation=80% (encoded RGB); snapshot applied once per source frame before FPS resampling.\nCodec acceleration: requested=no-preference, selected=no-preference; exact decoder+encoder probes passed; hardware execution unknown.\nGeometry/color: input coded 192×80, visible 192×80+0,0, PAR 1:1, rotation 0°, flip=false; baked square-pixel output 768×320; SDR bt709/bt709/bt709, browser-normalized to sRGB processing; HDR rejected.\nBounds: input BlobSource cache ≤8 MiB; Mediabunny decoder combined packet/callback queue ≤40 before output and ≤8 with decoded samples; bitmap preparation and retained GPU submissions are each ≤4; fixed-FPS lookahead ≤one processed frame; prepared frames are consumed in timestamp order; WebCodecs encoder queue ≤4; mux writes are serialized.\nOutput storage: memory fallback (maximum input 256 MiB); bounded origin-private file streaming was unavailable: memory compatibility mode was explicitly requested.\nBitmap preparation: total=0; groups=0; live/peak=0/0; cumulative task latency=0.0 ms; ordered-consumer wait=0.1 ms; bound=4.\nStage telemetry (live/peak/total/discarded): decoded-video 0/1/64/0; GPU 0/1/64/0; video encoder callbacks 0/2/64/0; video packet callbacks 0/1/64/0; decoded-audio 0/1/251/0; audio encoder callbacks 0/1/2/0; audio packet callbacks 0/1/251/0.\nCleanup: 0 application-held frame references, 0 samples; peaks 2/2 (library-internal resources not counted).\nIngress: 0 additional VideoFrame→ImageBitmap compatibility conversions; browser-internal copies unknown.\nGPU telemetry: device generation 1; bounded input texture pool slots=4, lifetime allocations=20, job reuses=60; leases live/peak=0/4; ingress copies=64; canvas captures=64; capture visible/backing=768×320 / 768×320; CPU submission/bridge=40.4 ms; cumulative submitted-work completion latency=442.5 ms; slot-reuse wait=0.6 ms; final-drain wait=0.0 ms (completion latencies can overlap and are not pure GPU execution; timestamp queries unavailable/not requested).\nCLAHE: 64 recorded source frames; 256 nominal compute passes plus geometry/final renders; 5259280 scratch bytes; history reset/drained at job boundary.\nAI normalization/inference/post-scale wall=3267.1 ms (includes GPU waits; not pure GPU execution).\nExecution: main-thread fallback (main-thread mode explicitly requested (?execution=main)).\nExecution-context startup probe: 0.2 ms once; reused for this command=true.",
+      "fileName": "tos-face-768x320.mp4",
+      "frameCount": 64,
+      "inputFrameCount": 64,
+      "conversionMs": 3560.4700000006706,
+      "decoderWaitMs": 9.325000002980232,
+      "encoderSubmissionWaitMs": 8.469999996945262,
+      "verificationMs": 13.634999999776483,
+      "targetVideoBitrate": 257048,
+      "duration": 5.354670138888889,
+      "outputBytes": 221714,
+      "aiSetupMs": 67.2949999999255,
+      "aiProcessingMs": 3267.0700000040233,
+      "gpuCpuBridgeMs": 40.44499999284744,
+      "aiSourceFrames": 64,
+      "aiAdmissionBytes": 162891408,
+      "gpu": "nvidia / ampere (BrowserWebGpu)",
+      "downloadUrl": "blob:http://127.0.0.1:9084/29d6dafc-5ccd-4c6b-bc2a-50cec8e819e3"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "video-main-dark-2x.mp4",
+      "bytes": 213125
+    },
+    {
+      "name": "video-main-dark-4x.mp4",
+      "bytes": 221714
+    }
+  ],
+  "pageErrors": []
+}

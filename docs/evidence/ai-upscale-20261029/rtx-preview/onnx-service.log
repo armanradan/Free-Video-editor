@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.19s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-a2c8bd18b6655e9c.exe)
+
+running 1 test
+test ai_preview::tests::actual_ai_preview_chronological_pixels_and_cache has been running for over 60 seconds
+Native preview evidence: D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native\../../tmp/ai-upscale/native-onnx-preview-14244
+test ai_preview::tests::actual_ai_preview_chronological_pixels_and_cache ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 62 filtered out; finished in 64.74s
