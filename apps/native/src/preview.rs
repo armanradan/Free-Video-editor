@@ -118,6 +118,7 @@ struct Requests {
 
 #[derive(Clone, Default, PartialEq)]
 pub struct PlayerState {
+    pub ai_preparing: bool,
     pub converting: bool,
     pub ready: bool,
     pub paused: bool,
@@ -548,7 +549,21 @@ impl PreviewService {
         };
         let c = &job.control;
         let converting = self.converting.load(Ordering::Acquire);
+        let (history_error, ai_preparing) = self
+            .frames
+            .lock()
+            .map(|slot| {
+                (
+                    slot.history_error.clone(),
+                    slot.ai_policy.is_some()
+                        && !slot.before
+                        && slot.ai_transfers.is_none()
+                        && slot.history_error.is_none(),
+                )
+            })
+            .unwrap_or_default();
         PlayerState {
+            ai_preparing,
             converting,
             ready: !converting && c.ready.load(Ordering::Acquire),
             paused: c.paused.load(Ordering::Acquire),
@@ -557,12 +572,7 @@ impl PreviewService {
             duration_us: c.duration_us.load(Ordering::Acquire),
             audio_active: c.audio_active.load(Ordering::Acquire),
             muted: c.muted.load(Ordering::Acquire),
-            error: self
-                .frames
-                .lock()
-                .ok()
-                .and_then(|slot| slot.history_error.clone())
-                .or_else(|| c.error.lock().ok().and_then(|v| v.clone())),
+            error: history_error.or_else(|| c.error.lock().ok().and_then(|v| v.clone())),
         }
     }
 
@@ -633,9 +643,12 @@ impl Presenter {
     fn render_history(
         &mut self,
         mut ctx: CustomPaintCtx<'_>,
-        request: crate::preview_gpu::worker::Request,
+        mut request: crate::preview_gpu::worker::Request,
         playing: bool,
     ) -> Option<TextureHandle> {
+        if let Some(policy) = &request.ai {
+            request.position_us = policy.position(request.position_us);
+        }
         let device = self.device.as_ref()?;
         if self.history_worker.is_none() {
             let frames = self.frames.clone();
@@ -1068,6 +1081,7 @@ mod tests {
                 ai,
                 helper: helper.clone(),
                 processing_adapter: processing.key.clone(),
+                source_end: None,
             };
             let config = media_native::ai_configuration::NativeAiConfiguration {
                 helper: helper.clone(),
@@ -1230,6 +1244,7 @@ mod tests {
             }
             .into(),
             processing_adapter: "unavailable adapter".into(),
+            source_end: None,
         };
         let selected = media_core::Size::new(128, 72).unwrap();
         let neutral = media_core::equalization::Equalization::default();

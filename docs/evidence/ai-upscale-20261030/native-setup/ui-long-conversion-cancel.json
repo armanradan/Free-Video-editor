@@ -1,0 +1,8 @@
+{
+  "captured": "2026-10-30T10:37:12.7470633+03:30",
+  "target_published": false,
+  "partials": [],
+  "helpers": [],
+  "observed_ui_stage_at_cancel": "Verifying",
+  "scope": "Active ordinary conversion cancellation, not a claim of cancellation inside an inference kernel"
+}

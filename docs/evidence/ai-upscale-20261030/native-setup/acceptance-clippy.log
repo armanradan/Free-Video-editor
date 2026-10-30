@@ -1,0 +1,21 @@
+    Checking media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Checking converter-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\apps\native)
+error[E0382]: borrow of partially moved value: `ai_export_reason`
+    --> apps\native\src\main.rs:1087:67
+     |
+1087 | ...ry", disabled: (busy || ai_export_reason.is_some() || ai_preview_check::requested() || input().trim().is_empty() || output().tr...
+     |                            ^^^^^^^^^^^^^^^^ value borrowed here after partial move
+...
+1103 | ...lass: "job-status", role: "status", aria_live: "polite", if let Some(reason)=ai_export_reason {"{reason}"}else{"{status}"} }
+     |                                                                         ------ value partially moved here
+     |
+     = note: partial move occurs because value has type `std::string::String`, which does not implement the `Copy` trait
+help: borrow this binding in the pattern to avoid moving the value
+     |
+1103 |                 p { id: "native-status", class: "job-status", role: "status", aria_live: "polite", if let Some(ref reason)=ai_export_reason {"{reason}"}else{"{status}"} }
+     |                                                                                                                +++
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `converter-native` (bin "converter-native") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `converter-native` (bin "converter-native" test) due to 1 previous error

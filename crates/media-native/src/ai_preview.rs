@@ -13,7 +13,7 @@ use media_core::{
 use serde::Serialize;
 use std::path::Path;
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, Serialize)]
 #[serde(
     tag = "backend",
     content = "configuration",
@@ -65,6 +65,21 @@ pub struct PreviewPolicy {
     pub ai: AiSettings,
     pub helper: PreviewHelper,
     pub processing_adapter: String,
+    pub source_end: Option<crate::PreviewSourceEnd>,
+}
+
+impl PreviewPolicy {
+    pub fn position(&self, requested_us: u64) -> u64 {
+        self.source_end
+            .as_ref()
+            .map_or(requested_us, |end| requested_us.min(end.position_us))
+    }
+    fn check_source(&self, path: &Path) -> NativeResult<()> {
+        if let Some(end) = &self.source_end {
+            end.check_source(path)?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -72,6 +87,221 @@ mod tests {
     use super::*;
     use media_core::ai_upscale::{AiModel, AiScale};
     use serde_json::json;
+
+    #[test]
+    #[ignore = "explicit licensed larger RTX first-frame diagnostic"]
+    fn actual_larger_rtx_licensed_first_frame_has_structure() {
+        let root = std::path::PathBuf::from(std::env::var_os("DIAXUS_TEST_RTX_ENVELOPE").unwrap());
+        let config =
+            crate::ai_configuration::NativeAiConfiguration::read(&root.join("configuration.json"))
+                .unwrap();
+        let path = root.join("quality-hd/tos-motion.mp4");
+        let ai = AiSettings::RtxVideo {
+            configuration: media_core::ai_upscale::RtxConfiguration::Sdk11SdrV1,
+            scale: AiScale::Two,
+        };
+        let policy = PreviewPolicy {
+            ai,
+            helper: config.helper,
+            processing_adapter: config.processing_adapter,
+            source_end: None,
+        };
+        let token = CancellationToken::default();
+        let (mut preview, _) = AiPreview::prepare(&path, 0, &policy, 91, &token).unwrap();
+        for effects in [false, true] {
+            let image = preview
+                .render(
+                    Equalization::new(effects, 50).unwrap(),
+                    if effects {
+                        ColorAdjustments::new(10, 115, 80).unwrap()
+                    } else {
+                        ColorAdjustments::default()
+                    },
+                    91,
+                    &token,
+                )
+                .unwrap();
+            let min = image
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|p| p[0])
+                .min()
+                .unwrap();
+            let max = image
+                .rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|p| p[0])
+                .max()
+                .unwrap();
+            std::fs::write(
+                root.join(format!("first-display-effects-{effects}.rgba")),
+                &image.rgba,
+            )
+            .unwrap();
+            println!(
+                "Licensed first-frame effects={effects}: display {:?}, red range {min}..{max}",
+                image.size
+            );
+            assert!(
+                max - min > 64,
+                "Structured source became flat before encoding"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "explicit larger RTX fixtures/helper/SDK and selected NVIDIA GPU"]
+    fn actual_larger_rtx_preview_matches_chronological_processing_and_eof() {
+        let root = std::path::PathBuf::from(std::env::var_os("DIAXUS_TEST_RTX_ENVELOPE").unwrap());
+        let config =
+            crate::ai_configuration::NativeAiConfiguration::read(&root.join("configuration.json"))
+                .unwrap();
+        let token = CancellationToken::default();
+        let mut results = vec![];
+        for (size, scale) in [
+            ("640x360", AiScale::Two),
+            ("640x360", AiScale::Four),
+            ("1280x720", AiScale::Two),
+        ] {
+            let path = root.join(format!("fixtures/synthetic-{size}.mp4"));
+            let session = crate::NativeSession::new(Some(&config.processing_adapter)).unwrap();
+            let source = session.inspect(&path, &token).unwrap();
+            session.shutdown();
+            let input = Size::new(source.width, source.height).unwrap();
+            let ai = AiSettings::RtxVideo {
+                configuration: media_core::ai_upscale::RtxConfiguration::Sdk11SdrV1,
+                scale,
+            };
+            let selected = ai
+                .requested_output_size(input, ResizeSpec::Original)
+                .unwrap();
+            let policy = PreviewPolicy {
+                ai,
+                helper: config.helper.clone(),
+                processing_adapter: config.processing_adapter.clone(),
+                source_end: source.preview_end,
+            };
+            let decoded = std::process::Command::new("ffmpeg")
+                .args(["-v", "error", "-i"])
+                .arg(&path)
+                .args([
+                    "-an",
+                    "-vf",
+                    &format!("{},format=gbrp,format=rgba", crate::color::TO_SRGB),
+                    "-frames:v",
+                    "3",
+                    "-fps_mode",
+                    "passthrough",
+                    "-f",
+                    "rawvideo",
+                    "pipe:1",
+                ])
+                .output()
+                .unwrap();
+            assert!(decoded.status.success());
+            let frame_bytes = (input.width * input.height * 4) as usize;
+            assert_eq!(decoded.stdout.len(), frame_bytes * 3);
+            let (mut preview, summary) =
+                AiPreview::prepare(&path, 166667, &policy, 77, &token).unwrap();
+            assert_eq!((summary.selected_us, summary.predecessors), (166667, 1));
+            for effects in [false, true] {
+                let equalization = Equalization::new(effects, 50).unwrap();
+                let color = if effects {
+                    ColorAdjustments::new(10, 115, 80).unwrap()
+                } else {
+                    ColorAdjustments::default()
+                };
+                let image = preview.render(equalization, color, 77, &token).unwrap();
+                let mut oracle =
+                    GpuProcessor::new(selected, selected, Some(&config.processing_adapter))
+                        .unwrap();
+                oracle.prepare_ai_postscale(true);
+                oracle.prepare_preview_display(image.size).unwrap();
+                if effects {
+                    oracle.equalization = Some(
+                        NativeEqualization::new(
+                            &oracle.device,
+                            &oracle.queue,
+                            selected,
+                            equalization,
+                            77,
+                        )
+                        .unwrap(),
+                    );
+                }
+                oracle.transform = oracle.pipeline.create_adjustment_buffer(
+                    &oracle.device,
+                    &oracle.queue,
+                    Rotation::Deg0,
+                    false,
+                    color,
+                );
+                let mut inference = config.helper.processor(ai, input, 77, &token).unwrap();
+                let mut expected = vec![];
+                for (frame, pts) in decoded
+                    .stdout
+                    .chunks_exact(frame_bytes)
+                    .zip([0, 83333, 166667])
+                {
+                    let enhanced = inference.process_frame(frame.to_vec(), 77, &token).unwrap();
+                    expected.clear();
+                    oracle
+                        .process(&enhanced.rgba, pts, &mut expected, &token)
+                        .unwrap();
+                }
+                inference.close().unwrap();
+                assert_eq!(image.rgba.len(), expected.len());
+                let max = image
+                    .rgba
+                    .iter()
+                    .zip(&expected)
+                    .map(|(a, b)| a.abs_diff(*b))
+                    .max()
+                    .unwrap();
+                assert!(max <= 1, "{size} {scale:?} effects={effects}: {max} LSB");
+                let before = preview.render_before(77, &token).unwrap();
+                assert_eq!(
+                    before.transfers.source_frames,
+                    image.transfers.source_frames
+                );
+                let restored = preview.render(equalization, color, 77, &token).unwrap();
+                assert_eq!(restored.rgba, image.rgba);
+                results.push(json!({"source":size,"scale":scale.factor(),"effects":effects,"max_display_lsb":max,"transfers":image.transfers}));
+            }
+            drop(preview);
+            let (mut eof, summary) =
+                AiPreview::prepare(&path, u64::MAX, &policy, 78, &token).unwrap();
+            assert_eq!(
+                summary.selected_us as u64,
+                policy.source_end.as_ref().unwrap().position_us
+            );
+            let image = eof
+                .render(
+                    Equalization::default(),
+                    ColorAdjustments::default(),
+                    78,
+                    &token,
+                )
+                .unwrap();
+            assert!(
+                image
+                    .rgba
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .any(|p| p[..3] != [0, 0, 0])
+            );
+        }
+        std::fs::write(
+            root.join("preview-reference.json"),
+            serde_json::to_vec_pretty(&results).unwrap(),
+        )
+        .unwrap();
+    }
 
     #[test]
     fn preview_rejects_incompatible_color_before_normalization() {
@@ -88,6 +318,54 @@ mod tests {
                 .to_string();
             assert!(error.contains(reason), "{fixture}: {error}");
         }
+    }
+
+    #[test]
+    fn preview_accepts_unspecified_pixel_aspect_metadata() {
+        let root = std::env::temp_dir().join(format!("diaxus-preview-sar-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("no-aspect.mp4");
+        let output = std::process::Command::new("ffmpeg")
+            .args([
+                "-v",
+                "error",
+                "-n",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=192x108:rate=1",
+                "-vf",
+                "setsar=0",
+                "-frames:v",
+                "1",
+                "-c:v",
+                "libx264",
+            ])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let token = CancellationToken::default();
+        let metadata = crate::preview::probe_metadata(&path, &token).unwrap();
+        assert!(matches!(
+            metadata["streams"][0]["sample_aspect_ratio"].as_str(),
+            None | Some("N/A")
+        ));
+        let result = source_size(
+            &path,
+            AiSettings::RtxVideo {
+                configuration: media_core::ai_upscale::RtxConfiguration::Sdk11SdrV1,
+                scale: AiScale::Two,
+            },
+            &token,
+        );
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(root).unwrap();
+        assert_eq!(result.unwrap(), Size::new(192, 108).unwrap());
     }
 
     #[test]
@@ -115,7 +393,7 @@ mod tests {
             .to_string();
         assert!(error.contains("backend/configuration mismatch"), "{error}");
         assert!(validate_geometry(ai, Size::new(192, 108).unwrap()).is_ok());
-        assert!(validate_geometry(ai, Size::new(193, 108).unwrap()).is_err());
+        assert!(validate_geometry(ai, Size::new(1281, 720).unwrap()).is_err());
     }
 
     #[test]
@@ -206,6 +484,7 @@ mod tests {
                     ai,
                     helper: helper.clone(),
                     processing_adapter: adapter.key.clone(),
+                    source_end: None,
                 };
                 let (mut preview, summary) =
                     AiPreview::prepare(&path, position, &policy, 31, &token).unwrap();
@@ -403,6 +682,8 @@ impl AiPreview {
         generation: u64,
         cancel: &CancellationToken,
     ) -> NativeResult<DisplayImage> {
+        policy.check_source(path)?;
+        let position_us = policy.position(position_us);
         let input = source_size(path, policy.ai, cancel)?;
         validate_geometry(policy.ai, input)?;
         let selected = policy
@@ -462,6 +743,8 @@ impl AiPreview {
         cancel: &CancellationToken,
     ) -> NativeResult<(Self, HistorySummary)> {
         cancel.check()?;
+        policy.check_source(path)?;
+        let position_us = policy.position(position_us);
         if !matches!(
             policy.ai,
             AiSettings::OnnxRuntime { .. } | AiSettings::RtxVideo { .. }
@@ -504,15 +787,25 @@ impl AiPreview {
             + bytes(display) * 2
             + padded * u64::from(display.height)
             + media_gpu::equalization::EqualizationStage::estimated_scratch_bytes(selected)?;
-        let admission = AiMemoryPlan::new(
-            input,
-            8 << 20,
-            128 << 20,
-            downstream,
-            bytes(enhanced) + bytes(input),
-            384 << 20,
-        )?
-        .total;
+        let admission = if let AiSettings::RtxVideo { scale, .. } = policy.ai {
+            crate::rtx_inference::memory_admission(
+                input,
+                scale,
+                downstream,
+                bytes(enhanced) + bytes(input),
+                384 << 20,
+            )?
+        } else {
+            AiMemoryPlan::new(
+                input,
+                8 << 20,
+                128 << 20,
+                downstream,
+                bytes(enhanced) + bytes(input),
+                384 << 20,
+            )?
+            .total
+        };
         let mut gpu = GpuProcessor::new(enhanced, selected, Some(&policy.processing_adapter))?;
         if gpu.fallback.is_some() {
             return Err("Native AI preview processing adapter is unavailable; no fallback".into());
@@ -718,7 +1011,9 @@ fn source_size(path: &Path, ai: AiSettings, cancel: &CancellationToken) -> Nativ
         .ok_or("Missing AI preview video")?;
     let color_metadata: crate::ProbeStream = serde_json::from_value(source.clone())?;
     crate::validate_native_sdr(&color_metadata, false)?;
-    if source["sample_aspect_ratio"].as_str() != Some("1:1")
+    if source["sample_aspect_ratio"]
+        .as_str()
+        .is_some_and(|ratio| ratio != "1:1" && ratio != "N/A")
         || source["side_data_list"]
             .as_array()
             .is_some_and(|v| !v.is_empty())

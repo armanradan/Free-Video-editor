@@ -45,7 +45,7 @@ class Helper:
                         raise EOFError('helper stdout closed')
                     assert len(raw) == HEADER.size, 'truncated response'
                     h = HEADER.unpack(raw)
-                    assert h[0:2] == (RESPONSE, 1) and h[9] <= MAX_OUTPUT, 'invalid bounded response'
+                    assert h[0:2] == (RESPONSE, 1) and h[9] <= max(8192,args.max_width*args.max_height*64), 'invalid bounded response'
                     payload = self.process.stdout.read(h[9])
                     assert len(payload) == h[9], 'truncated payload'
                     self.messages.put((h, payload), timeout=5)
@@ -59,7 +59,7 @@ class Helper:
         self.reader.start()
         try:
             h, data = self.receive()
-            assert h[:9] == (RESPONSE, 1, 0, 0, 0, 192, 108, 0, 1) and 0 < len(data) <= 8192
+            assert h[:9] == (RESPONSE, 1, 0, 0, 0, args.max_width, args.max_height, 0, 1) and 0 < len(data) <= 8192
             self.identity = json.loads(data)
             assert self.identity['pid'] == self.process.pid and self.identity['sdk'] == '1.1.0'
             assert self.identity['adapter_name'] == args.adapter_name and self.identity['dxgi_index'] == args.dxgi_index
@@ -138,6 +138,10 @@ def main():
     parser.add_argument('--negative-adapter-index', type=int, required=True)
     parser.add_argument('--adapter-name', required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--max-width', type=int, default=192)
+    parser.add_argument('--max-height', type=int, default=108)
+    parser.add_argument('--size', action='append', help='Additional WxH reference case, retaining original regression cases')
+    parser.add_argument('--steady-frames', type=int, default=0, help='Additional fixed 1280x720 2x frames to exercise stable resource reuse')
     args = parser.parse_args()
     for key in ['helper', 'reference', 'sdk']:
         setattr(args, key, getattr(args, key).resolve(strict=True))
@@ -154,7 +158,8 @@ def main():
         reference = Helper(args.reference, args, 'sample', report); active.append(reference)
         request_id = 0
         # Sequential comparison retains just one input and two outputs.
-        for width, height in [(192, 108), (191, 107), (64, 36)]:
+        sizes = [(192, 108), (191, 107), (64, 36)] + [tuple(map(int,size.split('x'))) for size in args.size or []]
+        for width, height in sizes:
             for scale in [2, 4]:
                 for variant in [0, 1]:
                     request_id += 1
@@ -167,18 +172,34 @@ def main():
                         'max_error': int(delta.max()), 'mae': float(delta.mean())}
                     report['cases'].append(row)
                     assert row['max_error'] == 0, row
+        if args.steady_frames:
+            assert args.max_width >= 1280 and args.max_height >= 720
+            source = pattern(1280, 720, 0)
+            expected = hashlib.sha256(helper.frame(source, 2, request_id + 1)).hexdigest()
+            trusted = next(row for row in report['cases'] if row['width'] == 1280
+                and row['height'] == 720 and row['scale'] == 2 and row['pattern'] == 0)
+            assert expected == trusted['output_sha256']
+            request_id += 1
+            for _ in range(args.steady_frames - 1):
+                request_id += 1
+                assert hashlib.sha256(helper.frame(source, 2, request_id)).hexdigest() == expected
+            report['steady_frames'] = args.steady_frames
+            report['steady_output_sha256'] = expected
         helper_records = helper.close(); active.remove(helper)
         reference_records = reference.close(); active.remove(reference)
-        for records in [helper_records, reference_records]:
+        for records, extra_frames in [(helper_records, args.steady_frames), (reference_records, 0)]:
             identity = next(r for r in records if r.get('stage') == 'ready')
             assert identity['adapter_name'] == args.adapter_name and identity['dxgi_index'] == args.dxgi_index
             assert identity['vendor_id'] == 0x10de and identity['in_flight'] == 1
-            modules = [r for r in records if r.get('stage') == 'loaded-runtime' and r['name'] == 'nvngx_vsr.dll']
-            assert len(modules) == 1
-            assert digest(Path(modules[0]['path'])) == digest(args.sdk / 'bin/Windows/x64/rel/nvngx_vsr.dll')
+            modules = [r for r in records if r.get('stage') == 'loaded-runtime' and (r['name'].lower() == 'nvngx_vsr.dll' or '\\nvidia\\ngx\\models\\vsr\\' in r['path'].lower())]
+            paths = {r['path'] for r in modules}
+            assert len(paths) == 1, paths
+            assert digest(Path(next(iter(paths)))) == digest(args.sdk / 'bin/Windows/x64/rel/nvngx_vsr.dll')
             closed = next(r for r in records if r.get('stage') == 'closed')
-            assert closed['frames'] == 12 and closed['host_to_gpu_bytes'] == 695632
-            assert closed['gpu_to_host_bytes'] == 6956320 and closed['sampled_local_peak'] > 0
+            expected_uploads=sum(w*h*4*4 for w,h in sizes)
+            extra_uploads = extra_frames * 1280 * 720 * 4
+            assert closed['frames'] == len(sizes)*4 + extra_frames and closed['host_to_gpu_bytes'] == expected_uploads + extra_uploads
+            assert closed['gpu_to_host_bytes'] == expected_uploads*10 + extra_uploads*4 and closed['sampled_local_peak'] > 0
         assert all(any(r.get('stage') == stage and r['ngx_result'] == '0x00000001' for r in helper_records)
                    for stage in ['release-feature', 'destroy-parameters', 'shutdown-device'])
         first = next(r for r in helper_records if r.get('stage') == 'ready')

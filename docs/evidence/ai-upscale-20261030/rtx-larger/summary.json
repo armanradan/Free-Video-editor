@@ -1,0 +1,39 @@
+{
+  "scope": "RTX3050Laptop/Vulkan/driver621.01/SDK1.1 High3; software codecs, SDR8, source-aware scale limits; no general performance/quality claim",
+  "source_limits": {
+    "2x": [
+      1280,
+      720
+    ],
+    "4x": [
+      640,
+      360
+    ]
+  },
+  "max_output": [
+    2560,
+    1440
+  ],
+  "helper_sha256": "3dc1dd796acf36135d98ce64a01114b102faf9d752fc51dc89ed0457379ef12a",
+  "sdk_sample_comparisons": 20,
+  "owned_process_runs": 17,
+  "fixed_cli_exports": 24,
+  "fixed_ui_exports": 1,
+  "preview_comparisons": 6,
+  "max_preview_display_error_lsb": 0,
+  "image_structure_gate": "19 larger final files pass all-frame fixture-only spatial-structure checks; initial gray matrix correctly fails",
+  "initial_failures": [
+    "module-name audit missed exact SDK VSR bytes in NGX cached .bin",
+    "missing Matroska nominal rate caused 1000000fps x264 rate control and gray frames despite correct timing",
+    "RTX-specific budget error label changed",
+    "parallel pipe-cancel test wall deadline failed; serial full suite unchanged thresholds passed"
+  ],
+  "remaining": [
+    "4x720 CLAHE/staging limits",
+    "NVDEC/NVENC AI timing gate",
+    "long-duration max-size stress",
+    "real-time playback/audio sync",
+    "other hardware/driver coverage",
+    "full cross-platform tasks and distribution audit"
+  ]
+}

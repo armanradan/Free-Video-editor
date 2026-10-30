@@ -16,6 +16,8 @@ media-gpu-blitz.workspace = true
 media-native = { path = "../../crates/media-native" }
 rfd.workspace = true
 ui.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 # Exact renderer ABI used by the pinned Blitz, not the processing device/API.
 wgpu-blitz = { package = "wgpu", version = "=26.0.1", default-features = false }
 # Match the pinned native renderer's event-loop ABI; no second windowing stack.
@@ -24,6 +26,5 @@ winit = { version = "=0.30.13", default-features = false }
 
 [dev-dependencies]
 media-native = { path = "../../crates/media-native", features = ["ai-upscale-pilot"] }
-serde_json.workspace = true
 pollster.workspace = true
 wgpu.workspace = true

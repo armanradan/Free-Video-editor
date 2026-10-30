@@ -9,8 +9,16 @@ The native app uses installed FFmpeg and can use NVIDIA hardware codecs. The bro
 Both apps have a collapsed **AI Upscaling** section and start with AI **Off**.
 The normal browser build enables ONNX Runtime **2x/4x** on the tested Windows
 Edge 156 / Intel gen-12lp or NVIDIA Ampere WebGPU routes, using a secure, cross-origin-isolated
-origin. Other browser/GPU combinations show an unvalidated reason. Native
-2x/4x remain disabled pending ordinary-window preview/export acceptance.
+origin. Other browser/GPU combinations show an unvalidated reason. Native RTX
+2x/4x is available only on the evaluated RTX 3050 Laptop/Vulkan setup, for opaque
+8-bit SDR sources up to **1280×720 at 2x** or **640×360 at 4x**, producing up to
+2560×1440. Native ONNX and Burn remain unavailable in the
+ordinary UI.
+
+Native RTX now reuses its frame textures for long exports. A complete 3:32,
+720p/25fps video passed 2x export and independent audio/video verification on the
+evaluated machine; it took about 8m49s including inspection and verification.
+This staged/software-codec path is not a real-time performance guarantee.
 
 For browser AI, inspect an opaque 8-bit SDR source no larger than **577×579**,
 import the exact model below, explicitly download the runtime, then select
@@ -53,12 +61,30 @@ acquires the pinned ONNX Runtime Web assets; it supports cancellation and retry.
 Separate removal buttons clear the stored model/runtime. Startup and AI Off
 perform no automatic acquisition; videos are never uploaded by these actions.
 
-In native, open AI Upscaling, choose a local cache folder, then import/check/remove
-the model. Setup uses a dedicated view; **Done** returns to the retained source
-and settings. Preview pauses while setup is open. **Inspect runtime folder** reads
-architecture/version metadata from an existing installation and loads no DLL.
-Native runtime/helper configuration and AI controls remain gated. No SDK, runtime,
-driver or toolchain installation or license acceptance is automatic.
+In the provisioned native build, open **AI Upscaling**. The app loads its RTX
+component configuration automatically. On first use, acknowledge the supplied
+SDK terms and click **Test runtime & remember setup** once. On later launches,
+opening AI setup automatically validates the saved exact helper/SDK configuration;
+no JSON import, repeated acknowledgement or Test click is needed. Then inspect a
+supported source and select **2x** or **4x**. Select the matching NVIDIA **Vulkan**
+GPU explicitly. RTX export supports **Shared GPU · NVIDIA** (NVDEC/NVENC) or
+**Shared GPU · software codecs**. Select the route explicitly; Direct FFmpeg
+routes do not run RTX. The evaluated hardware route accepts H.264/HEVC input and
+output at least 192×144, within the same RTX maximum-size/8-bit SDR limits.
+It disables NVENC B-frames to preserve verified VFR offsets. Smaller outputs can
+use software codecs. Both routes retain explicit CPU frame staging; audio still
+uses CPU codecs. No automatic codec/GPU fallback or zero-copy claim is made.
+
+Your setup is saved in the application configuration directory (Windows:
+`%LOCALAPPDATA%/Diaxus/ai-setup.json`). It stores configuration, SDK-terms hash and
+approved helper hash, never an accepted runtime result. Changed assets must be
+reviewed; missing/wrong-GPU components fail without fallback. **Advanced setup**
+contains developer JSON import, inspection, saved-setup reset and ONNX model
+management. **SDK terms accepted · revoke** removes remembered approval.
+No runtime/model is loaded on collapsed AI Off startup. No SDK, runtime, driver,
+toolchain or model is installed/downloaded automatically. First-launch deployment
+of the app-owned component asset is a developer step described in the runner guide;
+it contains local component locations and no proprietary binaries or consent.
 
 Browser/native inference, video and preview adapters have separate diagnostic
 evidence. Native preview uses a counted bounded display image between independent
@@ -76,21 +102,18 @@ that diagnostic; export is disabled. Required asset/device/scale variables and
 test commands are documented in [the diagnostic runner guide](tools/ai-upscale/README.md#native-window-preview-diagnostic).
 The diagnostic also accepts an explicitly configured local RTX SDK helper via
 `DIAXUS_AI_PREVIEW_BACKEND=rtx`. Actual staged RTX service/renderer pixel and
-lifecycle tests pass on the evaluated machine; an RTX window inspection and
-ordinary-launch preview/export acceptance remain pending. Fresh seeks restart
-the SDK helper, so interactive performance is not yet accepted.
-Ordinary native launch still starts with AI Off and grants no AI capability.
-Its AI panel now imports an explicit local configuration for either backend and
-shows the corresponding model/runtime description. Import does not execute a
-runtime or enable controls. Native preview-to-export handoff tests pass for RTX
-and ONNX at both scales through the shared configuration entry point; ordinary
-window and release acceptance remain pending. See the runner guide above for
-the configuration example and independently verified handoff tests.
+lifecycle tests pass on the evaluated machine. Ordinary RTX window checks now
+include actual 2x/4x preview/export, source replacement, both themes, unsupported
+export with working preview, error-state Pause, retry and verification cancellation.
+The complete cross-platform acceptance matrix remains open. Fresh seeks restart
+the SDK helper, so interactive performance is not yet accepted. See the latest
+[interop record](docs/interop-report.md) for exact evidence and remaining limits.
 The native release comparison now has96 independently verified RTX/ONNX/bilinear
 exports. On the three5.33-second192×80 clips, total RTX time is5.18–6.19seconds,
 including roughly3seconds of helper startup. Fresh seeks currently repeat that
 startup; it remains a preview bottleneck. These measurements do not establish
-real-time preview or support above the192×108 RTX input cap. See
+real-time preview. New larger-source evidence is recorded separately in the
+latest interop entry. See
 [the measured comparison](docs/interop-report.md#native-rtx-qualityperformance-comparison--2026-10-30).
 
 Both paths are optional. `DIAXUS_ORT_DIRECTORY` and `DIAXUS_RTX_SDK` are explicit
@@ -102,11 +125,11 @@ GPU support. The standalone RTX SDK D3D11 feasibility probe now passes 2x/4x
 on the evaluated RTX 3050 after explicit local-evaluation consent. The optional
 bounded native helper also passes exact NVIDIA sample equivalence at2x/4x.
 The explicit native export pilot now passes both scales with Original/15/60 FPS,
-VFR/audio verification and byte-identical repeats. Input is currently capped at
-192x108. The staged RTX CLAHE/manual bridge and active pipe cancellation,
+VFR/audio verification and byte-identical repeats. Native RTX input limits are
+1280×720 at2x and640×360 at4x. The staged RTX CLAHE/manual bridge and active pipe cancellation,
 timeout/crash cleanup and retry gates also pass. Native preview/UI acceptance,
-full release quality/performance and redistribution review remain pending;
-ordinary RTX controls are unavailable. See [the helper guide](tools/ai-upscale/native-rtx-helper/README.md).
+full cross-platform release quality/performance and redistribution review remain
+pending. Scoped ordinary RTX controls are available as described above. See [the helper guide](tools/ai-upscale/native-rtx-helper/README.md).
 
 The validated model setup uses **explicit local file import**, chosen during the
 feasibility work. Import the exact 4,866,413-byte `model.onnx` generated by the

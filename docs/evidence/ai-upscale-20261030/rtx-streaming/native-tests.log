@@ -1,0 +1,86 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.36s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 78 tests
+test ai_assets::tests::cache_construction_and_missing_read_create_nothing ... ok
+test ai_assets::tests::cancelled_import_performs_no_filesystem_work ... ok
+test ai_configuration::tests::actual_local_configuration_import_keeps_acceptance_separate ... ignored, explicit local configuration and actual Vulkan adapter enumeration; no SDK execution
+test ai_configuration::tests::configuration_read_rejects_oversize_unknown_and_relative_assets_without_execution ... ok
+test ai_configuration::tests::configured_jobs_reject_pending_mismatch_and_unselected_gpu_before_input_or_output ... ok
+test ai_configuration::tests::diagnostic_reference_never_weakens_ordinary_off_or_route_policy ... ok
+test ai_configuration::tests::off_ignores_invalid_ai_assets_and_keeps_ordinary_conversion ... ok
+test ai_inference::tests::actual_helper_reuses_frames_matches_reference_and_retires_cancelled_child ... ignored, requires explicitly configured actual DirectML helper/runtime/model and NVIDIA DXGI ordinal 1
+test ai_inference::tests::off_and_failed_candidates_never_spawn_or_read_assets ... ok
+test ai_preflight::tests::actual_onnx_setup_test_keeps_internal_scale_and_release_gates_explicit ... ignored, explicit local DirectML helper/runtime/model and selected Vulkan GPU
+test ai_preflight::tests::actual_rtx_setup_test_checks_consent_cancel_identity_output_and_cleanup ... ignored, explicit local RTX SDK execution; requires acknowledged terms and configured GPU
+test ai_preflight::tests::setup_inspection_rejects_changed_terms_and_missing_assets_without_execution ... ok
+test ai_preview::tests::actual_ai_preview_chronological_pixels_and_cache ... ignored, actual configured DirectML, native wgpu processing and decoded-video preview/export pixels
+test ai_preview::tests::actual_larger_rtx_licensed_first_frame_has_structure ... ignored, explicit licensed larger RTX first-frame diagnostic
+test ai_preview::tests::actual_larger_rtx_preview_matches_chronological_processing_and_eof ... ignored, explicit larger RTX fixtures/helper/SDK and selected NVIDIA GPU
+test ai_preview::tests::preview_accepts_unspecified_pixel_aspect_metadata ... ok
+test ai_preview::tests::preview_backend_mismatch_never_starts_a_helper ... ok
+test ai_preview::tests::preview_rejects_incompatible_color_before_normalization ... ok
+test ai_runtime::tests::absent_optional_paths_are_unavailable_without_creating_files ... ok
+test ai_runtime::tests::malformed_and_wrong_architecture_metadata_never_loads ... ok
+test ai_runtime::tests::version_resource_bounds_and_explicit_wrong_version_recovery ... ok
+test ai_video_tests::actual_ai_video_pixels_cancel_device_loss_and_retry ... ignored, actual configured DirectML helper and NVIDIA wgpu, cancellation/device-loss/retry and pixel reference
+test ai_video_tests::ai_nvidia_codec_route_reports_failed_timing_gate_before_inspection ... ok
+test ai_video_tests::ai_packet_endpoint_preserves_b_frame_presentation_tail ... ok
+test ai_video_tests::ai_pilot_direct_routes_reject_before_inspection ... ok
+test ai_video_tests::rtx_incompatible_routes_and_main10_reject_before_source_io ... ok
+test color_tests::actual_ffmpeg_rgb16_formula_matches_reference_without_8bit_quantization ... ok
+test color_tests::adjusted_jobs_cancel_lose_device_and_retry_without_partial_output ... ignored, real FFmpeg/wgpu cancellation and device destruction with color enabled
+test color_tests::clahe_direct_routes_reject_before_inspection_or_output_creation ... ok
+test color_tests::clahe_jobs_clean_up_after_cancel_and_device_loss ... ignored, real CLAHE/FFmpeg/wgpu device destruction, cancellation and clean retry
+test color_tests::color_settings_deserialization_validates_and_defaults_legacy_payloads ... ok
+test color_tests::decoded_preview_and_cpu_preencoder_pixels_share_the_color_contract ... ok
+test color_tests::gpu_color_pixels_match_reference_on_unorm_and_srgb_targets ... ignored, requires a real native wgpu adapter; diagnostic readback is test-only
+test color_tests::main10_fixture_adjusted_preencoder_retains_full_rgb16_precision ... ok
+test frame_stream::tests::average_bitrate_encoder_keeps_first_image_and_irregular_timestamps ... ok
+test frame_stream::tests::ebml_sizes_exclude_reserved_unknown_values ... ok
+test frame_stream::tests::larger_rgba_blocks_decode_exactly_before_encoding ... ok
+test frame_stream::tests::rejects_negative_timing ... ok
+test inspection::tests::reuse_and_invalidation_do_not_retain_pixels ... ok
+test playback::tests::audio_device_playback_is_bounded_and_reaches_eof ... ignored, requires an actual audio output device; run explicitly for runtime evidence
+test playback::tests::continuous_preview_pause_seek_end_and_cancel ... ok
+test preview::history::tests::high_rate_source_hits_predecessor_bound_without_retaining_pixels ... ok
+test preview::history::tests::history_cancellation_callback_error_eof_and_geometry_rejection ... ok
+test preview::history::tests::malformed_or_changed_decoder_metadata_is_rejected ... ok
+test preview::history::tests::vfr_seek_pixels_and_exact_pts_match_independent_full_decode ... ok
+test preview::tests::bounded_real_frame_seek_eof_and_cancellation ... ok
+test preview::tests::display_geometry_and_marker_colors_survive_preview_letterboxing ... ok
+test rtx_inference::tests::actual_rtx_frames_match_sample_hashes_at_both_native_scales ... ignored, actual explicitly configured NVIDIA RTX helper/SDK and pinned sample hashes
+test rtx_inference::tests::output_length_is_checked_against_the_selected_geometry_before_allocation ... ok
+test rtx_inference::tests::oversized_handshake_is_rejected_without_reading_its_payload ... ok
+test rtx_inference::tests::whole_frame_admission_preserves_scale_scratch_and_overflow_limits ... ok
+test rtx_tests::actual_native_bilinear_reference_pixels ... ignored, actual NVIDIA shared-wgpu bilinear pixels versus independent scalar sampling; no helper
+test rtx_tests::actual_rtx_effect_order_before_fps_at_selected_geometry ... ignored, actual RTX SDK/helper + native GPU, independent scalar manual transform after selected-size CLAHE
+test rtx_tests::actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry ... ignored, actual diagnostic RTX SDK helper deliberately stalls/crashes; native FFmpeg/GPU failure cleanup and retry
+test tests::ai_enlarged_estimates_use_inspected_source_and_preserve_timing ... ok
+test tests::ai_snapshot_rejects_before_source_inspection_or_output_creation ... ok
+test tests::bitrate_commands_do_not_mix_target_rate_with_quality_mode ... ok
+test tests::cancel_active_jobs_and_retry_in_same_process ... ignored, requires FFmpeg, FFprobe and a native wgpu adapter
+test tests::cancel_before_worker_start_does_not_open_input_or_output ... ok
+test tests::cancellation_interrupts_blocked_child_pipes ... ok
+test tests::cancellation_reaps_launcher_descendants_holding_a_pipe ... ok
+test tests::cfr_endpoint_does_not_ceil_a_rounded_two_frame_duration_to_three ... ok
+test tests::cfr_plan_checks_full_grid_coverage_and_fractional_rates ... ok
+test tests::cfr_plan_retains_relative_audio_video_offset_for_vfr ... ok
+test tests::direct_route_inspects_vfr_and_detects_timeline_or_geometry_corruption ... ok
+test tests::gpu_rejects_sample_aspect_and_rotation_but_direct_resolves_display_size ... ok
+test tests::injected_device_loss_cleans_job_and_allows_fresh_gpu_job ... ignored, requires FFmpeg, FFprobe and a native wgpu adapter
+test tests::inspected_sources_explain_known_gpu_restrictions ... ok
+test tests::nvidia_identity_is_not_a_wgpu_enumeration_index ... ok
+test tests::probes_real_cfr_video_and_audio ... ok
+test tests::probes_real_hevc_input_for_avc_output_route ... ok
+test tests::probes_true_10bit_sdr_without_treating_it_as_an_8bit_gpu_source ... ok
+test tests::rejects_hdr_and_wide_color_before_native_conversion ... ok
+test tests::session_reuses_inspection_and_reports_ordered_stages_and_total_time ... ok
+test tests::shared_probe_accepts_real_vfr_and_nonzero_origin ... ok
+test tests::shutdown_waits_for_cleanup_and_rejects_delayed_jobs ... ok
+test tests::size_estimate_accounts_for_offsets_audio_tail_and_unknown_duration ... ok
+test tests::ui_direct_probe_accepts_supported_vfr_and_display_geometry ... ok
+
+test result: ok. 60 passed; 0 failed; 18 ignored; 0 measured; 0 filtered out; finished in 42.45s
+

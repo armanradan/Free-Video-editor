@@ -1,0 +1,86 @@
+{
+  "status": "passed",
+  "tolerance": {
+    "max_rgba8_error": 0
+  },
+  "cuda_visible_devices": "GPU-17655cfc-aba6-5572-bdec-274f531aefe1",
+  "cases": [
+    {
+      "source": "tmp\\ai-upscale\\rtx-hardware-20261030\\vfr-96x80.mp4",
+      "metadata": {
+        "codec_name": "h264",
+        "width": 96,
+        "height": 80
+      },
+      "frames": 4,
+      "max_rgba8_error": 0,
+      "decoded_sha256": "b170de1172e48030a55d9f20c470779b61c46e26e1a870440adc4333cdc9a73f"
+    },
+    {
+      "source": "tmp\\ai-upscale\\rtx-larger-20261030\\fixtures\\synthetic-640x360.mp4",
+      "metadata": {
+        "codec_name": "h264",
+        "width": 640,
+        "height": 360
+      },
+      "frames": 24,
+      "max_rgba8_error": 0,
+      "decoded_sha256": "365d11f4dc3d35045fcfdf1bf431695809927a27cfba5e8b906a25b59e63b582"
+    },
+    {
+      "source": "tmp\\ai-upscale\\rtx-larger-20261030\\fixtures\\synthetic-1280x720.mp4",
+      "metadata": {
+        "codec_name": "h264",
+        "width": 1280,
+        "height": 720
+      },
+      "frames": 24,
+      "max_rgba8_error": 0,
+      "decoded_sha256": "2e74fdfc677bff53b1a6087dfcab39d836969fdcbac794e8cd3df3280b55c30e"
+    },
+    {
+      "source": "tmp\\ai-upscale\\rtx-larger-20261030\\quality-hd\\tos-motion.mp4",
+      "metadata": {
+        "codec_name": "h264",
+        "width": 1280,
+        "height": 534
+      },
+      "frames": 24,
+      "max_rgba8_error": 0,
+      "decoded_sha256": "818a903099dbdcba1cbb6177273a6cf09098e41918129033a0461a67fc9c9152"
+    },
+    {
+      "source": "tmp\\ai-upscale\\rtx-larger-20261030\\quality-hd\\tos-face.mp4",
+      "metadata": {
+        "codec_name": "h264",
+        "width": 1280,
+        "height": 534
+      },
+      "frames": 24,
+      "max_rgba8_error": 0,
+      "decoded_sha256": "ec36388d10da9fff47608d71dbe41e08021bc592447f3c54f07b349bb91423f4"
+    },
+    {
+      "source": "tmp\\ai-upscale\\rtx-larger-20261030\\quality-hd\\tos-text-texture.mp4",
+      "metadata": {
+        "codec_name": "h264",
+        "width": 1280,
+        "height": 534
+      },
+      "frames": 24,
+      "max_rgba8_error": 0,
+      "decoded_sha256": "36926ebf44bbb1a460e61d536e3a08bd6651f241695bb56a9788a9ee0028dca6"
+    },
+    {
+      "source": "fixtures\\m36-h265-aac.mp4",
+      "metadata": {
+        "codec_name": "hevc",
+        "width": 320,
+        "height": 180
+      },
+      "frames": 30,
+      "max_rgba8_error": 0,
+      "decoded_sha256": "922d465a00cacd247248dbf6cb214d8711e25c7b0fd8401ac33ce9f9001c23c7"
+    }
+  ]
+}

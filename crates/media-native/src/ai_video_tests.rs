@@ -99,7 +99,7 @@ fn ai_packet_endpoint_preserves_b_frame_presentation_tail() {
 }
 
 #[test]
-fn ai_nvidia_codec_route_reports_failed_timing_gate_before_inspection() {
+fn onnx_nvidia_codec_route_remains_unvalidated_before_inspection() {
     let missing = Path::new("missing-ai-input.mp4");
     let error = convert_with_control_inner(
         missing,
@@ -117,7 +117,11 @@ fn ai_nvidia_codec_route_reports_failed_timing_gate_before_inspection() {
         &CancellationToken::default(),
     )
     .unwrap_err();
-    assert!(error.to_string().contains("shifted the first video PTS"));
+    assert!(
+        error
+            .to_string()
+            .contains("Native ONNX with NVDEC/NVENC remains unvalidated")
+    );
 }
 
 #[test]

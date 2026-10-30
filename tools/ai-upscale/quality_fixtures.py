@@ -27,10 +27,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--frames', type=int, default=8)
+    parser.add_argument('--size',default='192x80',choices=('192x80','1280x534'),help='Native-size licensed excerpts for the larger RTX envelope gate')
     args = parser.parse_args()
     if not 8 <= args.frames <= 120:
         parser.error('Use 8 to 120 frames for bounded evaluation excerpts')
     duration = f'{args.frames / 12:.9f}'
+    width,height=map(int,args.size.split('x'))
     destination = args.output.resolve()
     ignored_root = Path('tmp/ai-upscale').resolve()
     if not destination.is_relative_to(ignored_root) or destination == ignored_root:
@@ -45,7 +47,7 @@ def main():
         'source_license_statement': 'https://mango.blender.org/about/',
         'attribution': 'Tears of Steel (2012), Blender Institute; directed by Ian Hubert, produced by Ton Roosendaal.',
         'credits': 'https://mango.blender.org/about/',
-        'changes': 'Short excerpts, 192x80 Lanczos downsample, 12 FPS, H.264 8-bit SDR; original audio removed and replaced with an original synthetic sine.',
+        'changes': f'Short excerpts, {width}x{height} Lanczos scale, 12 FPS, H.264 8-bit SDR; original audio removed and replaced with an original synthetic sine.',
         'audio': {'provenance': 'Original FFmpeg sine signal', 'license': 'CC0-1.0'},
         'soundtrack_excluded': True,
         'soundtrack_notice': 'https://mango.blender.org/production/soundtrack-files-released/',
@@ -63,7 +65,7 @@ def main():
                        '-ss', str(seconds), '-i', SOURCE, '-f', 'lavfi', '-i',
                        f'sine=frequency=660:sample_rate=48000:duration={duration}',
                        '-map', '0:v:0', '-map', '1:a:0', '-t', duration,
-                       '-vf', 'fps=12,scale=192:80:flags=lanczos,setsar=1,format=yuv420p',
+                       '-vf', f'fps=12,scale={width}:{height}:flags=lanczos,setsar=1,format=yuv420p',
                        '-c:v', 'libx264', '-threads', '1', '-preset', 'slow', '-crf', '18',
                        '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709',
                        '-color_range', 'tv', '-c:a', 'aac', '-b:a', '96k',
@@ -73,7 +75,7 @@ def main():
                                     '-show_frames', '-of', 'json', str(target)]))
             video = next(s for s in probe['streams'] if s['codec_type'] == 'video')
             frames = [f for f in probe['frames'] if f['media_type'] == 'video']
-            if len(frames) != args.frames or (video['width'], video['height'], video['pix_fmt']) != (192, 80, 'yuv420p'):
+            if len(frames) != args.frames or (video['width'], video['height'], video['pix_fmt']) != (width, height, 'yuv420p'):
                 raise ValueError('Excerpt failed exact frame/geometry/precision checks')
             manifest['clips'].append({
                 'name': target.name, 'source_start_seconds': seconds, 'subjects': subjects,

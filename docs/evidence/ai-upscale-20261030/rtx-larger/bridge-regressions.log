@@ -1,0 +1,12 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.70s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 4 tests
+test frame_stream::tests::rejects_negative_timing ... ok
+test frame_stream::tests::ebml_sizes_exclude_reserved_unknown_values ... ok
+test frame_stream::tests::larger_rgba_blocks_decode_exactly_before_encoding ... ok
+test frame_stream::tests::average_bitrate_encoder_keeps_first_image_and_irregular_timestamps ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 73 filtered out; finished in 0.74s
+

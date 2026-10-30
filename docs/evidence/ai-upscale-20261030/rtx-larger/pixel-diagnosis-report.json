@@ -1,0 +1,133 @@
+{
+  "runs": [
+    {
+      "label": "direct-first",
+      "exit_code": 0,
+      "wall_seconds_including_startup": 6.287181299998338,
+      "records": [
+        {
+          "stage": "initialize",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "capabilities",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "vsr-available",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "scratch-size",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "create-vsr",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "_nvngx.dll",
+          "path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_00e5dc1fb00a1261\\_nvngx.dll"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "160_E658703.bin",
+          "path": "C:\\ProgramData\\NVIDIA\\NGX\\models\\vsr\\versions\\67072\\files\\160_E658703.bin"
+        },
+        {
+          "stage": "ready",
+          "protocol": 1,
+          "sdk": "1.1.0",
+          "pid": 29256,
+          "dxgi_index": 1,
+          "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "vendor_id": 4318,
+          "device_id": 9634,
+          "luid_high": 0,
+          "luid_low": 82840,
+          "color": "opaque-rgba8-full-range-bt709-srgb",
+          "quality": 3,
+          "max_width": 1280,
+          "max_height": 720,
+          "in_flight": 1
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "_nvngx.dll",
+          "path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_00e5dc1fb00a1261\\_nvngx.dll"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "160_E658703.bin",
+          "path": "C:\\ProgramData\\NVIDIA\\NGX\\models\\vsr\\versions\\67072\\files\\160_E658703.bin"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "release-feature",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "destroy-parameters",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "shutdown-device",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "closed",
+          "frames": 3,
+          "host_to_gpu_bytes": 8202240,
+          "gpu_to_host_bytes": 32808960,
+          "sampled_local_peak": 219054080
+        }
+      ]
+    }
+  ],
+  "pixels": [
+    {
+      "frame": 0,
+      "input_rgb_std": 55.88350189191864,
+      "output_rgb_std": 55.884598503715,
+      "min": 0,
+      "max": 255,
+      "sha256": "7f86d4438238177b5bb3d827d93369877727be169b2401d710df8930186d4bb8"
+    },
+    {
+      "frame": 1,
+      "input_rgb_std": 55.88350189191864,
+      "output_rgb_std": 55.884598503715,
+      "min": 0,
+      "max": 255,
+      "sha256": "7f86d4438238177b5bb3d827d93369877727be169b2401d710df8930186d4bb8"
+    },
+    {
+      "frame": 2,
+      "input_rgb_std": 55.88350189191864,
+      "output_rgb_std": 55.884598503715,
+      "min": 0,
+      "max": 255,
+      "sha256": "7f86d4438238177b5bb3d827d93369877727be169b2401d710df8930186d4bb8"
+    }
+  ]
+}

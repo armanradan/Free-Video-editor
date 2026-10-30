@@ -1,0 +1,27 @@
+    Checking converter-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\apps\native)
+error[E0624]: method `check` is private
+  --> apps\native\src\ai_setup.rs:84:27
+   |
+84 |                     token.check().map_err(|e| e.to_string())?;
+   |                           ^^^^^ private method
+   |
+  ::: crates\media-native\src\lib.rs:75:5
+   |
+75 |     fn check(&self) -> NativeResult<()> {
+   |     ----------------------------------- private method defined here
+
+error[E0624]: method `check` is private
+  --> apps\native\src\ai_setup.rs:95:27
+   |
+95 |                     token.check().map_err(|e| e.to_string())?;
+   |                           ^^^^^ private method
+   |
+  ::: crates\media-native\src\lib.rs:75:5
+   |
+75 |     fn check(&self) -> NativeResult<()> {
+   |     ----------------------------------- private method defined here
+
+For more information about this error, try `rustc --explain E0624`.
+error: could not compile `converter-native` (bin "converter-native") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `converter-native` (bin "converter-native" test) due to 2 previous errors

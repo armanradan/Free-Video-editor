@@ -1230,6 +1230,7 @@ dependencies = [
  "media-native",
  "pollster 1.0.1",
  "rfd",
+ "serde",
  "serde_json",
  "ui",
  "wgpu 26.0.1",

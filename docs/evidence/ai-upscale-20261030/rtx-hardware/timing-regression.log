@@ -1,0 +1,10 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.92s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 1 test
+test rtx_tests::actual_rtx_nvidia_preserves_vfr_offset_and_rejects_small_output_before_helper ... NVIDIA timing evidence: D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native\../../tmp/ai-upscale/rtx-nvidia-timing-22136
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 12.51s
+

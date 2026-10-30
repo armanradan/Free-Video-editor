@@ -1,0 +1,61 @@
+{
+  "status": "passed",
+  "scope": "Known structured fixtures only; not model fidelity, temporal flicker or generic flat-frame rejection",
+  "cases": [
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-larger-20261030\\fixtures\\synthetic-1280x720.mp4",
+      "source_channel_ranges": [
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255
+      ],
+      "output_channel_ranges": [
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255
+      ]
+    }
+  ]
+}

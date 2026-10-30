@@ -136,3 +136,5 @@ footer { color: var(--muted); text-align: center; font-size: 11px; padding: 0; }
 
 .ai-panel a { color:var(--accent-ink); text-decoration:underline; }
 .ai-setup .note { overflow-wrap:anywhere; }
+.native-root[data-color-setup="true"] .files, .native-root[data-color-setup="true"] .settings-grid { display:none; }
+.preview-messages { height:44px; min-height:44px; overflow:auto; }

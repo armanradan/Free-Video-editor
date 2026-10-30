@@ -1,0 +1,43 @@
+{
+  "captured": "2026-10-30T09:24:38.4624873+03:30",
+  "identities": [
+    {
+      "backend": "rtx-preflight",
+      "reported_pid": 4596,
+      "expected_executable": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-lifecycle-20261029\\helper.exe",
+      "current_name": "conhost.exe",
+      "current_executable": "C:\\WINDOWS\\system32\\conhost.exe",
+      "current_creation_time": "2026-10-30T09:18:59.407901+03:30",
+      "still_matching_helper": false
+    },
+    {
+      "backend": "rtx-preflight",
+      "reported_pid": 6784,
+      "expected_executable": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-lifecycle-20261029\\helper.exe",
+      "current_name": null,
+      "current_executable": null,
+      "current_creation_time": null,
+      "still_matching_helper": false
+    },
+    {
+      "backend": "onnx-preflight",
+      "reported_pid": 21176,
+      "expected_executable": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\native-onnx-helper.exe",
+      "current_name": null,
+      "current_executable": null,
+      "current_creation_time": null,
+      "still_matching_helper": false
+    },
+    {
+      "backend": "onnx-preflight",
+      "reported_pid": 16576,
+      "expected_executable": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\native-onnx-helper.exe",
+      "current_name": null,
+      "current_executable": null,
+      "current_creation_time": null,
+      "still_matching_helper": false
+    }
+  ],
+  "matching_helper_process_count": 0,
+  "note": "One reported PID is now occupied by conhost.exe; PID alone is insufficient to identify a retained helper."
+}

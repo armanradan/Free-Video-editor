@@ -3,6 +3,7 @@
 pub mod ai_assets;
 pub mod ai_configuration;
 pub mod ai_inference;
+pub mod ai_preflight;
 pub mod ai_preview;
 pub mod ai_runtime;
 #[cfg(test)]
@@ -317,6 +318,7 @@ struct ProbeStream {
     avg_frame_rate: Option<String>,
     r_frame_rate: Option<String>,
     time_base: Option<String>,
+    start_pts: Option<i64>,
     start_time: Option<String>,
     duration: Option<String>,
     duration_ts: Option<i64>,
@@ -338,6 +340,9 @@ struct SideData {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SourceInfo {
+    /// Exact last decoded video position and the inspected file identity.
+    /// Preview can retain this image through the final interval/audio tail.
+    pub preview_end: Option<PreviewSourceEnd>,
     pub video_bitrate_bps: Option<u64>,
     pub codec: String,
     pub codec_tag: Option<String>,
@@ -366,6 +371,28 @@ pub struct SourceInfo {
     pub video_time_base: Option<String>,
     pub audio_duration_us: Option<i128>,
     pub variable_frame_rate: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct PreviewSourceEnd {
+    pub position_us: u64,
+    pub file_length: u64,
+    pub modified: std::time::SystemTime,
+    pub created: Option<std::time::SystemTime>,
+}
+impl PreviewSourceEnd {
+    pub fn check_source(&self, path: &Path) -> NativeResult<()> {
+        let metadata = std::fs::metadata(path)?;
+        if metadata.len() != self.file_length
+            || metadata.modified()? != self.modified
+            || metadata.created().ok() != self.created
+        {
+            return Err(
+                "Source changed since inspection; inspect it again before AI preview".into(),
+            );
+        }
+        Ok(())
+    }
 }
 
 impl SourceInfo {
@@ -1124,6 +1151,12 @@ fn inspect_source(
     if !audio_tracks.is_empty() && audio_start_us.is_none() {
         return Err("direct native timeline requires a known audio start time".into());
     }
+    if audio_tracks
+        .first()
+        .is_some_and(|audio| audio.codec_name == "aac")
+    {
+        validate_aac_start_timestamps(path, cancel)?;
+    }
     let rate = video
         .avg_frame_rate
         .as_deref()
@@ -1141,7 +1174,7 @@ fn inspect_source(
     if frame_count == 0 {
         return Err("video has no frames".into());
     }
-    let timeline = scan_video_timestamps(
+    let (timeline, last_position_us) = scan_video_timestamps(
         path,
         FrameScanSpec {
             time_base: video
@@ -1149,10 +1182,22 @@ fn inspect_source(
                 .as_deref()
                 .ok_or("ffprobe omitted video time base")?,
             frame_count,
+            origin: video.start_pts,
             size: require_plain_geometry.then_some(coded),
         },
         cancel,
     )?;
+    let preview_end = if let Some(position_us) = last_position_us {
+        let metadata = std::fs::metadata(path)?;
+        metadata.modified().ok().map(|modified| PreviewSourceEnd {
+            position_us,
+            file_length: metadata.len(),
+            modified,
+            created: metadata.created().ok(),
+        })
+    } else {
+        None
+    };
     let period_num = i128::from(den)
         .checked_mul(1_000_000)
         .ok_or("frame period overflow")?;
@@ -1175,6 +1220,7 @@ fn inspect_source(
     }
     Ok((
         SourceInfo {
+            preview_end,
             video_bitrate_bps: video
                 .bit_rate
                 .as_deref()
@@ -1286,9 +1332,67 @@ fn parse_decimal_us(value: &str) -> NativeResult<i128> {
     })
 }
 
+// AAC frames do not reorder. Catch malformed leading packet PTS before an
+// expensive GPU job; encoder timestamp repair would otherwise shift the audio.
+// This bounded prefix check is not a claim to validate the entire audio track.
+fn validate_aac_start_timestamps(path: &Path, cancel: &CancellationToken) -> NativeResult<()> {
+    cancel.check()?;
+    let mut command = Command::new("ffprobe");
+    command
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-read_intervals",
+            "%+#32",
+            "-show_packets",
+            "-show_entries",
+            "packet=pts",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .stdout(Stdio::piped());
+    let mut child = ChildGuard::spawn(&mut command)?;
+    let _watch = CancellationWatch::new(cancel, &[&child]);
+    let mut bytes = Vec::new();
+    child.take_stdout()?.take(8193).read_to_end(&mut bytes)?;
+    cancel.check()?;
+    if bytes.len() > 8192 {
+        return Err("AAC timestamp preflight exceeded its metadata bound".into());
+    }
+    let exit = child.wait_cancellable(cancel)?;
+    if !exit.success() {
+        return Err(child.failure("AAC timestamp preflight", exit).into());
+    }
+    let metadata: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let packets = metadata["packets"]
+        .as_array()
+        .ok_or("AAC timestamp preflight omitted packets")?;
+    validate_aac_packet_pts(packets)
+}
+
+fn validate_aac_packet_pts(packets: &[serde_json::Value]) -> NativeResult<()> {
+    let mut previous = None;
+    for (index, packet) in packets.iter().enumerate() {
+        let pts = packet["pts"]
+            .as_i64()
+            .ok_or("AAC packet is missing its presentation timestamp")?;
+        if previous.is_some_and(|before| pts <= before) {
+            return Err(format!(
+                "Source AAC presentation timestamps go backward or repeat at packet {index}; repair the audio timestamps in a separate copy before conversion. No automatic timestamp repair or audio-sync tolerance change."
+            ).into());
+        }
+        previous = Some(pts);
+    }
+    Ok(())
+}
+
 struct FrameScanSpec<'a> {
     time_base: &'a str,
     frame_count: u64,
+    origin: Option<i64>,
     size: Option<Size>,
 }
 
@@ -1296,10 +1400,11 @@ fn scan_video_timestamps(
     path: &Path,
     spec: FrameScanSpec<'_>,
     cancel: &CancellationToken,
-) -> NativeResult<Vec<i128>> {
+) -> NativeResult<(Vec<i128>, Option<u64>)> {
     let FrameScanSpec {
         time_base,
         frame_count,
+        origin,
         size,
     } = spec;
     let (time_num, time_den) = parse_rational(time_base)?;
@@ -1320,6 +1425,7 @@ fn scan_video_timestamps(
     let mut child = ChildGuard::spawn(&mut command)?;
     let _watch = CancellationWatch::new(cancel, &[&child]);
     let mut timeline = Vec::new();
+    let mut last_pts = None;
     let mut decoded_size = size;
     let result = (|| -> NativeResult<()> {
         let stdout = child.take_stdout()?;
@@ -1334,6 +1440,7 @@ fn scan_video_timestamps(
                 .next()
                 .ok_or("missing frame timestamp")?
                 .parse::<i128>()?;
+            last_pts = Some(pts);
             if pts < 0 {
                 return Err(
                     "native M4 harness does not yet support negative frame timestamps".into(),
@@ -1383,7 +1490,22 @@ fn scan_video_timestamps(
     if !child.wait_cancellable(cancel)?.success() {
         return Err("ffprobe frame timeline inspection failed".into());
     }
-    Ok(timeline)
+    let position = origin
+        .map(|origin| -> NativeResult<u64> {
+            let ticks = last_pts
+                .ok_or("Missing final decoded video timestamp")?
+                .checked_sub(i128::from(origin))
+                .ok_or("Final frame timestamp overflow")?;
+            let micros = ticks
+                .checked_mul(time_num)
+                .and_then(|n| n.checked_mul(1_000_000))
+                .and_then(|n| n.checked_add(time_den / 2))
+                .ok_or("Final frame position overflow")?
+                / time_den;
+            Ok(u64::try_from(micros)?)
+        })
+        .transpose()?;
+    Ok((timeline, position))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1959,8 +2081,12 @@ fn convert_with_control_inner(
 ) -> NativeResult<ConversionReport> {
     let total_started = Instant::now();
     cancel.check()?;
-    if options.ai != AiSettings::Off && route == ProcessingRoute::SharedWgpuNvidia {
-        return Err("Native AI NVDEC/NVENC route unavailable: the actual Original-VFR encoder test shifted the first video PTS from 22000 us to 0 us; no software codec fallback".into());
+    if matches!(options.ai, AiSettings::OnnxRuntime { .. })
+        && route == ProcessingRoute::SharedWgpuNvidia
+    {
+        return Err(
+            "Native ONNX with NVDEC/NVENC remains unvalidated; no software codec fallback".into(),
+        );
     }
     if options.ai != AiSettings::Off
         && (!route.uses_wgpu() || (options.ai_helper.is_none() && options.rtx_helper.is_none()))
@@ -2082,6 +2208,9 @@ fn convert_with_control_inner(
     };
     if matches!(options.ai, AiSettings::RtxVideo { .. }) {
         rtx_inference::validate_source(input_size)?;
+        if route == ProcessingRoute::SharedWgpuNvidia {
+            rtx_inference::validate_nvidia_export(&source.codec, output_size)?;
+        }
     } else if options.ai != AiSettings::Off {
         media_core::ai_upscale::pilot_tiles(input_size, 128)?;
     }
@@ -2514,15 +2643,19 @@ fn convert_gpu(
         let budget = options.ai_test_budget_bytes.unwrap_or(384 << 20);
         #[cfg(not(test))]
         let budget = 384 << 20;
-        ai_stats.memory_admission_bytes = media_core::ai_upscale::AiMemoryPlan::new(
-            source_size,
-            8 << 20,
-            128 << 20,
-            downstream,
-            retention,
-            budget,
-        )?
-        .total;
+        ai_stats.memory_admission_bytes = if let AiSettings::RtxVideo { scale, .. } = options.ai {
+            rtx_inference::memory_admission(source_size, scale, downstream, retention, budget)?
+        } else {
+            media_core::ai_upscale::AiMemoryPlan::new(
+                source_size,
+                8 << 20,
+                128 << 20,
+                downstream,
+                retention,
+                budget,
+            )?
+            .total
+        };
     }
     let mut gpu_wall_times = NativeGpuWallTimes::default();
     let setup_started = Instant::now();
@@ -2691,6 +2824,11 @@ fn convert_gpu(
             "-rc",
             "vbr",
         ]);
+        if matches!(options.ai, AiSettings::RtxVideo { .. }) {
+            // Preserve exact VFR presentation offsets without NVENC's guessed
+            // B-frame decode-delay timestamps feeding MP4 edit-list rounding.
+            encoder.args(["-bf", "0"]);
+        }
     } else {
         let mut filter = if !options.color_active() {
             String::new()
@@ -2758,7 +2896,11 @@ fn convert_gpu(
     let result = (|| -> NativeResult<u64> {
         let mut reader = decoder.take_stdout()?;
         let mut writer = encoder.take_stdin()?;
-        frame_stream::start(&mut writer, output)?;
+        frame_stream::start(
+            &mut writer,
+            output,
+            (source.frame_rate_num, source.frame_rate_den),
+        )?;
         let mut count = 0_u64;
         loop {
             cancel.check()?;
@@ -4023,6 +4165,28 @@ mod tests {
         );
         assert_eq!(input.frame_count, 60);
         assert_eq!(input.audio_codec.as_deref(), Some("aac"));
+    }
+
+    #[test]
+    fn aac_preflight_rejects_backward_pts_but_retains_priming_and_offsets() {
+        let packets = |pts: &[i64]| {
+            pts.iter()
+                .map(|pts| serde_json::json!({"pts":pts}))
+                .collect::<Vec<_>>()
+        };
+        // Negative priming and a genuine positive track origin remain valid.
+        for pts in [&[-1024, 0, 1024][..], &[54000, 55024, 56048]] {
+            validate_aac_packet_pts(&packets(pts)).unwrap();
+        }
+        // Regression: the first AAC frame advertised 3600 ticks while the next
+        // frame resumed at 1024. FFmpeg encoded a delayed audio track.
+        for pts in [&[3600, 1024, 2048][..], &[0, 1024, 1024]] {
+            let error = validate_aac_packet_pts(&packets(pts))
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains("Source AAC presentation timestamps go backward or repeat"));
+        }
+        assert!(validate_aac_packet_pts(&[serde_json::json!({"dts":0})]).is_err());
     }
 
     #[test]

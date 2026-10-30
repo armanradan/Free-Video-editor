@@ -1,0 +1,7 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+warning: linker stderr: corrupt .drectve at end of def file
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `media-native` (bin "native-convert") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 13.39s

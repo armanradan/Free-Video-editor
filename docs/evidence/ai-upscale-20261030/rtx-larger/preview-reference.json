@@ -1,0 +1,98 @@
+[
+  {
+    "effects": false,
+    "max_display_lsb": 0,
+    "scale": 2,
+    "source": "640x360",
+    "transfers": {
+      "admission_bytes": 194486288,
+      "display_readback_bytes": 2764800,
+      "inference_readback_bytes": 7372800,
+      "inference_upload_bytes": 1843200,
+      "original_upload_bytes": 921600,
+      "processing_upload_bytes": 11059200,
+      "renderer_upload_bytes": 0,
+      "source_frames": 2
+    }
+  },
+  {
+    "effects": true,
+    "max_display_lsb": 0,
+    "scale": 2,
+    "source": "640x360",
+    "transfers": {
+      "admission_bytes": 194486288,
+      "display_readback_bytes": 5529600,
+      "inference_readback_bytes": 7372800,
+      "inference_upload_bytes": 1843200,
+      "original_upload_bytes": 921600,
+      "processing_upload_bytes": 18432000,
+      "renderer_upload_bytes": 0,
+      "source_frames": 2
+    }
+  },
+  {
+    "effects": false,
+    "max_display_lsb": 0,
+    "scale": 4,
+    "source": "640x360",
+    "transfers": {
+      "admission_bytes": 327196688,
+      "display_readback_bytes": 2764800,
+      "inference_readback_bytes": 29491200,
+      "inference_upload_bytes": 1843200,
+      "original_upload_bytes": 921600,
+      "processing_upload_bytes": 44236800,
+      "renderer_upload_bytes": 0,
+      "source_frames": 2
+    }
+  },
+  {
+    "effects": true,
+    "max_display_lsb": 0,
+    "scale": 4,
+    "source": "640x360",
+    "transfers": {
+      "admission_bytes": 327196688,
+      "display_readback_bytes": 5529600,
+      "inference_readback_bytes": 29491200,
+      "inference_upload_bytes": 1843200,
+      "original_upload_bytes": 921600,
+      "processing_upload_bytes": 73728000,
+      "renderer_upload_bytes": 0,
+      "source_frames": 2
+    }
+  },
+  {
+    "effects": false,
+    "max_display_lsb": 0,
+    "scale": 2,
+    "source": "1280x720",
+    "transfers": {
+      "admission_bytes": 335491088,
+      "display_readback_bytes": 2764800,
+      "inference_readback_bytes": 29491200,
+      "inference_upload_bytes": 7372800,
+      "original_upload_bytes": 3686400,
+      "processing_upload_bytes": 44236800,
+      "renderer_upload_bytes": 0,
+      "source_frames": 2
+    }
+  },
+  {
+    "effects": true,
+    "max_display_lsb": 0,
+    "scale": 2,
+    "source": "1280x720",
+    "transfers": {
+      "admission_bytes": 335491088,
+      "display_readback_bytes": 5529600,
+      "inference_readback_bytes": 29491200,
+      "inference_upload_bytes": 7372800,
+      "original_upload_bytes": 3686400,
+      "processing_upload_bytes": 73728000,
+      "renderer_upload_bytes": 0,
+      "source_frames": 2
+    }
+  }
+]

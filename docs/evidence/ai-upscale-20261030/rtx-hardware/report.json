@@ -1,0 +1,214 @@
+{
+  "status": "evaluated-native-rtx-nvdec-nvenc-route-enabled",
+  "scope": {
+    "gpu": "RTX3050Laptop4GiB",
+    "driver": "621.01",
+    "processing": "Vulkan",
+    "sdk": "1.1.0 High3",
+    "ffmpeg": "8.0.1",
+    "input_codecs": [
+      "h264",
+      "hevc"
+    ],
+    "format": "opaque8-bit SDR square pixels/no display transform",
+    "two_x_max_input": [
+      1280,
+      720
+    ],
+    "four_x_max_input": [
+      640,
+      360
+    ],
+    "nvidia_min_output": [
+      192,
+      144
+    ],
+    "max_output": [
+      2560,
+      1440
+    ]
+  },
+  "timing_failure": {
+    "expected_first_video_us": 22000,
+    "original_actual_us": 0,
+    "trace": "Encoder input/output PTS1980 at1/90000, default reordered DTS-19020; finished MP4 demux starts0. Disabling NVENC B-frames preserves22000us.",
+    "qualification": "Observed NVENC reorder/MP4 interaction; not a general upstream bug diagnosis."
+  },
+  "fix": "-bf0 only for RTX plus SharedWgpuNvidia. Ordinary non-AI NVIDIA settings and native ONNX availability unchanged.",
+  "matrices": {
+    "vfr-matrix": {
+      "exports": 6,
+      "independent_timing_audio_decode": "passed",
+      "structured_fixture_image_gate": "passed",
+      "wall_seconds": [
+        6.484901199997694,
+        5.938762400000996,
+        6.009902099998726,
+        6.264452999996138,
+        6.1066028000059305,
+        5.845206300000427
+      ]
+    },
+    "larger-matrix": {
+      "exports": 9,
+      "independent_timing_audio_decode": "passed",
+      "structured_fixture_image_gate": "passed",
+      "wall_seconds": [
+        6.296408599999268,
+        6.278388999999152,
+        6.367320099998324,
+        7.584522500001185,
+        7.11541600000055,
+        7.54639060000045,
+        7.581814299999678,
+        7.5603378000014345,
+        8.329614399997809
+      ]
+    },
+    "licensed-matrix": {
+      "exports": 9,
+      "independent_timing_audio_decode": "passed",
+      "structured_fixture_image_gate": "passed",
+      "wall_seconds": [
+        6.757748100004392,
+        7.524886300001526,
+        7.846748500000103,
+        6.18446280000353,
+        7.0790400999976555,
+        7.424133600005007,
+        7.1448162000015145,
+        7.7511777999970946,
+        9.209044600000198
+      ]
+    },
+    "hevc-matrix": {
+      "exports": 6,
+      "independent_timing_audio_decode": "passed",
+      "structured_fixture_image_gate": "passed",
+      "wall_seconds": [
+        7.071047199999157,
+        7.2185478000028525,
+        7.3210945000028005,
+        6.985253400001966,
+        6.290924399996584,
+        6.395289000000048
+      ]
+    }
+  },
+  "decoder_parity": {
+    "sources": 7,
+    "software_vs_forced_nvdec_max_rgba8_error": 0,
+    "raw_sequence_persisted": false
+  },
+  "lifecycle": {
+    "cases": 7,
+    "status": "passed",
+    "scope": "active pipe-write/read cancel and timeout, crash, controlled processing-device destruction, budget reject, all fresh retries; no unpublished partials; owned helper kill/reap checked"
+  },
+  "full_cli": {
+    "frames_processed": 3202,
+    "output_frame_count": 3202,
+    "output_width": 2560,
+    "output_height": 1440,
+    "ai": {
+      "identity": {
+        "protocol": 1,
+        "pid": 38120,
+        "runtime": "RTX Video SDK 1.1.0",
+        "model_sha256": "",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "dxgi_index": 1,
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "vendor_id": 4318,
+        "device_id": 9634,
+        "luid_high": 0,
+        "luid_low": 82840,
+        "cpu_fallback": false,
+        "tile_interior": 0,
+        "halo": 0
+      },
+      "source_frames": 3202,
+      "host_to_gpu_bytes": 11803852800,
+      "gpu_to_host_bytes": 47215411200,
+      "sampled_helper_local_peak": 239550464,
+      "helper_memory_sampling_available": true,
+      "memory_admission_bytes": 271630336
+    },
+    "gpu_wall_times": {
+      "processing_setup_us": 337936,
+      "helper_startup_us": 2965745,
+      "decode_pipe_wait_us": 24205859,
+      "inference_roundtrip_us": 180111049,
+      "postprocess_and_encoder_pipe_us": 47560212,
+      "codec_drain_us": 153443,
+      "helper_shutdown_us": 133595
+    },
+    "total_ms": 307947,
+    "codec_gpu_to_cpu_bytes": 4426444800,
+    "codec_cpu_to_gpu_bytes": 17705779200
+  },
+  "full_cli_independent": {
+    "timeline": {
+      "frames": 3202,
+      "maximumErrorSeconds": 0,
+      "toleranceSeconds": 0.0011
+    },
+    "audioPeak": 0.39476653933525085,
+    "endpointErrorSeconds": 0,
+    "sourceFrames": 3202,
+    "sha256": "ce882e0348f86cc66775ecca3ad128a8c484e18529e36d6e52d8004ae414d4ce",
+    "bytes": 70253292
+  },
+  "ordinary_ui": {
+    "source_size": [
+      960,
+      540
+    ],
+    "output_size": [
+      1920,
+      1080
+    ],
+    "frames": 3202,
+    "codec": "h264_nvenc",
+    "route": "Shared GPU NVIDIA",
+    "setup": "automatic recheck passed after cache reservation fix",
+    "independent_timing_audio_decode": "passed",
+    "ai_source_frame_counter": null,
+    "verification": {
+      "timeline": {
+        "frames": 3202,
+        "maximumErrorSeconds": 0,
+        "toleranceSeconds": 0.0011
+      },
+      "audioPeak": 0.4410629868507385,
+      "endpointErrorSeconds": 0,
+      "sourceFrames": 3202,
+      "sha256": "899322ecfb7f39982b1e4e018b830ec69e12f19dcf710861227af1d8ada33eb0",
+      "bytes": 54475754
+    },
+    "total_ms": 190245,
+    "encoded_preview_and_sample": "visually inspected; no general fidelity/temporal-quality claim"
+  },
+  "cache_recovery": {
+    "observed_error": "cache must be a new directory",
+    "cause": "PID/generation/counter cache name reused after Windows PID recycling",
+    "fix": "time-tagged atomic parent directory reservation with collision retries; SDK creates fresh ngx child; existing caches preserved",
+    "collision_test": "passed",
+    "runtime_recheck": "normal UI passed; no terms/config changes required"
+  },
+  "checks": {
+    "native_tests_passed": 62,
+    "native_ignored": 19,
+    "app_tests_passed": 20,
+    "app_ignored": 6,
+    "native_clippy_all_targets": "passed -D warnings",
+    "format": "passed"
+  },
+  "limitations": [
+    "CPU staging/color conversion and CPU AAC remain; no zero-copy or codec-surface sharing claim",
+    "NVENC B-frames disabled can affect compression efficiency; no quality/speed superiority claim",
+    "Other GPUs/drivers and precision/geometry envelopes unvalidated; no silent fallback",
+    "CLI full run preceded cache allocation change; normal full UI uses that fix; image/timestamp processing unchanged"
+  ],
+  "privacy": "User media/source names/screenshots remain local/untracked; public full/UI evidence is redacted."
+}

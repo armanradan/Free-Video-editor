@@ -1,0 +1,76 @@
+diagnostic encoder trace exited with exit code: 0: s_time:0.064 dts:3072 dts_time:0.064 duration:1024 duration_time:0.0213333 size:363 latency(total:67.71ms, encode-mux: 67.71ms/100%)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:4096 pts_time:0.0853333 dts:4096 dts_time:0.0853333 duration:1024 duration_time:0.0213333 size:372 latency(total:66.497ms, encode-mux: 66.497ms/100%)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:5120 pts_time:0.106667 dts:5120 dts_time:0.106667 duration:1024 duration_time:0.0213333 size:375 latency(total:65.319ms, encode-mux: 65.319ms/100%)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:6144 pts_time:0.128 dts:6144 dts_time:0.128 duration:1024 duration_time:0.0213333 size:392 latency(total:64.103ms, encode-mux: 64.103ms/100%)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:7168 pts_time:0.149333 dts:7168 dts_time:0.149333 duration:1024 duration_time:0.0213333 size:370 latency(total:62.929ms, encode-mux: 62.929ms/100%)
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder <- type:video frame_pts:1980 frame_pts_time:0.022 time_base:1/90000
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:8192 pts_time:0.170667 dts:8192 dts_time:0.170667 duration:1024 duration_time:0.0213333 size:380 latency(total:61.751ms, encode-mux: 61.751ms/100%)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:9216 pts_time:0.192 dts:9216 dts_time:0.192 duration:1024 duration_time:0.0213333 size:371 latency(total:60.589ms, encode-mux: 60.589ms/100%)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:10240 pts_time:0.213333 dts:10240 dts_time:0.213333 duration:1024 duration_time:0.0213333 size:377 latency(total:59.384ms, encode-mux: 59.384ms/100%)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:11264 pts_time:0.234667 dts:11264 dts_time:0.234667 duration:1024 duration_time:0.0213333 size:384 latency(total:58.187ms, encode-mux: 58.187ms/100%)
+[vf#0:0 @ 000001f5c40254c0] filter_raw -> pts:88667 pts_time:0.088667 time_base:1/1000000
+[vf#0:0 @ 000001f5c400c8c0] filter -> pts:7980 pts_time:0.0886667 exact:7980.030037 time_base:1/90000
+[vf#0:0 @ 000001f5c40254c0] filter_raw -> pts:122000 pts_time:0.122 time_base:1/1000000
+[vf#0:0 @ 000001f5c400c8c0] filter -> pts:10980 pts_time:0.122 exact:10980.000000 time_base:1/90000
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder <- type:video frame_pts:7980 frame_pts_time:0.0886667 time_base:1/90000
+[vf#0:0 @ 000001f5c40254c0] filter_raw -> pts:255333 pts_time:0.255333 time_base:1/1000000
+[vf#0:0 @ 000001f5c400c8c0] filter -> pts:22980 pts_time:0.255333 exact:22979.969978 time_base:1/90000
+[auto_scale_0 @ 000001f5d4e8adc0] [framesync @ 000001f5d4e8af10] Sync level 0
+[auto_scale_1 @ 000001f5d4e9a180] [framesync @ 000001f5d4e989d0] Sync level 0
+[vf#0:0 @ 000001f5c400c8c0] Filtergraph returned EOF, finishing
+[vf#0:0 @ 000001f5c400c8c0] All consumers returned EOF
+[aost#0:1/aac @ 000001f5d4f58680] [enc:aac @ 000001f5c405c940] Encoder thread received EOF
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder <- type:video frame_pts:10980 frame_pts_time:0.122 time_base:1/90000
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder <- type:video frame_pts:22980 frame_pts_time:0.255333 time_base:1/90000
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] Encoder thread received EOF
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder -> type:video pkt_pts:1980 pkt_pts_time:0.022 pkt_dts:-19020 pkt_dts_time:-0.211333 duration:6000 duration_time:0.0666667
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] muxer <- pts:1980 pts_time:0.022 dts:-19020 dts_time:-0.211333 duration:6000 duration_time:0.0666667 size:11839 latency(total:79.044ms, decode-filter: 44.026ms/55%, filter 4.403ms/5%, filter-encode: 27.524ms/34%)
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder -> type:video pkt_pts:22980 pkt_pts_time:0.255333 pkt_dts:-12020 pkt_dts_time:-0.133556 duration:3000 duration_time:0.0333333
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] muxer <- pts:22980 pts_time:0.255333 dts:-12020 dts_time:-0.133556 duration:3000 duration_time:0.0333333 size:8848 latency(total:74.869ms, decode-filter: 73.927ms/98%)
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder -> type:video pkt_pts:10980 pkt_pts_time:0.122 pkt_dts:-5020 pkt_dts_time:-0.0557778 duration:12000 duration_time:0.133333
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] muxer <- pts:10980 pts_time:0.122 dts:-5020 dts_time:-0.0557778 duration:12000 duration_time:0.133333 size:4042 latency(total:76.637ms, decode-filter: 74.402ms/97%)
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] [enc:h264_nvenc @ 000001f5c405b980] encoder -> type:video pkt_pts:7980 pkt_pts_time:0.0886667 pkt_dts:1980 pkt_dts_time:0.022 duration:3000 duration_time:0.0333333
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] Terminating thread with return code 0 (success)
+[vost#0:0/h264_nvenc @ 000001f5c4018cc0] muxer <- pts:7980 pts_time:0.0886667 dts:1980 dts_time:0.022 duration:3000 duration_time:0.0333333 size:3025 latency(total:78.994ms, decode-filter: 75.414ms/95%)
+[aost#0:1/aac @ 000001f5d4f58680] [enc:aac @ 000001f5c405c940] encoder -> type:audio pkt_pts:12288 pkt_pts_time:0.256 pkt_dts:12288 pkt_dts_time:0.256 duration:1024 duration_time:0.0213333
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:12288 pts_time:0.256 dts:12288 dts_time:0.256 duration:1024 duration_time:0.0213333 size:322 latency(total:0.019ms, encode-mux: 0.019ms/100%)
+[vf#0:0 @ 000001f5c400c8c0] Terminating thread with return code 0 (success)
+[aost#0:1/aac @ 000001f5d4f58680] [enc:aac @ 000001f5c405c940] encoder -> type:audio pkt_pts:13312 pkt_pts_time:0.277333 pkt_dts:13312 pkt_dts_time:0.277333 duration:1024 duration_time:0.0213333
+[aost#0:1/aac @ 000001f5d4f58680] Terminating thread with return code 0 (success)
+[aost#0:1/aac @ 000001f5d4f58680] muxer <- pts:13312 pts_time:0.277333 dts:13312 dts_time:0.277333 duration:1024 duration_time:0.0213333 size:324 latency(total:0.015ms, encode-mux: 0.015ms/100%)
+[out#0/mp4 @ 000001f5c4024a40] All streams finished
+[out#0/mp4 @ 000001f5c4024a40] Terminating thread with return code 0 (success)
+[mp4 @ 000001f5c4024b40] Starting second pass: moving the moov atom to the beginning of the file
+[AVIOContext @ 000001f5d4e0bd40] Statistics: 33451 bytes read, 0 seeks
+[AVIOContext @ 000001f5c408c440] Statistics: 68434 bytes written, 4 seeks, 5 writeouts
+[out#0/mp4 @ 000001f5c4024a40] Output file #0 (D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-hardware-20261030\diagnostic-trace.42124.partial.mp4):
+[out#0/mp4 @ 000001f5c4024a40]   Output stream #0:0 (video): 4 frames encoded; 4 packets muxed (27754 bytes); 
+[out#0/mp4 @ 000001f5c4024a40]   Output stream #0:1 (audio): 14 frames encoded (14336 samples); 15 packets muxed (5649 bytes); 
+[out#0/mp4 @ 000001f5c4024a40]   Total: 19 packets (33403 bytes) muxed
+[out#0/mp4 @ 000001f5c4024a40] video:27KiB audio:6KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 4.813939%
+frame=    4 fps=0.0 q=17.0 Lsize=      34KiB time=00:00:00.00 bitrate=N/A speed=   0x elapsed=0:00:00.08    
+[h264_nvenc @ 000001f5c4019100] Nvenc unloaded
+[aac @ 000001f5d4f58a40] Qavg: 39180.008
+[in#0/matroska,webm @ 000001f5c3fd4540] Input file #0 (pipe:0):
+[in#0/matroska,webm @ 000001f5c3fd4540]   Input stream #0:0 (video): 4 packets read (491520 bytes); 4 frames decoded; 0 decode errors; 
+[in#0/matroska,webm @ 000001f5c3fd4540]   Total: 4 packets (491520 bytes) demuxed
+[AVIOContext @ 000001f5c3fe5b00] Statistics: 491774 bytes read, 0 seeks
+[in#1/mov,mp4,m4a,3gp,3g2,mj2 @ 000001f5c3fe6440] Input file #1 (D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-hardware-20261030/vfr-96x80.mp4):
+[in#1/mov,mp4,m4a,3gp,3g2,mj2 @ 000001f5c3fe6440]   Input stream #1:1 (audio): 14 packets read (3666 bytes); 14 frames decoded; 0 decode errors (14336 samples); 
+[in#1/mov,mp4,m4a,3gp,3g2,mj2 @ 000001f5c3fe6440]   Total: 14 packets (3666 bytes) demuxed
+[AVIOContext @ 000001f5c3fd2b40] Statistics: 11163 bytes read, 0 seeks
+
+Exiting with exit code 0
+native output changed frame 0 timing: expected 22000ط·آ¢ط¢آµs, got 0ط·آ¢ط¢آµs
+
+native-convert list-gpus
+native-convert save-gpu --adapter-key KEY --preference FILE
+native-convert import-ai-model --model FILE --cache DIRECTORY
+native-convert ai-model-status --cache DIRECTORY
+native-convert remove-ai-model --cache DIRECTORY
+native-convert ai-runtime-status [--ort-directory DIRECTORY] [--rtx-sdk DIRECTORY]
+native-convert ai-frame-pilot --helper FILE --ort-directory DIRECTORY --cache DIRECTORY --dxgi-index N --adapter-name NAME --width W --height H --rgba FILE --output FILE
+native-convert convert --input FILE --output FILE [--route direct|nvidia|wgpu|wgpu-nvidia] [--profile mp4-h264-aac|mp4-h265-main10-aac] [--resize original|75|50|25|720p|1080p|2k|1440p|4k] [--bitrate smaller|recommended|higher|MBPS] [--fps original|NUM[/DEN]] [--adapter-key KEY | --preference FILE] [--cancel-after-ms N]
+Color: --brightness -100..100 (default 0), --contrast 0..200 (default 100), --saturation 0..200 (default 100). Adjusted direct CPU jobs use 16-bit encoded RGB; shared-wgpu uses RGBA8. Direct NVIDIA non-neutral adjustments are rejected, not CPU-fallback.
+Experimental CLAHE: --equalization-strength 0..100, default off. CLI/shared-wgpu routes only; direct routes reject enabled CLAHE. History-aware UI preview is not connected yet. Zero strength bypasses equalization.
+CLI defaults to software direct FFmpeg. NVIDIA uses CUDA decode/resize and NVENC video. wgpu uses software codecs around GPU resize. wgpu-nvidia uses NVDEC/NVENC around the shared wgpu resize, with explicit CPU-staged pixel transfers. NVIDIA routes never silently fall back to CPU. Audio and full inspection/verification still use CPU. Session inspection can be reused for unchanged files; standalone CLI runs start with an empty cache. All routes preserve tested VFR/non-negative A/V origins and require one video and at most one audio track. NVIDIA and wgpu require square pixels and no display transform. Main 10 is available on direct/NVIDIA only. BT.709 limited SDR or unspecified tags only; HDR, wide color, negative origins and multiple audio tracks are unsupported. Output must not already exist.

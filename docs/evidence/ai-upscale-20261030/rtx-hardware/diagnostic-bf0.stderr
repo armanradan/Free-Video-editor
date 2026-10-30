@@ -1,0 +1,63 @@
+diagnostic encoder trace exited with exit code: 0: 0] muxer <- pts:3072 pts_time:0.064 dts:3072 dts_time:0.064 duration:1024 duration_time:0.0213333 size:363 latency(total:64.007ms, encode-mux: 64.007ms/100%)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:4096 pts_time:0.0853333 dts:4096 dts_time:0.0853333 duration:1024 duration_time:0.0213333 size:372 latency(total:62.795ms, encode-mux: 62.795ms/100%)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:5120 pts_time:0.106667 dts:5120 dts_time:0.106667 duration:1024 duration_time:0.0213333 size:375 latency(total:61.59ms, encode-mux: 61.59ms/100%)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:6144 pts_time:0.128 dts:6144 dts_time:0.128 duration:1024 duration_time:0.0213333 size:392 latency(total:60.376ms, encode-mux: 60.376ms/100%)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:7168 pts_time:0.149333 dts:7168 dts_time:0.149333 duration:1024 duration_time:0.0213333 size:370 latency(total:59.216ms, encode-mux: 59.216ms/100%)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:8192 pts_time:0.170667 dts:8192 dts_time:0.170667 duration:1024 duration_time:0.0213333 size:380 latency(total:58.003ms, encode-mux: 58.003ms/100%)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:9216 pts_time:0.192 dts:9216 dts_time:0.192 duration:1024 duration_time:0.0213333 size:371 latency(total:56.812ms, encode-mux: 56.812ms/100%)
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder <- type:video frame_pts:1980 frame_pts_time:0.022 time_base:1/90000
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:10240 pts_time:0.213333 dts:10240 dts_time:0.213333 duration:1024 duration_time:0.0213333 size:377 latency(total:55.63ms, encode-mux: 55.63ms/100%)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:11264 pts_time:0.234667 dts:11264 dts_time:0.234667 duration:1024 duration_time:0.0213333 size:384 latency(total:54.477ms, encode-mux: 54.477ms/100%)
+[vf#0:0 @ 000001c2af7b7c40] filter_raw -> pts:88667 pts_time:0.088667 time_base:1/1000000
+[vf#0:0 @ 000001c2c1f599c0] filter -> pts:7980 pts_time:0.0886667 exact:7980.030037 time_base:1/90000
+[vf#0:0 @ 000001c2af7b7c40] filter_raw -> pts:122000 pts_time:0.122 time_base:1/1000000
+[vf#0:0 @ 000001c2c1f599c0] filter -> pts:10980 pts_time:0.122 exact:10980.000000 time_base:1/90000
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder <- type:video frame_pts:7980 frame_pts_time:0.0886667 time_base:1/90000
+[vf#0:0 @ 000001c2af7b7c40] filter_raw -> pts:255333 pts_time:0.255333 time_base:1/1000000
+[vf#0:0 @ 000001c2c1f599c0] filter -> pts:22980 pts_time:0.255333 exact:22979.969978 time_base:1/90000
+[auto_scale_0 @ 000001c2af822d00] [framesync @ 000001c2c1d59710] Sync level 0
+[auto_scale_1 @ 000001c2af8227c0] [framesync @ 000001c2c1e99790] Sync level 0
+[vf#0:0 @ 000001c2c1f599c0] Filtergraph returned EOF, finishing
+[vf#0:0 @ 000001c2c1f599c0] All consumers returned EOF
+[aost#0:1/aac @ 000001c2af7b5680] [enc:aac @ 000001c2af825900] Encoder thread received EOF
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder <- type:video frame_pts:10980 frame_pts_time:0.122 time_base:1/90000
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder -> type:video pkt_pts:1980 pkt_pts_time:0.022 pkt_dts:1980 pkt_dts_time:0.022 duration:6000 duration_time:0.0666667
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder <- type:video frame_pts:22980 frame_pts_time:0.255333 time_base:1/90000
+[vost#0:0/h264_nvenc @ 000001c2af824580] muxer <- pts:1980 pts_time:0.022 dts:1980 dts_time:0.022 duration:6000 duration_time:0.0666667 size:11838 latency(total:75.773ms, decode-filter: 45.272ms/59%, filter 4.994ms/6%, filter-encode: 22.505ms/29%)
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder -> type:video pkt_pts:7980 pkt_pts_time:0.0886667 pkt_dts:7980 pkt_dts_time:0.0886667 duration:3000 duration_time:0.0333333
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] Encoder thread received EOF
+[vost#0:0/h264_nvenc @ 000001c2af824580] muxer <- pts:7980 pts_time:0.0886667 dts:7980 dts_time:0.0886667 duration:3000 duration_time:0.0333333 size:3951 latency(total:75.542ms, decode-filter: 72.318ms/95%)
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder -> type:video pkt_pts:10980 pkt_pts_time:0.122 pkt_dts:10980 pkt_dts_time:0.122 duration:12000 duration_time:0.133333
+[vost#0:0/h264_nvenc @ 000001c2af824580] muxer <- pts:10980 pts_time:0.122 dts:10980 dts_time:0.122 duration:12000 duration_time:0.133333 size:3844 latency(total:73.414ms, decode-filter: 70.532ms/96%)
+[vost#0:0/h264_nvenc @ 000001c2af824580] [enc:h264_nvenc @ 000001c2af826e00] encoder -> type:video pkt_pts:22980 pkt_pts_time:0.255333 pkt_dts:22980 pkt_dts_time:0.255333 duration:3000 duration_time:0.0333333
+[vost#0:0/h264_nvenc @ 000001c2af824580] muxer <- pts:22980 pts_time:0.255333 dts:22980 dts_time:0.255333 duration:3000 duration_time:0.0333333 size:4650 latency(total:71.71ms, decode-filter: 70.661ms/98%)
+[vost#0:0/h264_nvenc @ 000001c2af824580] Terminating thread with return code 0 (success)
+[aost#0:1/aac @ 000001c2af7b5680] [enc:aac @ 000001c2af825900] encoder -> type:audio pkt_pts:12288 pkt_pts_time:0.256 pkt_dts:12288 pkt_dts_time:0.256 duration:1024 duration_time:0.0213333
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:12288 pts_time:0.256 dts:12288 dts_time:0.256 duration:1024 duration_time:0.0213333 size:322 latency(total:0.027ms, encode-mux: 0.027ms/100%)
+[vf#0:0 @ 000001c2c1f599c0] Terminating thread with return code 0 (success)
+[aost#0:1/aac @ 000001c2af7b5680] [enc:aac @ 000001c2af825900] encoder -> type:audio pkt_pts:13312 pkt_pts_time:0.277333 pkt_dts:13312 pkt_dts_time:0.277333 duration:1024 duration_time:0.0213333
+[aost#0:1/aac @ 000001c2af7b5680] Terminating thread with return code 0 (success)
+[aost#0:1/aac @ 000001c2af7b5680] muxer <- pts:13312 pts_time:0.277333 dts:13312 dts_time:0.277333 duration:1024 duration_time:0.0213333 size:324 latency(total:0.024ms, encode-mux: 0.024ms/100%)
+[out#0/mp4 @ 000001c2af823c00] All streams finished
+[out#0/mp4 @ 000001c2af823c00] Terminating thread with return code 0 (success)
+[mp4 @ 000001c2af823d00] Starting second pass: moving the moov atom to the beginning of the file
+[AVIOContext @ 000001c2c1e9a980] Statistics: 29980 bytes read, 0 seeks
+[AVIOContext @ 000001c2af8158c0] Statistics: 61504 bytes written, 4 seeks, 5 writeouts
+[out#0/mp4 @ 000001c2af823c00] Output file #0 (D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-hardware-20261030\diagnostic-bf0.30596.partial.mp4):
+[out#0/mp4 @ 000001c2af823c00]   Output stream #0:0 (video): 4 frames encoded; 4 packets muxed (24283 bytes); 
+[out#0/mp4 @ 000001c2af823c00]   Output stream #0:1 (audio): 14 frames encoded (14336 samples); 15 packets muxed (5649 bytes); 
+[out#0/mp4 @ 000001c2af823c00]   Total: 19 packets (29932 bytes) muxed
+[out#0/mp4 @ 000001c2af823c00] video:24KiB audio:6KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 5.412268%
+frame=    4 fps=0.0 q=16.0 Lsize=      31KiB time=00:00:00.00 bitrate=N/A speed=   0x elapsed=0:00:00.07    
+[h264_nvenc @ 000001c2c1f582c0] Nvenc unloaded
+[aac @ 000001c2af7b9e80] Qavg: 39180.008
+[in#0/matroska,webm @ 000001c2af77a980] Input file #0 (pipe:0):
+[in#0/matroska,webm @ 000001c2af77a980]   Input stream #0:0 (video): 4 packets read (491520 bytes); 4 frames decoded; 0 decode errors; 
+[in#0/matroska,webm @ 000001c2af77a980]   Total: 4 packets (491520 bytes) demuxed
+[AVIOContext @ 000001c2af791700] Statistics: 491774 bytes read, 0 seeks
+[in#1/mov,mp4,m4a,3gp,3g2,mj2 @ 000001c2af794d00] Input file #1 (D:\Active_Projects\Rust\Diaxus\Video editor\tmp\ai-upscale\rtx-hardware-20261030/vfr-96x80.mp4):
+[in#1/mov,mp4,m4a,3gp,3g2,mj2 @ 000001c2af794d00]   Input stream #1:1 (audio): 14 packets read (3666 bytes); 14 frames decoded; 0 decode errors (14336 samples); 
+[in#1/mov,mp4,m4a,3gp,3g2,mj2 @ 000001c2af794d00]   Total: 14 packets (3666 bytes) demuxed
+[AVIOContext @ 000001c2af7bba80] Statistics: 11163 bytes read, 0 seeks
+
+Exiting with exit code 0

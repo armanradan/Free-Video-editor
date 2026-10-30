@@ -1,0 +1,8 @@
+{
+  "reference": "tmp/ai-upscale/rtx-quality-20261030/matrix/rtx/15.mp4",
+  "ordinary_ui_export": "tmp/ai-upscale/native-ui-20261030/ui-rtx-motion-4x-original.mp4",
+  "reference_sha256": "A3064F80D27496F6038EF2D5375C66631C39648675C6C87DD072232EF94A4FF1",
+  "ordinary_sha256": "A3064F80D27496F6038EF2D5375C66631C39648675C6C87DD072232EF94A4FF1",
+  "byte_identical": true,
+  "scope": "Existing same-model release CLI reference versus actual ordinary debug-window export; Original FPS, RTX High3 4x, CLAHE50 and manual10/115/80"
+}

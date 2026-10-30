@@ -1,0 +1,19 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.98s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 1 test
+
+thread 'ai_preflight::tests::actual_rtx_setup_test_checks_consent_cancel_identity_output_and_cleanup' (9496) panicked at crates\media-native\src\ai_preflight.rs:319:14:
+called `Result::unwrap()` on an `Err` value: "RTX helper did not retain the explicit SDK/quality/NVIDIA/LUID identity: expected DXGI 1 / NVIDIA GeForce RTX 3050 Laptop GPU / LUID 0:78108, got runtime RTX Video SDK 1.1.0 / configuration Some(\"sdk-1.1-sdr-v1/high3\") / DXGI 1 / NVIDIA GeForce RTX 3050 Laptop GPU / vendor 10de / LUID 0:82840. Re-inspect the current device identity; no fallback"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test ai_preflight::tests::actual_rtx_setup_test_checks_consent_cancel_identity_output_and_cleanup ... FAILED
+
+failures:
+
+failures:
+    ai_preflight::tests::actual_rtx_setup_test_checks_consent_cancel_identity_output_and_cleanup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 70 filtered out; finished in 4.37s
+
+error: test failed, to rerun pass `-p media-native --lib`

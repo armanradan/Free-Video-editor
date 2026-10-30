@@ -1,0 +1,124 @@
+{
+  "status": "passed",
+  "scope": "Known structured fixtures only; not model fidelity, temporal flicker or generic flat-frame rejection",
+  "cases": [
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-hardware-20261030\\vfr-96x80.mp4",
+      "source_channel_ranges": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "output_channel_ranges": [
+        243,
+        243,
+        244,
+        249
+      ]
+    },
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-hardware-20261030\\vfr-96x80.mp4",
+      "source_channel_ranges": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "output_channel_ranges": [
+        243,
+        243,
+        243,
+        243,
+        249
+      ]
+    },
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-hardware-20261030\\vfr-96x80.mp4",
+      "source_channel_ranges": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "output_channel_ranges": [
+        243,
+        243,
+        243,
+        243,
+        243,
+        243,
+        244,
+        244,
+        244,
+        244,
+        244,
+        244,
+        244,
+        244,
+        249,
+        249,
+        249
+      ]
+    },
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-hardware-20261030\\vfr-96x80.mp4",
+      "source_channel_ranges": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "output_channel_ranges": [
+        244,
+        243,
+        243,
+        247
+      ]
+    },
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-hardware-20261030\\vfr-96x80.mp4",
+      "source_channel_ranges": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "output_channel_ranges": [
+        244,
+        243,
+        243,
+        243,
+        249
+      ]
+    },
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-hardware-20261030\\vfr-96x80.mp4",
+      "source_channel_ranges": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "output_channel_ranges": [
+        244,
+        244,
+        244,
+        244,
+        243,
+        243,
+        243,
+        243,
+        243,
+        243,
+        243,
+        243,
+        243,
+        243,
+        250,
+        250,
+        250
+      ]
+    }
+  ]
+}

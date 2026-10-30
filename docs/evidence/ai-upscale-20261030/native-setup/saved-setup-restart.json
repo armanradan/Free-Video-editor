@@ -1,0 +1,20 @@
+{
+  "configuration": {
+    "helper": {
+      "backend": "rtx",
+      "configuration": {
+        "executable": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-lifecycle-20261029\\helper.exe",
+        "sdk_root": "D:/Libraries/RTX_Video_SDK_v1.1.0",
+        "cache_parent": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-video-cache-20261029",
+        "dxgi_index": 1,
+        "exact_adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "expected_luid_high": 0,
+        "expected_luid_low": 82840
+      }
+    },
+    "processing_adapter": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU"
+  },
+  "terms_sha256": "5addfcf7c78891a12f1dcd6b5f86c2512351ab71b3872f446ba10e1b6da54464",
+  "approved_helper_sha256": "e3424ad7c59f45b55b7f529898ed1dfb7f139b1a4cb4b5a75d27ee97bbdc7895",
+  "startup_helpers": []
+}

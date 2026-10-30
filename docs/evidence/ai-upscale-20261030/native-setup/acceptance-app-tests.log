@@ -1,0 +1,33 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+   Compiling converter-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\apps\native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.45s
+     Running unittests src\main.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\converter_native-f3ff250108116caa.exe)
+
+running 24 tests
+test preview::tests::actual_ai_conversion_handoff_retires_and_retries ... ignored, actual configured DirectML, renderer GPU, AI preview retirement and verified AI conversion
+test preview::tests::presenter_suspend_resume_retires_history_worker ... ignored, real renderer ABI device, presenter suspension and fresh worker
+test bitrate_tests::color_keyboard_changes_only_selected_channel_and_clamps ... ok
+test preview::tests::color_updates_coalesce_and_publish_last_value_without_new_input ... ok
+test preview::tests::automatic_preview_waits_for_latest_stable_selection_and_does_not_reopen ... ok
+test bitrate_tests::custom_mbps_accepts_decimals_without_silently_replacing_invalid_values ... ok
+test preview_gpu::history::tests::exact_preroll_renderer_matches_full_conversion_and_reuses_maps ... ignored, real FFmpeg decode plus processing/renderer GPU parity; no GUI
+test preview_gpu::tests::actual_blitz_abi_shader_matches_reference ... ignored, real renderer-ABI GPU diagnostic; no UI automation
+test preview_gpu::worker::tests::actual_ai_renderer_staging_cache_and_invalidation ... ignored, actual DirectML and wgpu 30 to renderer wgpu 26 staged AI preview
+test preview_gpu::worker::tests::latest_request_cache_invalidation_and_shutdown ... ignored, actual renderer-device worker, decode/GPU cancellation and cache
+test preview::tests::ai_policy_requires_a_source_and_off_restores_ordinary_player ... ok
+test preview::tests::processing_error_keeps_pause_distinct_from_restart ... ok
+test preview::tests::history_policy_tracks_seek_close_and_playback_samples ... ok
+test preview::tests::timeline_clamps_and_formats ... ok
+test window::tests::fullscreen_preview_fits_image_and_controls_without_distorting_aspect ... ok
+test window::tests::native_player_keys_are_active_only_bounded_and_do_not_repeat_toggles ... ok
+test window::tests::timeline_coordinates_match_centered_layout ... ok
+test preferences::tests::missing_corrupt_and_reset_preferences ... ok
+test ai_acceptance::tests::source_device_helper_and_session_readiness_are_independent_gates ... ok
+test preview::tests::conversion_handoff_retires_playback_and_rejects_new_commands ... ok
+test preview::tests::preview_service_retains_one_frame_clears_and_drains_shutdown ... ok
+test preview::tests::secondary_presenter_shares_frame_without_restarting_or_canceling_playback ... ok
+test preview::tests::rapid_color_seek_and_source_replacement_keeps_one_worker_and_latest_frame ... ok
+test preview::tests::same_source_seek_keeps_timeline_and_image_until_target_is_ready ... ok
+
+test result: ok. 18 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 1.15s
+

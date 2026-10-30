@@ -1,0 +1,405 @@
+{
+  "status": "failed",
+  "tolerance": {
+    "rgba8_max_error": 0,
+    "rgba8_mae": 0
+  },
+  "scope": "bounded helper + installed SDK sample, not video/UI/product acceptance",
+  "helper_sha256": "18b710e3bb831cf844229d17bc461bb7c1a8452c9b98a3b9ebf51779dff73c74",
+  "reference_sha256": "adcf4b1cb3d903c0489f461696ce2c72219adf1e04312468effb908011f3ff7a",
+  "sample_source_sha256": "e85050f46c76010107dd2f26f5b91deb1b47a06434e8ca6a19b6ee2483461f58",
+  "runs": [
+    {
+      "label": "helper",
+      "exit_code": 0,
+      "wall_seconds_including_startup": 9.366501600001357,
+      "records": [
+        {
+          "stage": "initialize",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "capabilities",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "vsr-available",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "scratch-size",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "create-vsr",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "loaded-runtime",
+          "name": "_nvngx.dll",
+          "path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_00e5dc1fb00a1261\\_nvngx.dll"
+        },
+        {
+          "stage": "ready",
+          "protocol": 1,
+          "sdk": "1.1.0",
+          "pid": 23952,
+          "dxgi_index": 1,
+          "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "vendor_id": 4318,
+          "device_id": 9634,
+          "luid_high": 0,
+          "luid_low": 82840,
+          "color": "opaque-rgba8-full-range-bt709-srgb",
+          "quality": 3,
+          "max_width": 1280,
+          "max_height": 720,
+          "in_flight": 1
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "evaluate",
+          "ngx_result": "0x00000001",
+          "meaning": "success"
+        },
+        {
+          "stage": "release-feature",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "destroy-parameters",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "shutdown-device",
+          "ngx_result": "0x00000001"
+        },
+        {
+          "stage": "closed",
+          "frames": 20,
+          "host_to_gpu_bytes": 19127632,
+          "gpu_to_host_bytes": 191276320,
+          "sampled_local_peak": 491696128
+        }
+      ]
+    },
+    {
+      "label": "sample",
+      "exit_code": 0,
+      "wall_seconds_including_startup": 6.092427699997643,
+      "records": [
+        {
+          "stage": "loaded-runtime",
+          "name": "_nvngx.dll",
+          "path": "C:\\WINDOWS\\System32\\DriverStore\\FileRepository\\nvami.inf_amd64_00e5dc1fb00a1261\\_nvngx.dll"
+        },
+        {
+          "stage": "ready",
+          "protocol": 1,
+          "sdk": "1.1.0",
+          "pid": 25740,
+          "dxgi_index": 1,
+          "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "vendor_id": 4318,
+          "device_id": 9634,
+          "luid_high": 0,
+          "luid_low": 82840,
+          "color": "opaque-rgba8-full-range-bt709-srgb",
+          "quality": 3,
+          "max_width": 1280,
+          "max_height": 720,
+          "in_flight": 1
+        },
+        {
+          "stage": "closed",
+          "frames": 20,
+          "host_to_gpu_bytes": 19127632,
+          "gpu_to_host_bytes": 191276320,
+          "sampled_local_peak": 491696128
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "width": 192,
+      "height": 108,
+      "scale": 2,
+      "pattern": 0,
+      "output_sha256": "29659a82096969583dd850d575ef07deb15b84f7b0aec617f0f641e16f823f36",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 192,
+      "height": 108,
+      "scale": 2,
+      "pattern": 1,
+      "output_sha256": "9ef3ef2d2e4129b7c8874380ee359dfbe31a4d6bc052d8f721db5d7b83bfb459",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 192,
+      "height": 108,
+      "scale": 4,
+      "pattern": 0,
+      "output_sha256": "79bc780d1bf338bb5c897763fae4af5b49e7270bd67f89793e8458ca1af747c2",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 192,
+      "height": 108,
+      "scale": 4,
+      "pattern": 1,
+      "output_sha256": "fbef32c66e2363fff663a4f56fab1e3ff52eefc6ea019bb469571b19d39e7772",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 191,
+      "height": 107,
+      "scale": 2,
+      "pattern": 0,
+      "output_sha256": "452828a5ee72fd1fc74b76b982b4937ba3c77cd3b704664af58327f5ee7e2aa9",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 191,
+      "height": 107,
+      "scale": 2,
+      "pattern": 1,
+      "output_sha256": "0b2d0d933f89c1989df04c35bb542c4e1ca092ad6c24cfdaa1158eeafae5148e",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 191,
+      "height": 107,
+      "scale": 4,
+      "pattern": 0,
+      "output_sha256": "bd5d0914ca54ec196c2b116c3d697cec851a708acc981578df5a416e0ef57da9",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 191,
+      "height": 107,
+      "scale": 4,
+      "pattern": 1,
+      "output_sha256": "37bd698700583bec4a520fe2b487d23ace5d15747eafe3280b99b2adbcf4b2ea",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 64,
+      "height": 36,
+      "scale": 2,
+      "pattern": 0,
+      "output_sha256": "bc3c11f00f737ffbcf2e56b1ed7dc74e7ec452f62b0e6c16326704b4b0fd32b0",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 64,
+      "height": 36,
+      "scale": 2,
+      "pattern": 1,
+      "output_sha256": "4f45c9a14d43562ac6c33f07cf3d1e6d63dd0357a6b1a01892410b13722c7697",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 64,
+      "height": 36,
+      "scale": 4,
+      "pattern": 0,
+      "output_sha256": "067bb7ba5815954f629c4b05af27d4002678a2c4fda79a2077f233a1d69d2d2d",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 64,
+      "height": 36,
+      "scale": 4,
+      "pattern": 1,
+      "output_sha256": "be8e3d32346a597acad31988e6aec1d9e9ca67457c567dfaf3c9c8abb4841b0b",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 640,
+      "height": 360,
+      "scale": 2,
+      "pattern": 0,
+      "output_sha256": "c27c0ad1c481285b761f2944144e081bdae85fd738dbf587a08445bb67a69e02",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 640,
+      "height": 360,
+      "scale": 2,
+      "pattern": 1,
+      "output_sha256": "00b284071aa89fb794ad62853e0e89444f88f42821316bfe1586db304a87da1e",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 640,
+      "height": 360,
+      "scale": 4,
+      "pattern": 0,
+      "output_sha256": "b83402ae93ab15cad28a140966fad64a38d510aa8a5c32d4600aed2650f630f7",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 640,
+      "height": 360,
+      "scale": 4,
+      "pattern": 1,
+      "output_sha256": "d59cefe0de1f40a2aa3a7fe50b7c93a11cb5a150884a89e3c7fa6614607d22c0",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "scale": 2,
+      "pattern": 0,
+      "output_sha256": "600faa0d1ac82b55047bec6bac9775621737283bf679076ccfc76de4368a3409",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "scale": 2,
+      "pattern": 1,
+      "output_sha256": "0d4a92cc30565b25f16a992c85e1b565c713459f743681bb356c85c398e7f88b",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "scale": 4,
+      "pattern": 0,
+      "output_sha256": "d60854f210539dccf11955afcbc5365f53c589f98aa2c3a1c3e22ffa7c3578ed",
+      "max_error": 0,
+      "mae": 0.0
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "scale": 4,
+      "pattern": 1,
+      "output_sha256": "8eb79c67b243fe3e708909e77ac630f7da634b8676be29f35fd07541ffdc7c1b",
+      "max_error": 0,
+      "mae": 0.0
+    }
+  ],
+  "error": "AssertionError()"
+}

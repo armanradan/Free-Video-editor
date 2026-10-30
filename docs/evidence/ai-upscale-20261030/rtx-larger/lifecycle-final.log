@@ -1,0 +1,19 @@
+    Blocking waiting for file lock on build directory
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.91s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 1 test
+RTX cancel-write: observed pipe stage, killed/reaped, no partial, healthy generation8 retry passed
+RTX cancel-read: observed pipe stage, killed/reaped, no partial, healthy generation8 retry passed
+RTX timeout-write: observed pipe stage, killed/reaped, no partial, healthy generation8 retry passed
+test rtx_tests::actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry has been running for over 60 seconds
+RTX timeout-read: observed pipe stage, killed/reaped, no partial, healthy generation8 retry passed
+RTX crash: observed pipe stage, killed/reaped, no partial, healthy generation8 retry passed
+RTX device-loss: no partial, healthy generation10 retry with effects passed
+RTX budget: no partial, healthy generation10 retry with effects passed
+Lifecycle evidence: D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native\../../tmp/ai-upscale/rtx-active-lifecycle-27128
+test rtx_tests::actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 73 filtered out; finished in 100.89s
+

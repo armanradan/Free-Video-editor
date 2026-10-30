@@ -1,0 +1,62 @@
+{
+  "status": "failed",
+  "scope": "Known structured fixtures only; not model fidelity, temporal flicker or generic flat-frame rejection",
+  "cases": [
+    {
+      "source": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-larger-20261030\\quality-exports\\tos-text-texture-640x268-source.mp4",
+      "source_channel_ranges": [
+        200,
+        200,
+        198,
+        199,
+        199,
+        199,
+        199,
+        200,
+        255,
+        255,
+        254,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        255,
+        252,
+        250,
+        250
+      ],
+      "output_channel_ranges": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        210,
+        210,
+        210,
+        210,
+        210,
+        210,
+        210,
+        210,
+        210,
+        215,
+        222,
+        236,
+        240,
+        238,
+        237,
+        238
+      ]
+    }
+  ],
+  "error": "AssertionError('Structured fixture became flat during export')"
+}

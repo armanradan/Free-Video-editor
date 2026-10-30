@@ -158,7 +158,8 @@ pub fn AiUpscalingPanel(
                     p { class: "note", "Burn is unavailable on the tested devices." }
                     if native && !rtx { p { class: "note", "RTX Video: import an explicit local RTX configuration to inspect its status. Ordinary UI and release acceptance remain pending." } }
                     if rtx {
-                        p { class:"note", "NVIDIA RTX Video SDK 1.1 · SDR High3 · native 2×/4× · evaluated input limit 192×108. Requires separately installed SDK, compatible NVIDIA GPU and acceptance of the supplied SDK terms. No Real-ESRGAN model is used." }
+                        p { class:"note", "NVIDIA RTX Video SDK 1.1 · SDR High3 · 2× input up to 1280×720; 4× up to 640×360. Requires separately installed SDK, evaluated NVIDIA GPU and acceptance of the supplied SDK terms. No Real-ESRGAN model is used." }
+                        p { class:"note", "Preview is sampled and may take several seconds to prepare. Real-time playback and audio synchronization have not been validated." }
                     } else {
                     p { class: "note",
                         "Model: realesr-general-x4v3 · strong denoise · 4,866,413 bytes · BSD-3-Clause. Import only the validated ONNX export."

@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.55s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 1 test
+
+thread 'rtx_tests::actual_rtx_nvidia_preserves_vfr_offset_and_rejects_small_output_before_helper' (28028) panicked at crates\media-native\src\rtx_tests.rs:294:9:
+assertion `left == right` failed
+  left: 38000
+ right: 22000
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test rtx_tests::actual_rtx_nvidia_preserves_vfr_offset_and_rejects_small_output_before_helper ... FAILED
+
+failures:
+
+failures:
+    rtx_tests::actual_rtx_nvidia_preserves_vfr_offset_and_rejects_small_output_before_helper
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 79 filtered out; finished in 7.05s
+
+error: test failed, to rerun pass `-p media-native --lib`

@@ -102,6 +102,12 @@ mod tests {
         assert!(reused);
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(second.timeline.len(), 36);
+        let end = first.source.preview_end.as_ref().unwrap();
+        end.check_source(&input).unwrap();
+        assert_eq!(
+            i128::from(end.position_us),
+            first.timeline.last().unwrap() - first.source.video_start_us
+        );
         use std::io::Write;
         fs::OpenOptions::new()
             .append(true)
@@ -110,9 +116,17 @@ mod tests {
             .write_all(b"changed")
             .unwrap();
         assert!(first.check_unchanged(&input).is_err());
+        assert!(end.check_source(&input).is_err());
         let (third, reused) = cache.load(&input, &token).unwrap();
         assert!(!reused);
         assert!(!Arc::ptr_eq(&first, &third));
+        third
+            .source
+            .preview_end
+            .as_ref()
+            .unwrap()
+            .check_source(&input)
+            .unwrap();
         token.cancel();
         assert!(cache.load(&input, &token).is_err());
         fs::remove_file(&input).unwrap();

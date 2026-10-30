@@ -1,0 +1,89 @@
+{
+  "identities": [
+    {
+      "protocol": 1,
+      "pid": 17664,
+      "runtime": "RTX Video SDK 1.1.0",
+      "model_sha256": "",
+      "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+      "dxgi_index": 1,
+      "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "vendor_id": 4318,
+      "device_id": 9634,
+      "luid_high": 0,
+      "luid_low": 82840,
+      "cpu_fallback": false,
+      "tile_interior": 0,
+      "halo": 0
+    },
+    {
+      "protocol": 1,
+      "pid": 6968,
+      "runtime": "RTX Video SDK 1.1.0",
+      "model_sha256": "",
+      "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+      "dxgi_index": 1,
+      "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "vendor_id": 4318,
+      "device_id": 9634,
+      "luid_high": 0,
+      "luid_low": 82840,
+      "cpu_fallback": false,
+      "tile_interior": 0,
+      "halo": 0
+    }
+  ],
+  "frames": [
+    {
+      "scale": 2,
+      "pattern": 0,
+      "output": {
+        "width": 32,
+        "height": 24
+      },
+      "sha256": "1f9bf4429233413604ff812c8502fcefa8f5c5b24680f576fea3f7582dff486f",
+      "host_to_gpu_bytes": 768,
+      "gpu_to_host_bytes": 3072
+    },
+    {
+      "scale": 2,
+      "pattern": 1,
+      "output": {
+        "width": 32,
+        "height": 24
+      },
+      "sha256": "9dba74aa06b958b2067ac8b2fcae62939b0f1ce17fa88c7ced91f8ecd60c8fa8",
+      "host_to_gpu_bytes": 768,
+      "gpu_to_host_bytes": 3072
+    },
+    {
+      "scale": 4,
+      "pattern": 0,
+      "output": {
+        "width": 64,
+        "height": 48
+      },
+      "sha256": "46017fc03a42136a9e4c7dbfdc63e8de4326960124b66904728b5aa2482e9f91",
+      "host_to_gpu_bytes": 768,
+      "gpu_to_host_bytes": 12288
+    },
+    {
+      "scale": 4,
+      "pattern": 1,
+      "output": {
+        "width": 64,
+        "height": 48
+      },
+      "sha256": "5356e4182ad9a5fc2059984d68e3a944384e121c0d528dfa0e859b0efae8ab62",
+      "host_to_gpu_bytes": 768,
+      "gpu_to_host_bytes": 12288
+    }
+  ],
+  "processing_adapter": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+  "sdk_terms": {
+    "path": "D:/Libraries/RTX_Video_SDK_v1.1.0\\NVIDIA_RTX_Video_SDK_License.pdf",
+    "sha256": "5addfcf7c78891a12f1dcd6b5f86c2512351ab71b3872f446ba10e1b6da54464"
+  },
+  "helper_sha256": "e3424ad7c59f45b55b7f529898ed1dfb7f139b1a4cb4b5a75d27ee97bbdc7895",
+  "release_accepted": false
+}

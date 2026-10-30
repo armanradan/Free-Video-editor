@@ -7,7 +7,7 @@ use media_core::{Size, ai_upscale::AiScale};
 use serde::Deserialize;
 use std::{
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
 };
@@ -82,7 +82,7 @@ pub(super) fn test_retirement(
     });
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RtxHelperConfig {
     pub executable: PathBuf,
@@ -95,14 +95,81 @@ pub struct RtxHelperConfig {
     pub expected_luid_low: u32,
 }
 
+/// Source-built helper evaluated with SDK1.1 High3. No binary is distributed.
+pub const EVALUATED_HELPER_SHA256: &str =
+    "e9188624f8a4605f4429f83f8c74463a22db9bfd374a36f590a23f37cf5cac95";
+
+pub const MAX_SOURCE_WIDTH: u32 = 1280;
+pub const MAX_SOURCE_HEIGHT: u32 = 720;
+
+fn reserve_cache_path(parent: &Path, tag: &str) -> NativeResult<PathBuf> {
+    let parent = parent.canonicalize()?;
+    for attempt in 0..32 {
+        let reservation = parent.join(format!("rtx-{tag}-{attempt}"));
+        match std::fs::create_dir(&reservation) {
+            Ok(()) => return Ok(reservation.join("ngx")),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Err("Cannot reserve a fresh RTX cache directory; existing caches were preserved".into())
+}
+
+/// Conservative evaluated codec envelope, not a universal NVENC minimum.
+/// Preview and the software-codec route remain independent of this export gate.
+pub fn validate_nvidia_export(source_codec: &str, output: Size) -> NativeResult<()> {
+    if !matches!(source_codec, "h264" | "hevc") {
+        return Err("RTX with NVIDIA codecs is evaluated for H.264/HEVC input only. Select Shared GPU software codecs for this source; no automatic fallback.".into());
+    }
+    if output.width < 192 || output.height < 144 {
+        return Err("Evaluated RTX with NVIDIA codecs requires output at least 192x144. Select Shared GPU software codecs for smaller output; no automatic route change.".into());
+    }
+    Ok(())
+}
+
 pub fn validate_source(source: Size) -> NativeResult<()> {
-    if source.width == 0 || source.height == 0 || source.width > 192 || source.height > 108 {
+    if source.width == 0
+        || source.height == 0
+        || source.width > MAX_SOURCE_WIDTH
+        || source.height > MAX_SOURCE_HEIGHT
+    {
         return Err(
-            "RTX pilot supports opaque SDR input at most 192x108; no resize or backend fallback"
+            "RTX helper supports opaque SDR input at most 1280x720; scale/effects admission is checked separately; no resize or backend fallback"
                 .into(),
         );
     }
     Ok(())
+}
+
+/// Whole-frame RTX staging ledger. Portable model tile geometry/weights are
+/// unrelated to this adapter. Includes helper CPU/D3D input, output/readback,
+/// shared upload texture and caller-owned downstream/retained frames. Opaque
+/// driver/model workspace is an estimate, separately sampled by the helper.
+pub fn memory_admission(
+    source: Size,
+    scale: AiScale,
+    downstream: u64,
+    retained: u64,
+    budget: u64,
+) -> NativeResult<u64> {
+    validate_source(source)?;
+    let pixels = u64::from(source.width) * u64::from(source.height);
+    let enlarged = pixels * u64::from(scale.factor()).pow(2);
+    let total = [
+        pixels * 8,
+        enlarged * 16,
+        8 << 20,
+        128 << 20,
+        downstream,
+        retained,
+    ]
+    .into_iter()
+    .try_fold(0u64, |sum, n| sum.checked_add(n))
+    .ok_or("RTX memory admission overflow")?;
+    if total > budget {
+        return Err(format!("RTX memory admission requires {total} bytes, budget is {budget}; reduce scale or source geometry").into());
+    }
+    Ok(total)
 }
 
 #[cfg(test)]
@@ -113,11 +180,97 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     #[test]
+    fn cache_reservation_never_reuses_or_modifies_a_previous_run() {
+        let parent =
+            std::env::temp_dir().join(format!("diaxus-rtx-cache-test-{}", std::process::id()));
+        std::fs::create_dir(&parent).unwrap();
+        let old = parent.join("rtx-reused-pid-0");
+        std::fs::create_dir(&old).unwrap();
+        std::fs::write(old.join("keep"), b"previous cache").unwrap();
+        let first = reserve_cache_path(&parent, "reused-pid").unwrap();
+        let second = reserve_cache_path(&parent, "reused-pid").unwrap();
+        assert_ne!(first, second);
+        assert!(first.parent().unwrap().is_dir() && second.parent().unwrap().is_dir());
+        assert!(!first.exists() && !second.exists()); // SDK owns creation of this child.
+        assert_eq!(std::fs::read(old.join("keep")).unwrap(), b"previous cache");
+        std::fs::remove_dir(first.parent().unwrap()).unwrap();
+        std::fs::remove_dir(second.parent().unwrap()).unwrap();
+        std::fs::remove_file(old.join("keep")).unwrap();
+        std::fs::remove_dir(old).unwrap();
+        std::fs::remove_dir(parent).unwrap();
+    }
+
+    #[test]
+    fn whole_frame_admission_preserves_scale_scratch_and_overflow_limits() {
+        for (source, scale) in [
+            (Size::new(640, 360).unwrap(), AiScale::Four),
+            (Size::new(1280, 720).unwrap(), AiScale::Two),
+        ] {
+            let output = Size::new(
+                source.width * scale.factor(),
+                source.height * scale.factor(),
+            )
+            .unwrap();
+            let rgba = u64::from(output.width) * u64::from(output.height) * 4;
+            let scratch =
+                media_gpu::equalization::EqualizationStage::estimated_scratch_bytes(output)
+                    .unwrap();
+            let total = memory_admission(
+                source,
+                scale,
+                rgba * 3 + scratch,
+                rgba + u64::from(source.width) * u64::from(source.height) * 4,
+                384 << 20,
+            )
+            .unwrap();
+            assert!(total > scratch + rgba * 4);
+            assert!(
+                memory_admission(
+                    source,
+                    scale,
+                    rgba * 3 + scratch,
+                    rgba + u64::from(source.width) * u64::from(source.height) * 4,
+                    total - 1
+                )
+                .is_err()
+            );
+            assert!(memory_admission(source, scale, u64::MAX, 1, u64::MAX).is_err());
+        }
+        assert!(
+            media_gpu::equalization::EqualizationStage::estimated_scratch_bytes(
+                Size::new(5120, 2880).unwrap()
+            )
+            .is_err()
+        );
+        assert!(
+            memory_admission(
+                Size::new(1280, 720).unwrap(),
+                AiScale::Four,
+                3 * 5120 * 2880 * 4,
+                5120 * 2880 * 4,
+                384 << 20
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn oversized_handshake_is_rejected_without_reading_its_payload() {
         let mut output = Vec::new();
         write_header(
             &mut output,
-            [RESPONSE, 1, 0, 0, 0, 192, 108, 0, 1, u32::MAX],
+            [
+                RESPONSE,
+                1,
+                0,
+                0,
+                0,
+                MAX_SOURCE_WIDTH,
+                MAX_SOURCE_HEIGHT,
+                0,
+                1,
+                u32::MAX,
+            ],
         )
         .unwrap();
         let (_, requests) = mpsc::sync_channel(0);
@@ -139,12 +292,23 @@ mod tests {
     fn output_length_is_checked_against_the_selected_geometry_before_allocation() {
         let identity = serde_json::json!({"protocol":1,"sdk":"1.1.0","pid":1,"dxgi_index":1,
             "adapter_name":"GPU","vendor_id":4318,"device_id":1,"luid_high":0,"luid_low":1,
-            "color":"opaque-rgba8-full-range-bt709-srgb","quality":3,"max_width":192,"max_height":108,"in_flight":1});
+            "color":"opaque-rgba8-full-range-bt709-srgb","quality":3,"max_width":1280,"max_height":720,"in_flight":1});
         let payload = serde_json::to_vec(&identity).unwrap();
         let mut output = Vec::new();
         write_header(
             &mut output,
-            [RESPONSE, 1, 0, 0, 0, 192, 108, 0, 1, payload.len() as u32],
+            [
+                RESPONSE,
+                1,
+                0,
+                0,
+                0,
+                MAX_SOURCE_WIDTH,
+                MAX_SOURCE_HEIGHT,
+                0,
+                1,
+                payload.len() as u32,
+            ],
         )
         .unwrap();
         output.extend_from_slice(&payload);
@@ -309,13 +473,22 @@ pub(super) fn start(
     if !config.cache_parent.is_dir() {
         return Err("RTX cache parent must already exist".into());
     }
-    static NEXT_CACHE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-    let cache = config.cache_parent.join(format!(
-        "rtx-{}-{}-{}",
-        std::process::id(),
-        generation,
-        NEXT_CACHE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
+    #[cfg(test)]
+    let require_assessed = current_test_fault().is_none();
+    #[cfg(not(test))]
+    let require_assessed = true;
+    if require_assessed
+        && crate::ai_preflight::executable_sha256(&config.executable)? != EVALUATED_HELPER_SHA256
+    {
+        return Err("RTX helper differs from the evaluated source-built binary; a new build requires fresh acceptance evidence. No fallback".into());
+    }
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos();
+    let cache = reserve_cache_path(
+        &config.cache_parent,
+        &format!("{}-{generation}-{nonce}", std::process::id()),
+    )?;
     let mut command = Command::new(&config.executable);
     command
         .arg(sdk)
@@ -348,9 +521,12 @@ pub(super) fn start(
         || identity.luid_high != config.expected_luid_high
         || identity.luid_low != config.expected_luid_low
     {
-        return Err(
-            "RTX helper did not retain the explicit SDK/quality/NVIDIA/LUID identity".into(),
-        );
+        return Err(format!(
+            "RTX helper did not retain the explicit SDK/quality/NVIDIA/LUID identity: expected DXGI {} / {} / LUID {}:{}, got runtime {} / configuration {:?} / DXGI {} / {} / vendor {:04x} / LUID {}:{}. Re-inspect the current device identity; no fallback",
+            config.dxgi_index, config.exact_adapter_name, config.expected_luid_high, config.expected_luid_low,
+            identity.runtime, identity.sdk_configuration, identity.dxgi_index, identity.adapter_name,
+            identity.vendor_id, identity.luid_high, identity.luid_low,
+        ).into());
     }
     Ok(owner)
 }
@@ -403,7 +579,21 @@ pub(super) fn run_protocol(
     scale: AiScale,
 ) -> NativeResult<()> {
     let header = read_header(output)?;
-    if header[..9] != [RESPONSE, 1, 0, 0, 0, 192, 108, 0, 1] || header[9] == 0 || header[9] > 8192 {
+    if header[..9]
+        != [
+            RESPONSE,
+            1,
+            0,
+            0,
+            0,
+            MAX_SOURCE_WIDTH,
+            MAX_SOURCE_HEIGHT,
+            0,
+            1,
+        ]
+        || header[9] == 0
+        || header[9] > 8192
+    {
         return Err("Invalid bounded RTX handshake".into());
     }
     let mut payload = vec![0; header[9] as usize];
@@ -413,8 +603,8 @@ pub(super) fn run_protocol(
         || ready.sdk != "1.1.0"
         || ready.quality != 3
         || ready.in_flight != 1
-        || ready.max_width != 192
-        || ready.max_height != 108
+        || ready.max_width != MAX_SOURCE_WIDTH
+        || ready.max_height != MAX_SOURCE_HEIGHT
         || ready.color != "opaque-rgba8-full-range-bt709-srgb"
     {
         return Err("RTX handshake changed SDK/quality/color/geometry/credit policy".into());

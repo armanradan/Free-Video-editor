@@ -1,0 +1,22 @@
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "codec_type": "video",
+            "width": 192,
+            "height": 80,
+            "duration": "32.106608",
+            "nb_frames": "384"
+        },
+        {
+            "codec_type": "audio",
+            "duration": "32.021000",
+            "nb_frames": "1502"
+        }
+    ]
+}

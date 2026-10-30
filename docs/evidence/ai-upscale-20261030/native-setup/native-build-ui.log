@@ -1,0 +1,5 @@
+   Compiling converter-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\apps\native)
+error: failed to remove file `D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\converter-native.exe`
+
+Caused by:
+  Access is denied. (os error 5)

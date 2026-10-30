@@ -2,6 +2,160 @@
 
 Status: design researched 2026-09-15; M3.1 through M3.6 pass their acceptance gates in the available Firefox/Chromium environments as of 2026-09-25. Configurable output, bounded streaming, named sizes, source metadata, capability-gated HEVC, controlled recovery, storage fallback/cleanup, explicit limit checks, and long-run stress are implemented. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations. Safari, non-Windows systems, other GPUs/drivers, spontaneous process/driver loss, and HEVC output on a supporting browser remain untested compatibility coverage rather than claims of support.
 
+### Native RTX hardware codecs enabled - 2026-10-30
+
+Supersedes earlier software-only RTX export restrictions on the evaluated
+RTX3050Laptop/Vulkan/driver621.01/SDK1.1 High3 path. Explicit Shared GPU NVIDIA
+now uses forced NVDEC and H.264 NVENC with RTX, retaining CPU-staged bridges.
+H.264/HEVC input only; opaque8-bit SDR, square pixels/no display transform;
+2x<=1280x720 and4x<=640x360 unchanged. NVIDIA output must be at least192x144,
+a conservative evaluated envelope, not a universal NVENC minimum. Smaller output
+can explicitly select Shared GPU software codecs. Direct FFmpeg does not run RTX.
+
+The failing22ms VFR offset was reproduced: encoder input/output PTS remained22ms,
+but reordered NVENC DTS and MP4 muxing yielded0ms on demux. RTX hardware export
+now sets-bf0. No timestamps are reset, audio/video coverage shortened, verification
+tolerance relaxed, or software fallback added. B-frame removal can affect coding
+efficiency. This is an observed route-specific interaction, not a general upstream
+bug diagnosis. ONNX hardware codecs and Main10/HDR remain unavailable.
+
+Thirty matrix exports independently pass full timing/audio/decode and fixture
+image checks, plus two actual VFR regression exports and two full3202-frame runs
+(CLI720p->1440p, ordinary UI540p->1080p). Seven source ingresses match software
+decode exactly after forced NVDEC normalization. Seven active failure/retry cases
+pass on the hardware route. CPU staging/color conversion, CPU audio and opaque
+runtime allocations remain; no real-time/surface-sharing/performance guarantee.
+
+Normal-window testing exposed PID reuse colliding with an old RTX cache path.
+Rust now atomically reserves a fresh parent, and the SDK creates its own new ngx
+child; existing caches are preserved. A deterministic collision regression and
+actual automatic setup recheck/full UI export pass. SDK/helper hash and terms
+approval are unchanged. See rtx-hardware evidence and the newest interop entry.
+
+### Native RTX streaming resource reuse - 2026-10-30
+
+A 212.12-second 720p source exposed a failure missed by short fixtures: new D3D
+textures every frame caused the unchanged helper memory guard to reject after
+71 SDK evaluations. Reuse one input, output/UAV and staging readback set for
+fixed geometry; blocking readback completes before reuse. Geometry changes replace
+this single set. No queue, device or budget was added. NGX internal per-resource
+retention remains opaque; resource reuse fixes observed growth without proving
+its internal allocation mechanism. New evaluated helper SHA256:
+e9188624f8a4605f4429f83f8c74463a22db9bfd374a36f590a23f37cf5cac95.
+Older helper hashes below are historical. Exact SDK sample comparisons, 512
+consecutive 720p evaluations and the complete 5,303-frame 2x export pass.
+
+AI preview follows inspection/history policy for omitted/unspecified pixel aspect
+ratio; explicit non-square ratios/display transforms still reject. Helper errors
+retain the latest bounded 64 KiB of diagnostics and show terminal structured
+SDK/resource errors first. See the newest interop report for actual timing/limits.
+
+### Larger native RTX envelope and encoder rate hint � 2026-10-30
+
+The evaluated RTX3050Laptop/Vulkan/SDK1.1 High3 scope now accepts2x input through
+1280x720 and4x through640x360, output<=2560x1440, with separate per-scale UI gates.
+A source-built helper admits protocol input through1280x720; protocol capacity
+alone grants no app capability.1280x720 at4x passes isolated SDK sample equality
+but fails the unchanged192MiB CLAHE scratch /384MiB staged-resource ledger and
+remains unavailable. No budget was enlarged to accept that case.
+
+RTX now has a checked whole-frame memory ledger rather than accidentally inheriting
+Real-ESRGAN's577x579 tile policy. It accounts for helper CPU/D3D inputs, outputs,
+staging readback, shared upload, retained frames/downstream scratch, plus estimated
+opaque workspace. This mixed CPU/GPU admission is not total VRAM: actual helper
+DXGI samples reach659.72MiB in the synthetic matrix. The1536MiB helper guard and
+256MiB free-budget reserve remain. Other drivers/devices and long-run maximum-size
+stress are untested. Native ONNX/Burn and AI NVDEC/NVENC export remain unavailable.
+
+Twenty exact helper/SDK-sample comparisons cover the original tiny/odd cases and
+both larger sizes/scales;17 owned-process runs cover failure/shutdown/retry. NGX
+now loads its VSR module as a cached `.bin`; auditing recognizes that actual path
+and still requires its bytes to hash identically to the supplied SDK DLL. No
+runtime cache or SDK binaries are committed. The newly evaluated helper hash is
+`3dc1dd796acf36135d98ce64a01114b102faf9d752fc51dc89ed0457379ef12a`.
+
+Larger image inspection exposed an existing shared-codec bridge failure: exact
+microsecond PTS/durations alone made FFmpeg infer1,000,000fps for rate control,
+encoding structured early frames as gray. Matroska DefaultDuration now carries
+the inspected nominal-rate hint. Explicit per-frame PTS/BlockDuration and existing
+CFR filters remain authoritative. A real average-bitrate encoder regression
+checks first-image structure and unequal PTS intervals; larger raw RGBA bridge
+roundtrip is exact. The failing gray images and corrected contact sheets remain
+in evidence. Timing/decode success alone was not image-correctness acceptance.
+
+After the fix,9 synthetic exports at Original/15/60,9 licensed motion/face/text
+exports and6 tiny VFR regressions pass independent full decode/audio/grids/endpoints.
+Six larger preview comparisons match chronological processing at0LSB, and all three
+supported source/scale endpoint requests finish. Scope, timings, initial failures
+and ordinary-window evidence are in the latest interop record. No real-time or
+fidelity-improvement claim follows. Earlier sections describe earlier limits/builds.
+
+### Current native RTX setup and ordinary UI — 2026-10-30
+
+The evaluated RTX3050Laptop/Vulkan path now exposes native2x/4x for inspected
+opaque8-bit SDR sources up to192x108, separately from export-route acceptance.
+Ordinary window evidence includes both scales, both themes, Before/Reset/Off,
+unsupported route/Main10 with working preview, source replacement, missing-helper
+error-state Pause, healthy retry, actual H.264/AAC exports and cancellation during
+verification. Three ordinary exports independently pass full A/V decode, timing
+and endpoint checks; native UI does not expose source-inference telemetry. The
+4x motion Original export is byte-identical to its earlier measured CLI case.
+Native ONNX and Burn remain unavailable in the ordinary UI. Full lifecycle and
+cross-platform release acceptance tasks remain open, not superseded by setup.
+
+Native first-launch configuration is an optional app-owned deployment asset at
+`assets/native-rtx.json` beside the executable. Saved user choices take precedence.
+The asset carries component locations and exact device configuration, no licence
+acknowledgement or accepted capability. Local deployment is explicit and source
+control includes no machine-specific asset or proprietary binary. This is not
+an automatic installer or a general hardware-discovery implementation. LUIDs
+remain session-specific; a stale identity is rejected, not silently substituted.
+
+On first setup opening, read-only inspection runs automatically. The user can
+remember SDK acknowledgement and explicitly approve/test the current helper once.
+Configuration, terms hash and helper hash persist in the user configuration folder;
+subsequent setup openings automatically verify those identities and run the actual
+bounded runtime test. No successful runtime result is deserialized. AI Off startup
+stays lazy. Clear/revoke removes saved approval; malformed/oversized preferences,
+changed terms/helper/configuration, runtime error and wrong GPU cannot grant a scale.
+Windows encrypted app-data rejected same-directory rename with OS17 during actual
+window verification; small synced direct writes are used, with strict bounded JSON
+reading that rejects interrupted/corrupt saves. The observed failure is preserved.
+
+Healthy playback exposed a final-frame request beyond EOF. Source inspection now
+retains the exact last decoded PTS relative to video origin and source-file stamp.
+AI requests clamp before cache keys; changed files require reinspection. No extra
+pixel queue/timeline scan is added to preview. EOF window verification is recorded
+in the latest interop entry; real-time playback/audio sync remain unvalidated.
+
+Earlier dated sections below describe the implementation stages at those times.
+
+### Native deliberate runtime setup — 2026-10-30
+
+`media-native::ai_preflight` separates read-only configured component/SDK-terms
+inspection from explicit local helper execution. RTX terms are bounded to8MiB,
+hashed against the assessed SDK1.1 package, and matched to a caller's explicit
+acknowledgement before execution. No consent is imported from configuration or
+persisted. The native setup view resets its acknowledgement/inspection on
+configuration or selected-GPU changes; only its setup-test work is cancelled by
+that change, keeping model-import cancellation independent. Worker results are
+checked against the current configuration/GPU after completion.
+
+The setup test rechecks the selected exact Vulkan identity and runtime files,
+uses existing bounded helper ownership for two16x12 opaque synthetic inputs at
+each requested scale, checks geometry/generation/nonblack/alpha/distinct outputs,
+then closes each helper. ONNX still computes internal4x for either selection;
+RTX uses its selected native scale. Reports carry exact helper identities,
+output hashes and counted transfers, but no accepted capability. Both actual
+runtime tests pass on RTX3050/driver621.01. A stale saved RTX LUID was correctly
+rejected; the improved error identifies expected0:78108 and observed0:82840.
+Only an ignored local configuration was refreshed after that observation.
+
+Ordinary-window verification and source/route/release capability integration
+remain pending. Desktop tools are unavailable in this session. The new consent
+UI is compiled, not visually accepted; product2x/4x controls remain unavailable.
+Tasks6.2/6.4/7.1–7.3/8.2/8.3 remain open; progress24/32.
+
 ### Native RTX performance identified — 2026-10-30
 
 A same-NVIDIA-GPU release comparison now covers RTX High3, DirectML Real-ESRGAN

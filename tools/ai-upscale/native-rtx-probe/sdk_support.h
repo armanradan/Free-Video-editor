@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cwchar>
+#include <cwctype>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -95,7 +96,7 @@ struct SdkState {
 };
 
 static std::vector<uint8_t> readback(ID3D11Device* device, ID3D11DeviceContext* context,
-                                     ID3D11Texture2D* texture) {
+                                     ID3D11Texture2D* texture, ID3D11Texture2D* reusable_staging = nullptr) {
     D3D11_TEXTURE2D_DESC desc{};
     texture->GetDesc(&desc);
     const UINT width = desc.Width, height = desc.Height;
@@ -104,15 +105,18 @@ static std::vector<uint8_t> readback(ID3D11Device* device, ID3D11DeviceContext* 
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
     desc.MiscFlags = 0;
     ComPtr<ID3D11Texture2D> staging;
-    hr_check("create-readback", device->CreateTexture2D(&desc, nullptr, &staging));
-    context->CopyResource(staging.Get(), texture);
+    if (!reusable_staging) {
+        hr_check("create-readback", device->CreateTexture2D(&desc, nullptr, &staging));
+        reusable_staging = staging.Get();
+    }
+    context->CopyResource(reusable_staging, texture);
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    hr_check("map-readback", context->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped));
+    hr_check("map-readback", context->Map(reusable_staging, 0, D3D11_MAP_READ, 0, &mapped));
     std::vector<uint8_t> result(size_t(width) * height * 4);
     for (UINT y = 0; y < height; ++y)
         std::memcpy(result.data() + size_t(y) * width * 4,
                     static_cast<const uint8_t*>(mapped.pData) + size_t(y) * mapped.RowPitch, size_t(width) * 4);
-    context->Unmap(staging.Get(), 0);
+    context->Unmap(reusable_staging, 0);
     return result;
 }
 static void write_raw(const fs::path& file, const std::vector<uint8_t>& bytes) {
@@ -128,8 +132,14 @@ static void record_runtime_modules() {
     module.dwSize = sizeof(module);
     BOOL present = Module32FirstW(snapshot, &module);
     while (present) {
-        const std::wstring name = module.szModule;
-        if (name.find(L"nvngx") != std::wstring::npos)
+        std::wstring name = module.szModule;
+        std::transform(name.begin(), name.end(), name.begin(), [](wchar_t c) { return std::towlower(c); });
+        std::wstring path = module.szExePath;
+        std::transform(path.begin(), path.end(), path.begin(), [](wchar_t c) { return std::towlower(c); });
+        // NGX may map the exact SDK VSR module from its driver-managed cache
+        // under a .bin name. Consumers must hash the observed module, not infer
+        // identity from its filename or cache version directory.
+        if (name.find(L"nvngx") != std::wstring::npos || path.find(L"\\nvidia\\ngx\\models\\vsr\\") != std::wstring::npos)
             std::cout << "{\"stage\":\"loaded-runtime\",\"name\":" << json(utf8(module.szModule))
                       << ",\"path\":" << json(utf8(module.szExePath)) << "}" << std::endl;
         present = Module32NextW(snapshot, &module);

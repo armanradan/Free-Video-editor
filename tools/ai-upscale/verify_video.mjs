@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {spawnSync} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {expectedTimeline,assertTimeline} from '../../tests/color-timing-reference.mjs';
 const [directory,outputName='independent-video.json']=process.argv.slice(2);
@@ -16,15 +16,33 @@ const run=(exe,args,binary=false)=>{
   assert.equal(r.status,0,r.stderr?.toString());return r.stdout;
 };
 const probe=(file,args)=>JSON.parse(run('ffprobe',['-v','error',...args,'-of','json',file]));
+// Stream the full PCM decode instead of retaining a clip-length audio array.
+const peakAudio=async(file)=>{
+  const child=spawn('ffmpeg',['-v','error','-i',file,'-map','0:a:0','-f','f32le','-']);
+  let errors='',peak=0,tail=Buffer.alloc(0);
+  const exit=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',resolve);});
+  child.stderr.on('data',chunk=>{errors=(errors+chunk.toString()).slice(-8192);});
+  const timer=setTimeout(()=>child.kill(),60000);
+  try{
+    for await(const chunk of child.stdout){
+      const data=tail.length?Buffer.concat([tail,chunk]):chunk;
+      const end=data.length-data.length%4;
+      for(let i=0;i<end;i+=4)peak=Math.max(peak,Math.abs(data.readFloatLE(i)));
+      tail=Buffer.from(data.subarray(end));
+    }
+    assert.equal(await exit,0,errors);assert.equal(tail.length,0);return peak;
+  }finally{clearTimeout(timer);if(child.exitCode===null)child.kill();}
+};
 const report={status:'running',cases:[]};
 try{
   const contexts=native?['native']:JSON.parse(process.env.AI_UPSCALE_VERIFY_CONTEXTS??'["main","worker"]');
   assert.ok(contexts.length&&contexts.every(c=>/^(main|worker)(-(light|dark))?$/.test(c)||c==='native'));
   for(const context of contexts){
     const evidence=JSON.parse(fs.readFileSync(path.join(directory,`${context}.json`),'utf8'));
+    const nativeUi=native&&evidence.status==='ordinary-native-ai-ui-exports-observed';
     const ui=evidence.status==='ordinary-ai-ui-acceptance-passed';
     if(ui)assert.deepEqual(evidence.pageErrors,[]);
-    else {
+    else if(!nativeUi) {
       assert.equal(evidence.status,native?'native-video-pilot-passed-not-release-accepted':'video-pilot-passed-not-release-accepted');
       if(!native)assert.equal(evidence.gpuValidationError,null);
     }
@@ -52,8 +70,10 @@ try{
       // In particular, a negative priming packet is not native audible start.
       const origin=native?null:{n:BigInt(profile==='webm-vp8-video-only'?video.start_pts:packets[0].pts)*n,d};
       assert.equal(item.inputFrameCount,pts.length);
-      if(item.request.scale!=='off'&&!item.request.bilinear)assert.equal(item.aiSourceFrames,pts.length);
-      if(native){
+      if(item.request.scale!=='off'&&!item.request.bilinear&&!nativeUi)assert.equal(item.aiSourceFrames,pts.length);
+      if(nativeUi){
+        assert.equal(item.aiSourceFrames,null,'ordinary UI does not expose inference counters');
+      }else if(native){
         assert.equal(item.report.equalization_compute_passes,item.request.clahe?pts.length*4:0);
         assert.equal(item.report.ai.source_frames,item.request.bilinear?0:pts.length);
       }else{
@@ -82,7 +102,7 @@ try{
       }
       const endpointErrorSeconds=Math.abs(Number(outputEnd)*on/od-expectedEnd);
       assert.ok(endpointErrorSeconds<=.0011,`presentation endpoint differs by ${endpointErrorSeconds} seconds`);
-      assert.equal(video.sample_aspect_ratio,'1:1');
+      assert.ok([undefined,'N/A','1:1'].includes(video.sample_aspect_ratio));
       const rotated=video.side_data_list?.some(s=>Math.abs(s.rotation)%180===90);
       const factor=item.request.scale==='off'?1:Number(item.request.scale[0]);
       assert.deepEqual([ov.width,ov.height],rotated?[video.height*factor,video.width*factor]:[video.width*factor,video.height*factor]);
@@ -91,13 +111,12 @@ try{
       run('ffmpeg',['-v','error','-i',file,'-f','null','-']);
       let audioPeak=null;
       if(oa){
-        const pcm=run('ffmpeg',['-v','error','-i',file,'-map','0:a:0','-f','f32le','-'],true);
-        audioPeak=0;for(let i=0;i<pcm.length;i+=4)audioPeak=Math.max(audioPeak,Math.abs(pcm.readFloatLE(i)));
+        audioPeak=await peakAudio(file);
         assert.ok(audioPeak>.01);
       }
       report.cases.push({context,request:item.request,timeline,video:ov,audio:oa??null,audioPeak,
         outputPresentationEndTicks:String(outputEnd),endpointErrorSeconds,
-        sourceFrames:pts.length,aiSourceFrames:item.aiSourceFrames??0,
+        sourceFrames:pts.length,aiSourceFrames:nativeUi?null:item.aiSourceFrames??0,
         sourceDeclaredVideoDurationTicks:video.duration_ts,sourcePresentationEndTicks:String(presentationEnd),
         bytes:fs.statSync(file).size,sha256:createHash('sha256').update(fs.readFileSync(file)).digest('hex')});
     }

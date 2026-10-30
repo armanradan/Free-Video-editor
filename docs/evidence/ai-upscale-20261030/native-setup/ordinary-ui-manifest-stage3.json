@@ -1,0 +1,59 @@
+{
+  "status": "ordinary-native-ai-ui-exports-observed",
+  "cases": [
+    {
+      "inputFrameCount": 4,
+      "request": {
+        "fixture": "ai-upscale-cut.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": false
+      },
+      "aiSourceFrames": null
+    },
+    {
+      "aiSourceFrames": null,
+      "inputFrameCount": 64,
+      "request": {
+        "fps": "original",
+        "clahe": true,
+        "scale": "4x",
+        "color": {
+          "contrast": 115,
+          "saturation": 80,
+          "brightness": 10,
+          "strength": 50
+        },
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\quality-temporal-20261025\\tos-motion.mp4"
+      }
+    },
+    {
+      "aiSourceFrames": null,
+      "request": {
+        "color": {
+          "strength": 50,
+          "contrast": 115,
+          "brightness": 10,
+          "saturation": 80
+        },
+        "clahe": true,
+        "note": "Completed before attempted Cancel; not passing active cancellation evidence",
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\quality-temporal-20261025\\tos-motion.mp4",
+        "scale": "4x",
+        "fps": "60"
+      },
+      "inputFrameCount": 64
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "ui-rtx-cut-2x-original.mp4"
+    },
+    {
+      "name": "ui-rtx-motion-4x-original.mp4"
+    },
+    {
+      "name": "ui-rtx-motion-4x-60-cancelled.mp4"
+    }
+  ]
+}

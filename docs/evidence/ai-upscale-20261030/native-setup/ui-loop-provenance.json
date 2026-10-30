@@ -1,0 +1,29 @@
+{
+  "purpose": "Longer UI error-state Play/Pause check; not an export or throughput case",
+  "provenance": "Repeats the existing licensed Tears of Steel motion excerpt; source and replacement synthetic-audio attribution remains in the source manifest",
+  "source_manifest": "docs/evidence/ai-upscale-20261030/rtx-quality/source-manifest.json",
+  "source_sha256": "9A9647123002396F1DAC525B67F763F22AA72B103ACC5B83006C97B6F279D789",
+  "derived_sha256": "E3BA3BA0315E503B58976305007BA33769AC93F160E8BD1489B5D3E76AEE71BB",
+  "derived_bytes": 876454,
+  "command_argv": [
+    "ffmpeg",
+    "-v",
+    "error",
+    "-n",
+    "-stream_loop",
+    "5",
+    "-i",
+    "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\quality-temporal-20261025\\tos-motion.mp4",
+    "-t",
+    "32",
+    "-c",
+    "copy",
+    "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\native-ui-20261030\\fixtures\\tos-motion-loop.mp4"
+  ],
+  "pause_observation": {
+    "first_capture_utc": "2026-10-30T06:41:58.945Z",
+    "second_capture_utc": "2026-10-30T06:42:19.459Z",
+    "note": "Earlier 5.33-second attempts raced natural EOF and are not evidence of successful Pause",
+    "displayed_position_both": "0:10 / 0:32"
+  }
+}

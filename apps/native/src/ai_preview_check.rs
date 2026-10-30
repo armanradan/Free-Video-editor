@@ -90,6 +90,7 @@ pub fn policy() -> Result<(PreviewPolicy, Size), String> {
             ai,
             helper,
             processing_adapter,
+            source_end: None,
         },
         selected,
     ))

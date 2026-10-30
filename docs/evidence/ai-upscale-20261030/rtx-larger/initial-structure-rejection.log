@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "D:\Active_Projects\Rust\Diaxus\Video editor\tools\ai-upscale\verify_rtx_structure.py", line 53, in <module>
+    main()
+  File "D:\Active_Projects\Rust\Diaxus\Video editor\tools\ai-upscale\verify_rtx_structure.py", line 41, in main
+    assert min(output_ranges) > 16, 'Structured fixture became flat during export'
+           ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Structured fixture became flat during export

@@ -1,5 +1,15 @@
 # AI upscale feasibility tools
 
+
+Latest native RTX envelope(2026-10-30):2x input<=1280x720 and4x<=640x360,
+output<=2560x1440. The source-built protocol capacity is1280x720;4x720 fails the
+unchanged CLAHE/staging admission. `native_rtx_envelope.py` reproduces larger
+synthetic/real-content exports; `quality_fixtures.py --size 1280x534` acquires only licensed short excerpts explicitly.
+See the latest interop entry for24 independently verified post-fix files, exact
+SDK sample/image/lifecycle evidence and failures. Native JSON is an app-owned
+local deployment asset; ordinary setup/restart now remembers acknowledgement.
+Earlier tool notes below describe their original, smaller evaluation envelopes.
+
 Native RTX task5.3 now passes the staged CLAHE/manual bridge and seven active
 failure/cleanup/retry cases, including real blocked pipe reads/writes. Normal
 helpers exclude the diagnostic fault controls. See the [native RTX guide](native-rtx-helper/README.md)
@@ -797,3 +807,56 @@ The NumPy oracle independently resizes native chronological pre-encoder pixels
 and normalized original-source pixels. It checks enhanced preview, warm/cold
 Before, opaque alpha and the unchanged 2-LSB limit. Diagnostic raw files belong
 only under ignored test storage.
+
+
+## App-owned native RTX setup
+
+Normal users do not import developer JSON. A local deployment can supply
+`assets/native-rtx.json` beside `converter-native.exe` using:
+
+```powershell
+./tools/ai-upscale/deploy-local-rtx.ps1 -Configuration PATH_TO_VERIFIED_LOCAL_CONFIG -Application PATH_TO_CONVERTER_NATIVE_EXE
+```
+
+This copies only component-location metadata, refuses to overwrite an existing
+asset and installs no binaries/SDK/driver. Keep machine-specific deployment
+assets outside Git. The existing strict config format and exact GPU/LUID checks
+remain; this does not solve session-specific LUID discovery or redistribution.
+Saved setup in `%LOCALAPPDATA%/Diaxus/ai-setup.json` takes precedence. Missing
+configuration, stale identity or missing SDK/helper remains actionable failure.
+
+Open AI Upscaling to inspect automatically, acknowledge the supplied SDK terms
+once, then choose Test runtime & remember setup. On later launches opening the
+panel automatically validates the remembered exact helper/config/terms and runs
+the actual test again, without Import, Inspect, terms or Test clicks. The tested
+result is session-only; the persistent file carries no accepted capability. Off
+startup runs no helper. Advanced setup contains developer import/model tools and
+saved-setup reset; revoke clears remembered runtime approval. No source media is
+uploaded. RTX controls support2x<=1280x720 and4x<=640x360 with software-codec export
+restriction. Native ONNX ordinary UI remains unavailable.
+
+
+For the known structured larger fixtures, run `verify_rtx_structure.py DIRECTORY`
+in addition to the independent timing/audio/decode verifier. It checks every
+bounded diagnostic frame for spatial structure and catches the preserved initial
+gray exports. This fixture-specific gate does not reject legitimate flat user
+content and does not measure model fidelity or intrinsic temporal flicker.
+
+
+## RTX hardware-codec gate - 2026-10-30
+
+Use --route wgpu-nvidia with native_video.py or native_rtx_envelope.py for the
+accepted staged NVDEC/RTX/NVENC matrix. H.264/HEVC inputs and output>=192x144,
+existing max geometry/SDR limits, exact selected GPU and helper/SDK identity apply.
+Native ONNX hardware codecs remain unavailable. verify_nvdec_ingress.py --uuid
+<explicit NVIDIA UUID> --output <new directory> <local fixtures...> compares
+software versus forced CUDA decode/normalization with one frame pair, exact RGBA
+equality, no raw-frame files. Existing verify_video.mjs and fixture structure
+checks independently validate exports. Set DIAXUS_TEST_RTX_NVIDIA_CODECS=1 and
+DIAXUS_TEST_RTX_LARGE_LIFECYCLE=1 for the opt-in actual RTX failure/retry test;
+provide the existing explicit healthy/diagnostic helper, SDK/cache/LUID env vars.
+The actual_rtx_nvidia_preserves_vfr_offset_and_rejects_small_output_before_helper
+ignored test reproduces the22ms offset at both scales. Evidence and original
+failures are in docs/evidence/ai-upscale-20261030/rtx-hardware/. No SDK binary is
+distributed, no geometry/resource/timing tolerance is relaxed, no surface sharing
+or speed/quality superiority follows from the hardware-codec label.

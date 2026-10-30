@@ -1,0 +1,11 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.59s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 1 test
+Licensed first-frame effects=false: display Size { width: 640, height: 267 }, red range 0..254
+Licensed first-frame effects=true: display Size { width: 640, height: 267 }, red range 7..255
+test ai_preview::tests::actual_larger_rtx_licensed_first_frame_has_structure ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 74 filtered out; finished in 6.20s
+

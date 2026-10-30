@@ -1,0 +1,95 @@
+{
+  "status": "user-reported-native-rtx-failure-reproduced-and-fixed",
+  "privacy": "Source video, filename/path, screenshots and output remain local and untracked.",
+  "before": {
+    "sdk_evaluations": 71,
+    "error": "resource: sampled DXGI local-memory budget exhausted; no fallback",
+    "published_output": false
+  },
+  "helper_sha256": "e9188624f8a4605f4429f83f8c74463a22db9bfd374a36f590a23f37cf5cac95",
+  "source": {
+    "size": [
+      1280,
+      720
+    ],
+    "frames": 5303,
+    "fps": "25/1",
+    "duration_us": 212120000,
+    "sample_aspect_ratio": "omitted"
+  },
+  "output": {
+    "sourceFrames": 5303,
+    "aiSourceFrames": 5303,
+    "timeline": {
+      "frames": 5303,
+      "maximumErrorSeconds": 0,
+      "toleranceSeconds": 0.0011
+    },
+    "audioPeak": 1.3204574584960938,
+    "endpointErrorSeconds": 0,
+    "bytes": 160842878,
+    "sha256": "fd0cf0dca2c5ec88f66845651c9c4db6de3d46af705b270df7575916b4b2f421"
+  },
+  "independent_full_audio_video_decode": "passed",
+  "native_report": {
+    "ai": {
+      "identity": {
+        "protocol": 1,
+        "pid": 19552,
+        "runtime": "RTX Video SDK 1.1.0",
+        "model_sha256": "",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "dxgi_index": 1,
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "vendor_id": 4318,
+        "device_id": 9634,
+        "luid_high": 0,
+        "luid_low": 82840,
+        "cpu_fallback": false,
+        "tile_interior": 0,
+        "halo": 0
+      },
+      "source_frames": 5303,
+      "host_to_gpu_bytes": 19548979200,
+      "gpu_to_host_bytes": 78195916800,
+      "sampled_helper_local_peak": 239550464,
+      "helper_memory_sampling_available": true,
+      "memory_admission_bytes": 271630336
+    },
+    "gpu_wall_times": {
+      "processing_setup_us": 1628466,
+      "helper_startup_us": 5727633,
+      "decode_pipe_wait_us": 25381436,
+      "inference_roundtrip_us": 325951277,
+      "postprocess_and_encoder_pipe_us": 89823150,
+      "codec_drain_us": 461995,
+      "helper_shutdown_us": 114599
+    },
+    "frames_processed": 5303,
+    "output_frame_count": 5303,
+    "output_width": 2560,
+    "output_height": 1440,
+    "video_encoder": "libx264",
+    "total_ms": 528719,
+    "verification_ms": 49529,
+    "explicit_cpu_to_gpu_bytes": 78195916800,
+    "explicit_gpu_to_cpu_bytes": 78195916800
+  },
+  "ordinary_ui": {
+    "auto_setup": "passed without repeated import/acknowledgement/test click",
+    "rtx_2x_preview": "passed at start and after seek to 31 seconds",
+    "export_retry": "release CLI with same native service/settings; full ordinary-window export not repeated"
+  },
+  "checks": {
+    "native_tests_passed": 60,
+    "native_ignored": 18,
+    "app_tests_passed": 19,
+    "app_ignored": 6,
+    "clippy": "passed -D warnings",
+    "format": "passed",
+    "openspec": "strict validation passed"
+  },
+  "limits": "Existing geometry/memory guards unchanged. No native hardware-codec AI acceptance, real-time guarantee, or broad duration/device coverage.",
+  "visual_spot_check": "contact sheet across the output inspected; source imagery present; no general fidelity/temporal-quality claim",
+  "published_to_original_user_destination": true
+}

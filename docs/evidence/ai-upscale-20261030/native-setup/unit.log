@@ -1,0 +1,10 @@
+   Compiling media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.21s
+     Running unittests src\lib.rs (D:\Libraries\Cargo\CARGO_TARGET_DIR\debug\deps\media_native-608f8f875e030a87.exe)
+
+running 2 tests
+test ai_preflight::tests::actual_rtx_setup_test_checks_consent_cancel_identity_output_and_cleanup ... ignored, explicit local RTX SDK execution; requires acknowledged terms and configured GPU
+test ai_preflight::tests::setup_inspection_rejects_changed_terms_and_missing_assets_without_execution ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 69 filtered out; finished in 0.02s
+

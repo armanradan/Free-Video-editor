@@ -16,6 +16,8 @@ use std::{
     sync::{Arc, OnceLock},
 };
 use ui::{ResizePresetButtons, frame_rate_label};
+mod ai_acceptance;
+mod ai_preferences;
 mod ai_preview_check;
 mod ai_setup;
 mod preferences;
@@ -310,8 +312,14 @@ fn app() -> Element {
     let mut resize = use_signal(|| "original".to_string());
     let mut ai = use_signal(AiSettings::default);
     let mut ai_choices = use_signal(ai_setup::pending_choices);
-    let mut ai_configuration =
-        use_signal(|| None::<media_native::ai_configuration::NativeAiConfiguration>);
+    let mut ai_configuration = use_signal(|| {
+        ai_preferences::AiPreferences::new()
+            .load_initial()
+            .ok()
+            .flatten()
+            .map(|saved| saved.configuration)
+    });
+    let mut ai_runtime_test = use_signal(|| None::<media_native::ai_preflight::SetupPreflight>);
     let mut profile = use_signal(|| OutputProfileId::Mp4H264Aac);
     let mut bitrate = use_signal(VideoBitrate::default);
     let mut custom_bitrate = use_signal(|| "4".to_string());
@@ -330,6 +338,17 @@ fn app() -> Element {
     let mut job_stage = use_signal(|| JobStage::Inspecting);
     let mut running = use_signal(|| false);
     let mut switching = use_signal(|| false);
+    use_effect(move || {
+        let choices = ai_acceptance::choices(
+            ai_configuration().as_ref(),
+            ai_runtime_test().as_ref(),
+            &selected_adapter(),
+            estimate_source().as_ref(),
+        );
+        if *ai_choices.peek() != choices {
+            ai_choices.set(choices);
+        }
+    });
     use_effect(move || {
         window::set_preview_settings(window::PreviewWindowState {
             path: preview_path(),
@@ -432,14 +451,16 @@ fn app() -> Element {
                             let source = estimate_source()
                                 .ok_or("Inspect this source before selecting AI")?;
                             let choices = ai_choices();
-                            config
+                            let (mut policy, selected) = config
                                 .preview_policy(
                                     ai(),
                                     Size::new(source.width, source.height)
                                         .map_err(|e| e.to_string())?,
                                     choices.capability(ai())?,
                                 )
-                                .map_err(|e| e.to_string())
+                                .map_err(|e| e.to_string())?;
+                            policy.source_end = source.preview_end;
+                            Ok((policy, selected))
                         })();
                         match configured {
                             Ok((policy, selected)) => {
@@ -655,8 +676,12 @@ fn app() -> Element {
                 status.set(error.to_string());
                 return;
             }
-            if selected_route != ProcessingRoute::SharedWgpu {
-                status.set("AI export requires the explicitly selected Shared GPU software-codec route. No automatic route change.".into());
+            if let Some(reason) = ai_acceptance::export_route_reason(
+                selected_route,
+                selected_ai,
+                estimate_source().as_ref(),
+            ) {
+                status.set(reason);
                 return;
             }
             Some((config, capability))
@@ -792,6 +817,18 @@ fn app() -> Element {
     };
 
     let busy = running() || switching() || ai_setup_busy();
+    let ai_export_reason = if ai() == AiSettings::Off {
+        None
+    } else if let Err(error) = ai_choices().select(ai()) {
+        Some(error)
+    } else if profile() != OutputProfileId::Mp4H264Aac {
+        Some(
+            "AI export requires opaque 8-bit H.264/AAC output. Source preview remains available."
+                .into(),
+        )
+    } else {
+        ai_acceptance::export_route_reason(route(), ai(), estimate_source().as_ref())
+    };
     let estimate = match (estimate_source(), resize_spec(&resize())) {
         (Some(source), Some(size)) => match selected_bitrate(bitrate(), &custom_bitrate())
             .map_err(|error| error.into())
@@ -821,7 +858,14 @@ fn app() -> Element {
             )
             .ok()
         })
-        .map(|size| format!("AI output: {}×{}", size.width, size.height));
+        .map(|size| {
+            format!(
+                "Output size controlled by AI: {}× · {}×{}",
+                ai().scale().unwrap().factor(),
+                size.width,
+                size.height
+            )
+        });
     let bitrate_label = |policy: VideoBitrate, name: &str| -> String {
         let rate = estimate_source().and_then(|source| {
             let size = ai()
@@ -846,7 +890,7 @@ fn app() -> Element {
         .unwrap_or_else(|| "Automatic".to_string());
     rsx! {
         style { {include_str!("../assets/native.css")} }
-        div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" }, "data-ai-setup": ai_setup_expanded(), "data-color-preview-revision": color_preview_revision(),
+        div { class: "native-root", "data-theme": if dark_mode() { "dark" } else { "light" }, "data-ai-setup": ai_setup_expanded(), "data-color-setup":color_expanded(), "data-color-preview-revision": color_preview_revision(),
         onmousedown: move |_| { window::set_player_open(false); window::set_color_focus(None); },
         onmouseup: move |_| pointer_released.set(pointer_released().wrapping_add(1)),
         main { class: "app-shell",
@@ -888,16 +932,23 @@ fn app() -> Element {
             div { class: "settings-grid",
                 section { class: "panel",
                     h2 { "Output size" }
-                    ResizePresetButtons {
-                        running: busy || ai() != AiSettings::Off, resize_mode: resize(),
-                        on_change: move |value| {if !busy && ai() == AiSettings::Off {resize.set(value)}},
+                    if ai() == AiSettings::Off {
+                        ResizePresetButtons {
+                            running: busy, resize_mode: resize(),
+                            on_change: move |value| {if !busy && ai() == AiSettings::Off {resize.set(value)}},
+                        }
+                    } else {
+                        p {class:"note",
+                            if let Some(label) = ai_output_label { "{label}" }
+                            else { "Output size controlled by AI. Inspect a supported source to resolve dimensions." }
+                        }
+                        p {class:"note", "Turn AI Off to restore your saved resize selection."}
                     }
                     div { class: "fps-summary",
                         button { class: "preset", disabled: busy.then_some("true"), onclick: move |_| choosing_fps.set(true), "FPS: {fps_label}…" }
                         span { class: "note", if let Some(scale) = ai().scale() { "AI {scale.factor()}×" } else if frame_rate() == FrameRateSpec::Original { "No upscaling" } else { "CFR · frames resampled" } }
                     }
                     p { class: "note", title: "Approximate size including audio when present and 2% muxing allowance. Variable bitrate can differ substantially from this estimate.", "{estimate}" }
-                    if let Some(label) = ai_output_label { p {class:"note", "{label}"} }
                 }
                 section { class: "panel",
                     h2 { "Format · MP4 / AAC · SDR" }
@@ -1025,6 +1076,7 @@ fn app() -> Element {
                 }
                 if color_expanded() {
                     div { id: "native-color-controls",
+                        p {class:"note", "Close color adjustments to edit source, output size and format."}
                         for (index, name, min, max) in [(0, "Brightness", -100, 100), (1, "Contrast %", 0, 200), (2, "Saturation %", 0, 200)] {
                             NativeColorSlider { index, name, min, max, color, equalization, before, pointer_released, disabled: busy }
                         }
@@ -1057,13 +1109,14 @@ fn app() -> Element {
             }
             section { class: "panel job-panel",
                 div { class: "actions",
-                    button { class: "primary", disabled: (busy || ai_preview_check::requested() || input().trim().is_empty() || output().trim().is_empty()).then_some("true"),
+                    button { class: "primary", disabled: (busy || ai_export_reason.is_some() || ai_preview_check::requested() || input().trim().is_empty() || output().trim().is_empty()).then_some("true"),
                         onclick: convert, if running() {
                             match job_stage() {
                                 JobStage::Inspecting => "Inspecting…", JobStage::Preparing => "Preparing…", JobStage::Converting => "Converting…", JobStage::Verifying => "Verifying…", JobStage::Publishing => "Publishing…"
                             }
                         } else { "Convert video" } }
                     button { disabled: (!running()).then_some("true"), onclick: move |_| {
+                        if !running() { return; }
                         job_cancel().cancel();
                         session.cancel_active();
                         status.set("Cancelling…".into());
@@ -1074,6 +1127,7 @@ fn app() -> Element {
                         }, "Preview last output" }
                 }
                 p { id: "native-status", class: "job-status", role: "status", aria_live: "polite", "{status}" }
+                if let Some(reason)=ai_export_reason.as_deref() { p {class:"note", "Conversion unavailable: {reason}"} }
                 p { class: "note", title: "Last conversion: {active_gpu}", "Last conversion: {active_gpu}" }
             }
             }
@@ -1089,7 +1143,14 @@ fn app() -> Element {
                 }
             }
             }
-            ai_setup::AiSetup { disabled: busy, expanded: ai_setup_expanded, selected:ai(), choices:ai_choices(),
+            ai_setup::AiSetup { disabled: busy, expanded: ai_setup_expanded, selected:ai(), choices:ai_choices(), configuration:ai_configuration, processing_adapter:selected_adapter, preview_path, showing_preview,
+                on_test:move |report:Option<media_native::ai_preflight::SetupPreflight>|{
+                    if report.is_none(){
+                        app_state().preview.pause(true);ai.set(AiSettings::Off);before.set(false);
+                        let _=app_state().preview.set_ai_preview(None,Size::new(2,2).unwrap(),Default::default());
+                    }
+                    ai_runtime_test.set(report);
+                },
                 on_busy:move |value|ai_setup_busy.set(value),
                 rtx:ai_configuration().as_ref().is_some_and(|c|matches!(c.helper, media_native::ai_preview::PreviewHelper::Rtx(_))),
                 on_configuration:move |configuration| {
@@ -1388,9 +1449,13 @@ fn VideoPlayer(
                         }, if before() { "Before · show After" } else { "After · show Before" } }
                     }
                 }
-                p { class: "note", if state.converting { "Preview paused during conversion" } else if !state.ready { "Preparing preview…" } else if state.ended { "Ended" } else if state.audio_active { "Audio enabled" } else { "Video only" } }
-                if let Some(error) = error { p { class: "job-status", role: "alert", "Preview failed: {error}" } }
-                p { class: "note", "Click video / Space play/pause · Drag to seek · ←/→ 5 s" }
+                div { class:"preview-messages",
+                    if let Some(error) = error { p { class: "note", role: "alert", "Preview failed: {error}" } }
+                    else {
+                        p { class: "note", if state.converting { "Preview paused during conversion" } else if !state.ready { "Preparing preview…" } else if state.ai_preparing {"Preparing AI preview… allow several seconds."} else if state.ended { "Ended" } else if state.audio_active { "Audio enabled" } else { "Video only" } }
+                        p { class: "note", "Click video / Space play/pause · Drag to seek · ←/→ 5 s" }
+                    }
+                }
             }
     }
 }

@@ -11,7 +11,7 @@ use media_core::{
 use serde::Deserialize;
 use std::{io::Read, path::Path};
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct NativeAiConfiguration {
     pub helper: PreviewHelper,
@@ -96,6 +96,7 @@ impl NativeAiConfiguration {
                 ai,
                 helper: self.helper.clone(),
                 processing_adapter: self.processing_adapter.clone(),
+                source_end: None,
             },
             selected,
         ))

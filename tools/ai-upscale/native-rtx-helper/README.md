@@ -25,6 +25,16 @@ name, vendor/device, LUID, SDK version, quality and color policy. Actual loaded
 module paths are audited separately. NGX failures preserve their exact numeric
 status and SDK enum meaning; a platform error is not relabeled unsupported GPU.
 
+The helper reuses one input/output/UAV/staging-readback set at fixed geometry.
+Blocking readback completes before the next upload; changing geometry replaces
+the set. Per-frame resource creation failed the original long-video gate after
+71 evaluations. The evaluated replacement preserves the memory limits and passes
+512 consecutive 720p 2x evaluations plus a complete 5,303-frame export. Add
+`--size 1280x720 --steady-frames 512` to the reference runner (with matching
+1280/720 maximums) to exercise deterministic output and stable resource reuse.
+The 512 outputs must match the exact SDK-reference case hash. This runner retains
+one input/output pair, not a raw-frame sequence. See rtx-streaming interop evidence.
+
 ## Binary protocol version 1
 
 Stdin/stdout use binary mode. Every header has ten explicit little-endian u32s:
@@ -33,10 +43,10 @@ Request magic is `0x31585452`, response magic is `0x31595452`; version is 1.
 Audit/error JSON lines use stderr exclusively. SDK sample internals may emit
 additional diagnostic text on stderr in the reference executable.
 
-- Startup response operation 0: width/height are maximum input 192/108, color 1,
+- Startup response operation 0: width/height are maximum protocol input 1280/720, color 1,
   other identity fields zero, payload is UTF-8 JSON identity (at most 8192 bytes).
 - Frame request operation 1: strictly increasing nonzero request ID, nonzero
-  generation fixed for the process, width 1..192, height 1..108, scale 2 or 4,
+  generation fixed for the process, width 1..1280, height 1..720, scale 2 or 4,
   color 1, tightly packed RGBA payload exactly width × height × 4 bytes. All alpha
   bytes must be 255. Validate all fields before allocating/reading payload.
 - Frame response operation 1 echoes ID/generation/scale/color and returns exact
@@ -55,14 +65,21 @@ quality is fixed to SDK High (3); TrueHDR is disabled. The protocol is deliberat
 incompatible with the ONNX tensor helper. Only the supported declared color tag
 is echoed; 10-bit/HDR/alpha are rejected.
 
-At maximum geometry, application pixel buffers are at most 82,944 input bytes
-plus 1,327,104 output bytes. Explicit D3D11 pixel storage is input + output + one
-output staging texture (2,737,152 bytes); driver/runtime allocations and alignment
-are additional. A DXGI local-memory sample before/after inference requires at
-least 256 MiB remaining budget and at most 1536 MiB current process-local usage.
-This sampled guard is not a strict total VRAM guarantee. Closed records report
-upload/readback byte totals and sampled local peak. Every frame uploads to the
-helper device and reads back once. No surface-sharing or zero-copy claim applies.
+At maximum protocol geometry, one input is3,686,400bytes and4x output is
+58,982,400bytes. Explicit helper D3D11 storage is input+output+staging output;
+driver/runtime allocations and alignment are additional. Protocol capacity is not
+UI acceptance: current full preview/effects/export scope is2x<=1280x720 and
+4x<=640x360, both output<=2560x1440. Larger4x720 fails existing staging/CLAHE
+admission. Whole-frame RTX admission has its own checked ledger; it does not reuse
+portable Real-ESRGAN's577x579 tile cap. The384MiB ledger bounds explicit staged
+resources plus estimated opaque allowances, not total VRAM. Actual helper DXGI
+samples can exceed that estimate and are reported separately. Runtime guards
+retain256MiB free and reject helper process-local samples above1536MiB.
+
+Module auditing includes NGX's cached VSR `.bin` path: only an exact SHA-256 match
+to the supplied SDK VSR DLL passes the evaluation, regardless of filename. The
+new source-built helper hash and all initial failures are in the Oct30 larger
+envelope evidence. No cached runtime is redistributed.
 
 The owner must enforce pipe/startup/frame/shutdown deadlines and cancellation by
 killing/reaping its owned helper if necessary. The evaluation client does this;
@@ -187,3 +204,10 @@ The local SDK/license/API/driver/deployment inventory is recorded with hashes in
 User consent covers local evaluation only. SDK binaries/headers/diagnostic builds
 are not distributed or committed; shipping license/deployment review remains
 separate. Current input cap192x108 and ordinary native UI gate remain unchanged.
+
+
+Larger gate (no downloads/installs in this runner): pass `--max-width 1280
+--max-height 720 --size 640x360 --size 1280x720` to the evaluation runner.
+This retains the12 tiny/odd regression images and adds8 larger sample comparisons.
+See `native_rtx_envelope.py` for export/limit tests and the newest interop record
+for actual outcomes. First-frame image structure is a separate gate from timing.

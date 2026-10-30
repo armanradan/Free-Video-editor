@@ -1,5 +1,55 @@
 # Tasks
 
+
+Continuation2026-10-30 (reported real-video failure): a 212.12-second 720p
+source hit the unchanged helper memory guard after 71 SDK evaluations. Stable D3D
+resource reuse fixes growth;20 exact reference comparisons,17 process runs and
+512 consecutive 720p evaluations pass. Full 5,303-frame 2x retry independently
+passes timestamps/endpoints/audio/full decode. Missing pixel-aspect metadata no
+longer falsely rejects AI preview; ordinary-window seek renders. Managed helper
+updated; no budgets relaxed. Full retry used release CLI, not a duplicate complete
+window export. See rtx-streaming evidence; no checkbox advances,24/32 remain.
+
+Continuation2026-10-30 (larger RTX envelope):20 exact SDK sample comparisons and
+17 process runs now include640x360/1280x720 at both scales. Staging/CLAHE admission
+supports2x<=1280x720 and4x<=640x360;4x720 remains rejected. Whole-frame RTX admission
+no longer inherits portable-model tiling. Larger image inspection caught gray
+encoded frames despite timing passes: missing nominal-rate metadata made FFmpeg
+use1,000,000fps for bitrate control. A DefaultDuration hint fixes this while exact
+frame timestamps/durations remain; an actual encoder/irregular-PTS regression
+prevents recurrence. After the fix,24 exports independently pass(9 synthetic,
+9 licensed,6 VFR). Six larger preview references match at0LSB and endpoint requests
+pass. Large-payload cancel/timeout/crash/device-loss/budget cleanup/retry evidence
+is recorded, including initial test-label failures. Tasks8.2/8.3/full cross-platform
+UI lifecycle remain open;24/32. See the newest interop entry for measured limits.
+
+
+Continuation2026-10-30 (ordinary RTX UI and app-owned setup): actual normal
+native2x/4x preview/export, both themes, source replacement, Before/Reset/Off,
+missing-helper error Pause/retry, incompatible export with working preview and
+verification cancellation are recorded. Three ordinary files independently pass
+full timing/endpoints/audio/decode. App-owned deployment metadata now loads without
+user JSON import; acknowledgement/helper approval persist, and actual restart
+rechecks runtime automatically when opening AI setup. Initial encrypted-folder
+save failure is preserved and fixed; malformed/truncated preferences reject.
+Native2x motion reaches EOF without the earlier error after inspected endpoint
+clamping/file-identity checks;4x/CLAHE/long-loop endpoint UI coverage stays pending.
+These are partial7.1–7.3/6.4/8.2–8.3 improvements, not full cross-platform task
+completion. No checkbox advances:24/32. Older continuation paragraphs describe
+prior builds; see the newest architecture/interop entry for current supported scope.
+
+Continuation 2026-10-30 (deliberate native runtime setup): the ordinary setup
+adds read-only configuration/terms inspection and an explicit bounded local
+runtime test. RTX execution requires acknowledgement of the inspected package's
+terms hash; configuration/GPU changes reset it and cancel only setup-test work.
+Actual RTX and ONNX tests pass two synthetic inputs at both scales, exact device
+identity, output/transfer checks and shutdown. Missing/stale consent, wrong GPU,
+changed/missing terms and pre-cancelled work reject. A stale RTX LUID0:78108 was
+rejected and current0:82840 was verified before refreshing an ignored config.
+The compiled setup view has no desktop interaction evidence. No setup report
+grants release capability, and no checkbox advances: progress24/32. Ordinary
+native On/window acceptance remains blocked on unavailable desktop tools.
+
 Continuation 2026-10-30 (native RTX quality/performance): same-NVIDIA release
 RTX/DirectML/shared-wgpu bilinear comparison passes72 full-matrix and24 isolated
 Original-FPS files, independent timing/endpoints/audio/full decode. Both scales,
@@ -223,3 +273,26 @@ incomplete component timing and full preview/lifecycle/temporal coverage keep
 
 - Review planning artifacts before applying. Implementation starts only on a separate user request.
 - Archive after implementation, documented evidence and review are complete; do not archive merely because the planning artifacts validate.
+
+
+Continuation2026-10-30 (size presentation and malformed AAC): ordinary sizing
+controls are hidden while AI owns dimensions; saved resize survives Off. User
+confirmed native UI fix; host/wasm builds/lints pass. A separate source with
+backward first AAC PTS caused late audio-start verification failure. Bounded
+AAC-prefix preflight now rejects it early; the normal UI preserves that error.
+An explicitly repaired local derivative retains every encoded packet byte and
+changes only first AAC PTS; full3202-frame RTX2x export independently passes
+timestamps/audio/decode. No automatic source repair or relaxed gate added.
+See audio-timestamps evidence; overall24/32 unchanged.
+
+
+Continuation2026-10-30 (RTX hardware codecs): explicit Shared GPU NVIDIA now
+passes RTX with-bf0 preserving22ms VFR offset;30 matrix exports, two actual
+timing regression exports, full3202-frame CLI and ordinary-window exports pass
+independent timing/audio/decode. Seven NVDEC ingresses match software RGBA exactly;
+seven hardware lifecycle cases pass cleanup/retry. New minimum/codec export guards
+are shared by native rendering/handler and enforced before helper/output. Native
+ONNX hardware remains unavailable. PID-reuse cache collision observed in setup
+is fixed by atomic fresh reservations; no existing data deleted. Initial fixture
+assertions/provenance correction are retained. See rtx-hardware evidence. Full
+cross-platform preview/UI/quality audit remains open;24/32 unchanged.

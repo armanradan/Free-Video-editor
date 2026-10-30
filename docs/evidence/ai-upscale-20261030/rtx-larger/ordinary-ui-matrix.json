@@ -1,0 +1,22 @@
+{
+  "status": "ordinary-native-ai-ui-exports-observed",
+  "cases": [
+    {
+      "request": {
+        "fixture": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-larger-20261030\\fixtures\\synthetic-1280x720.mp4",
+        "scale": "2x",
+        "fps": "original",
+        "clahe": false
+      },
+      "inputFrameCount": 24,
+      "aiSourceFrames": null
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "native-720p-2x.mp4",
+      "bytes": 4041478,
+      "sha256": "723ac5b60067521207ce613ebe98e5358e4bf2b0f97b015f750cf9d51345a9a5"
+    }
+  ]
+}

@@ -234,14 +234,113 @@ fn actual_rtx_effect_order_before_fps_at_selected_geometry() {
 }
 
 #[test]
+#[ignore = "actual RTX SDK, NVDEC/NVENC, nonzero VFR timestamp and transfer regression"]
+fn actual_rtx_nvidia_preserves_vfr_offset_and_rejects_small_output_before_helper() {
+    let helper = config(false);
+    let adapter = adapter(&helper);
+    let output = directory("rtx-nvidia-timing");
+    let tiny = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/ai-upscale-vfr.mp4");
+    let fixture = output.join("vfr-96x80.mp4");
+    let result = Command::new("ffmpeg")
+        .args(["-v", "error", "-n", "-copyts", "-i"])
+        .arg(&tiny)
+        .args([
+            "-vf",
+            "scale=96:80:flags=neighbor,setsar=1",
+            "-fps_mode",
+            "passthrough",
+            "-enc_time_base:v",
+            "1:90000",
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "copy",
+        ])
+        .arg(&fixture)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let cancel = CancellationToken::default();
+    let mut reports = vec![];
+    for scale in [AiScale::Two, AiScale::Four] {
+        let path = output.join(format!("rtx-{}x.mp4", scale.factor()));
+        let report = convert_with_control_inner(
+            &fixture,
+            &path,
+            ResizeSpec::Original,
+            OutputProfileId::Mp4H264Aac,
+            ProcessingRoute::SharedWgpuNvidia,
+            NativeRunOptions {
+                ai: settings(scale),
+                rtx_helper: Some(&helper),
+                adapter_key: Some(&adapter.key),
+                device_generation: 7,
+                ..Default::default()
+            },
+            &cancel,
+        )
+        .unwrap();
+        assert_eq!(report.video_encoder, "h264_nvenc");
+        assert_eq!(report.ai.source_frames, 4);
+        assert_eq!(report.output_frame_count, 4);
+        assert!(report.hardware_gpu.is_some() && report.adapter_fallback.is_none());
+        assert_eq!(report.codec_gpu_to_cpu_bytes, 96 * 80 * 3 / 2 * 4);
+        assert_eq!(
+            report.codec_cpu_to_gpu_bytes,
+            96 * 80 * u64::from(scale.factor()).pow(2) * 3 / 2 * 4
+        );
+        assert_eq!(probe_source(&path).unwrap().video_start_us, 22000);
+        reports.push(report);
+    }
+    let mut never_started = helper.clone();
+    never_started.executable = "never-start-this-helper.exe".into();
+    let path = output.join("small-rejected.mp4");
+    let error = convert_with_control_inner(
+        &tiny,
+        &path,
+        ResizeSpec::Original,
+        OutputProfileId::Mp4H264Aac,
+        ProcessingRoute::SharedWgpuNvidia,
+        NativeRunOptions {
+            ai: settings(AiScale::Two),
+            rtx_helper: Some(&never_started),
+            adapter_key: Some(&adapter.key),
+            device_generation: 8,
+            ..Default::default()
+        },
+        &cancel,
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("192x144"), "{error}");
+    assert!(!path.exists() && !partial_path(&path).unwrap().exists());
+    fs::write(output.join("report.json"),serde_json::to_vec_pretty(&serde_json::json!({"status":"passed","cases":reports,"small_output_rejected_before_helper":error})).unwrap()).unwrap();
+    println!("NVIDIA timing evidence: {}", output.display());
+}
+
+#[test]
 #[ignore = "actual diagnostic RTX SDK helper deliberately stalls/crashes; native FFmpeg/GPU failure cleanup and retry"]
 fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
     let helper = config(true);
     let healthy = config(false);
     let adapter = adapter(&helper);
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../");
-    let output = directory("rtx-active-lifecycle");
-    // 82,944-byte source payload exceeds anonymous-pipe buffering. Derive a tiny
+    let hardware = std::env::var("DIAXUS_TEST_RTX_NVIDIA_CODECS").as_deref() == Ok("1");
+    let route = if hardware {
+        ProcessingRoute::SharedWgpuNvidia
+    } else {
+        ProcessingRoute::SharedWgpu
+    };
+    let output = directory(if hardware {
+        "rtx-nvidia-lifecycle"
+    } else {
+        "rtx-active-lifecycle"
+    });
+    // Source payload exceeds anonymous-pipe buffering. Derive a short
     // local CC0 fixture, retaining source timestamps/audio, not a raw sequence.
     let fixture = output.join("pipe-fixture.mp4");
     let command = ["-v", "error", "-n", "-copyts", "-i"];
@@ -254,7 +353,11 @@ fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
             "-map",
             "0:a:0",
             "-vf",
-            "scale=192:108:flags=neighbor",
+            if std::env::var("DIAXUS_TEST_RTX_LARGE_LIFECYCLE").as_deref() == Ok("1") {
+                "scale=640:360:flags=neighbor"
+            } else {
+                "scale=192:108:flags=neighbor"
+            },
             "-fps_mode",
             "passthrough",
             "-c:v",
@@ -316,7 +419,7 @@ fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
             &destination,
             ResizeSpec::Original,
             OutputProfileId::Mp4H264Aac,
-            ProcessingRoute::SharedWgpu,
+            route,
             NativeRunOptions {
                 ai: settings(scale),
                 rtx_helper: Some(&helper),
@@ -383,7 +486,7 @@ fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
             &retry,
             ResizeSpec::Original,
             OutputProfileId::Mp4H264Aac,
-            ProcessingRoute::SharedWgpu,
+            route,
             NativeRunOptions {
                 ai: settings(scale),
                 rtx_helper: Some(&healthy),
@@ -425,7 +528,7 @@ fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
             &destination,
             ResizeSpec::Original,
             OutputProfileId::Mp4H264Aac,
-            ProcessingRoute::SharedWgpu,
+            route,
             NativeRunOptions {
                 inject_device_loss_after_frames: (label == "device-loss").then_some(1),
                 ai_test_budget_bytes: (label == "budget").then_some(1),
@@ -439,7 +542,7 @@ fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
             error.contains(if label == "device-loss" {
                 "GPU device lost"
             } else {
-                "AI memory admission"
+                "RTX memory admission"
             }),
             "{error}"
         );
@@ -450,7 +553,7 @@ fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
             &retry,
             ResizeSpec::Original,
             OutputProfileId::Mp4H264Aac,
-            ProcessingRoute::SharedWgpu,
+            route,
             NativeRunOptions {
                 device_generation: 10,
                 ..options
@@ -461,6 +564,6 @@ fn actual_rtx_pipe_cancel_timeout_crash_and_fresh_video_retry() {
         cases.push(serde_json::json!({"label":label,"error":error,"output_unpublished":true,"retry":report}));
         println!("RTX {label}: no partial, healthy generation10 retry with effects passed");
     }
-    fs::write(output.join("report.json"),serde_json::to_vec_pretty(&serde_json::json!({"status":"passed","fixture_provenance":"CC0 derivative of checked-in ai-upscale-vfr.mp4, FFmpeg neighbor scale192x108, copyts, audio copy","cases":cases})).unwrap()).unwrap();
+    fs::write(output.join("report.json"),serde_json::to_vec_pretty(&serde_json::json!({"status":"passed","fixture_provenance":"CC0 derivative of checked-in ai-upscale-vfr.mp4, FFmpeg neighbor scale, copyts, audio copy","fixture":probe_source(&fixture).unwrap(),"route":format!("{route:?}"),"cases":cases})).unwrap()).unwrap();
     println!("Lifecycle evidence: {}", output.display());
 }

@@ -1,0 +1,112 @@
+{
+  "status": "original-source-rejected-early-explicit-repaired-copy-export-passed",
+  "privacy": "Source names, paths, encoded media and screenshots remain local/untracked.",
+  "original_failure": {
+    "ui_audio_start_expected_us": 0,
+    "ui_audio_start_actual_us": 60000,
+    "audio_time_base": "1/44100",
+    "initial_pts": [
+      3600,
+      1024,
+      2048
+    ],
+    "initial_dts": [
+      0,
+      1024,
+      2048
+    ]
+  },
+  "explicit_local_repair": {
+    "status": "passed",
+    "packet_counts": {
+      "0": 3202,
+      "1": 5518
+    },
+    "all_encoded_payload_hashes_equal": true,
+    "all_dts_and_durations_equal": true,
+    "changed_presentation_timestamps": [
+      {
+        "stream": 1,
+        "index": 0,
+        "before_pts": 3600,
+        "after_pts": 0
+      }
+    ],
+    "audio_time_base": "1/44100",
+    "original_modified": false
+  },
+  "native_report": {
+    "ai": {
+      "identity": {
+        "protocol": 1,
+        "pid": 29624,
+        "runtime": "RTX Video SDK 1.1.0",
+        "model_sha256": "",
+        "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+        "dxgi_index": 1,
+        "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+        "vendor_id": 4318,
+        "device_id": 9634,
+        "luid_high": 0,
+        "luid_low": 82840,
+        "cpu_fallback": false,
+        "tile_interior": 0,
+        "halo": 0
+      },
+      "source_frames": 3202,
+      "host_to_gpu_bytes": 11803852800,
+      "gpu_to_host_bytes": 47215411200,
+      "sampled_helper_local_peak": 239550464,
+      "helper_memory_sampling_available": true,
+      "memory_admission_bytes": 271630336
+    },
+    "gpu_wall_times": {
+      "processing_setup_us": 378477,
+      "helper_startup_us": 3489105,
+      "decode_pipe_wait_us": 23441772,
+      "inference_roundtrip_us": 205167479,
+      "postprocess_and_encoder_pipe_us": 53964919,
+      "codec_drain_us": 241675,
+      "helper_shutdown_us": 115352
+    },
+    "frames_processed": 3202,
+    "output_frame_count": 3202,
+    "output_width": 2560,
+    "output_height": 1440,
+    "total_ms": 331312,
+    "video_encoder": "libx264",
+    "output_bytes": 69985834
+  },
+  "independent_verification": {
+    "timeline": {
+      "frames": 3202,
+      "maximumErrorSeconds": 0,
+      "toleranceSeconds": 0.0011
+    },
+    "audioPeak": 0.39476653933525085,
+    "sourceFrames": 3202,
+    "aiSourceFrames": 3202,
+    "endpointErrorSeconds": 0,
+    "bytes": 69985834,
+    "sha256": "935880e074867aa1bee0291c8cfeb0f471bb709ab556151f57354decbc4c3833"
+  },
+  "full_audio_video_decode": "passed",
+  "ordinary_window": {
+    "original_inspection": "specific early AAC error observed",
+    "repaired_source_inspection": "accepted; 3202 frames and preview displayed",
+    "resize_75_then_ai_2x": "AI controls size; saved resize buttons hidden",
+    "ai_off_restoration": "75 percent selected and active again",
+    "final_state": "repaired source loaded; RTX2x/shared software codecs selected; fresh retry destination; Convert enabled"
+  },
+  "preflight": "Only first32 AAC packet PTS checked; negative priming/positive origins allowed. No timestamp repair, tolerance relaxation or full-track monotonicity claim.",
+  "checks": {
+    "native_tests": {
+      "passed": 61,
+      "ignored": 18
+    },
+    "clippy": "native all-targets -D warnings passed",
+    "format": "passed"
+  },
+  "build_notes": "Initial formatting collided with a compiler-mapped source file and release CLI rebuild collided with running executable; both retried successfully after owners finished.",
+  "limitations": "Full retry used release CLI on an explicitly repaired derivative. Original malformed source remains unsupported. No automatic repair capability added."
+}

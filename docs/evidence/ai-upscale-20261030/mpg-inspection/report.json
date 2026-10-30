@@ -1,0 +1,19 @@
+{
+  "input": {
+    "width": 352,
+    "audio": "mp2",
+    "container": "mpeg",
+    "codec": "mpeg1video",
+    "height": 288,
+    "frame_count_metadata": "absent",
+    "pixel_format": "yuv420p",
+    "sample_aspect_ratio": "178:163"
+  },
+  "native_direct_result": "rejected before conversion/output creation",
+  "scope": "Selected user MPG inspected through normal window and native CLI; no source media or filename committed",
+  "status": "blocked-not-supported",
+  "ui_error": "AI capability reason hides actual source-inspection failure",
+  "enabled_or_bypassed": false,
+  "actual_failure": "native M4 harness requires a known frame count",
+  "rtx_additional_blocker": "Current staged RTX requires square pixels; no pixel-aspect normalization implemented"
+}

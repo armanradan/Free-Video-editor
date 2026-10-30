@@ -1,0 +1,11 @@
+{
+  "captured": "2026-10-30T09:32:05.5439470+03:30",
+  "phase": "UI setup retry active",
+  "helpers": [
+    {
+      "ProcessId": 13272,
+      "ExecutablePath": "D:\\Active_Projects\\Rust\\Diaxus\\Video editor\\tmp\\ai-upscale\\rtx-lifecycle-20261029\\helper.exe",
+      "CreationDate": "2026-10-30T09:32:05.176421+03:30"
+    }
+  ]
+}

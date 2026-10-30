@@ -1,0 +1,35 @@
+    Checking media-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\crates\media-native)
+    Checking converter-native v0.1.0 (D:\Active_Projects\Rust\Diaxus\Video editor\apps\native)
+error[E0425]: cannot find function `rtx_selection` in crate `ui`
+  --> apps\native\src\ai_acceptance.rs:76:31
+   |
+76 |                 settings: ui::rtx_selection(scale),
+   |                               ^^^^^^^^^^^^^
+   |
+  ::: crates\ui\src\ai_upscale.rs:26:1
+   |
+26 | pub fn onnx_selection(scale: AiScale) -> AiSettings {
+   | --------------------------------------------------- similarly named function `onnx_selection` defined here
+   |
+help: a function with a similar name exists
+   |
+76 -                 settings: ui::rtx_selection(scale),
+76 +                 settings: ui::onnx_selection(scale),
+   |
+
+error[E0282]: type annotations needed
+    --> apps\native\src\main.rs:1106:31
+     |
+1106 |                 on_test:move |report|{
+     |                               ^^^^^^
+1107 |                     if report.is_none(){
+     |                        ------ type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+1106 |                 on_test:move |report: /* Type */|{
+     |                                     ++++++++++++
+
+Some errors have detailed explanations: E0282, E0425.
+For more information about an error, try `rustc --explain E0282`.
+error: could not compile `converter-native` (bin "converter-native") due to 2 previous errors

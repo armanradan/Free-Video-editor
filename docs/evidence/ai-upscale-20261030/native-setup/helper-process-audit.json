@@ -1,0 +1,18 @@
+[
+  {
+    "helper_pid": 4596,
+    "running": true
+  },
+  {
+    "helper_pid": 6784,
+    "running": false
+  },
+  {
+    "helper_pid": 21176,
+    "running": false
+  },
+  {
+    "helper_pid": 16576,
+    "running": false
+  }
+]

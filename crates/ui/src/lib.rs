@@ -238,14 +238,17 @@ pub fn ConverterControls(
                     p { id: "source-metadata", "{source_metadata}" }
                 }
             }
-            ResizePresetSelect {
-                running: running || ai_on,
-                resize_mode: resize_mode.clone(),
-                show_exact: true,
-                on_change: on_resize_mode_change,
+            if ai_on {
+                p { class:"note", "Output size controlled by AI. Turn AI Off to restore your saved resize selection." }
+            } else {
+                ResizePresetSelect {
+                    running,
+                    resize_mode: resize_mode.clone(),
+                    show_exact: true,
+                    on_change: on_resize_mode_change,
+                }
             }
-            if ai_on { p { class:"note", "AI supplies output size. Ordinary resize settings are retained until AI Off." } }
-            if resize_mode == "exact" {
+            if !ai_on && resize_mode == "exact" {
                 label { r#for: "resize-width", "Maximum width" }
                 input {
                     id: "resize-width",

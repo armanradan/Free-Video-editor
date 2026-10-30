@@ -28,7 +28,7 @@ impl Drop for StartingChild {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OnnxHelperConfig {
     pub executable: PathBuf,
@@ -319,8 +319,11 @@ impl NativeHelper {
                     break;
                 }
                 let mut bytes = captured.lock().unwrap_or_else(|p| p.into_inner());
-                let retain = count.min(65536usize.saturating_sub(bytes.len()));
-                bytes.extend_from_slice(&block[..retain]);
+                // Keep the tail, including the terminal SDK/resource error on
+                // long jobs, rather than only the first 64 KiB of success logs.
+                let excess = (bytes.len() + count).saturating_sub(65536);
+                bytes.drain(..excess);
+                bytes.extend_from_slice(&block[..count]);
             }
         });
         let (tx, requests) = mpsc::sync_channel(0);
@@ -540,12 +543,16 @@ impl NativeHelper {
                     self.retire();
                     self.join();
                     let log = self.stderr.lock().unwrap_or_else(|p| p.into_inner());
-                    return Err(format!(
-                        "{} helper failed: {error}; {}",
-                        self.label,
-                        String::from_utf8_lossy(&log)
-                    )
-                    .into());
+                    let text = String::from_utf8_lossy(&log);
+                    if let Some(reason) = text.lines().rev().find_map(|line| {
+                        let item: serde_json::Value = serde_json::from_str(line).ok()?;
+                        (item["stage"] == "failed")
+                            .then(|| item["error"].as_str().map(str::to_owned))
+                            .flatten()
+                    }) {
+                        return Err(format!("{} helper failed: {reason}", self.label).into());
+                    }
+                    return Err(format!("{} helper failed: {error}; {}", self.label, text).into());
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {

@@ -16,6 +16,8 @@ using Header = std::array<uint32_t, 10>;
 constexpr uint32_t request_magic = 0x31585452, response_magic = 0x31595452;
 // BT.709 primaries, sRGB transfer, full-range encoded RGB; no HDR conversion.
 constexpr uint32_t color_sdr709_rgba8 = 1;
+// Protocol capacity is an evaluation ceiling, not an app capability grant.
+constexpr uint32_t max_source_width = 1280, max_source_height = 720;
 static void diagnostic_barrier(const char* phase, uint64_t frame) {
 #ifdef RTX_DIAGNOSTIC
     // Deliberate failures belong only to a separately compiled test executable.
@@ -117,7 +119,10 @@ int wmain(int argc, wchar_t** argv) {
             constexpr uint64_t reserve = 256ull*1024*1024, process_limit = 1536ull*1024*1024;
             if (memory.CurrentUsage > process_limit || memory.Budget < memory.CurrentUsage
                 || memory.Budget - memory.CurrentUsage < reserve)
-                throw std::runtime_error("resource: sampled DXGI local-memory budget exhausted; no fallback");
+                throw std::runtime_error("resource: sampled DXGI local-memory budget exhausted: usage="
+                    + std::to_string(memory.CurrentUsage) + " budget=" + std::to_string(memory.Budget)
+                    + " process_limit=" + std::to_string(process_limit) + " reserve=" + std::to_string(reserve)
+                    + "; no fallback");
         };
         admit();
         std::ostringstream ready;
@@ -125,15 +130,20 @@ int wmain(int argc, wchar_t** argv) {
             << ",\"adapter_name\":" << json(utf8(identity.Description))
             << ",\"vendor_id\":" << identity.VendorId << ",\"device_id\":" << identity.DeviceId
             << ",\"luid_high\":" << identity.AdapterLuid.HighPart << ",\"luid_low\":" << identity.AdapterLuid.LowPart
-            << ",\"color\":\"opaque-rgba8-full-range-bt709-srgb\",\"quality\":3,\"max_width\":192,\"max_height\":108,\"in_flight\":1}";
+            << ",\"color\":\"opaque-rgba8-full-range-bt709-srgb\",\"quality\":3,\"max_width\":" << max_source_width << ",\"max_height\":" << max_source_height << ",\"in_flight\":1}";
         const auto ready_text = ready.str();
         if (ready_text.size() > 8192) throw std::runtime_error("oversized helper identity");
         std::cerr << ready_text << std::endl;
-        send({response_magic, 1, 0, 0, 0, 192, 108, 0, color_sdr709_rgba8, uint32_t(ready_text.size())},
+        send({response_magic, 1, 0, 0, 0, max_source_width, max_source_height, 0, color_sdr709_rgba8, uint32_t(ready_text.size())},
             std::vector<uint8_t>(ready_text.begin(), ready_text.end()));
         Header h{};
         uint32_t last_id = 0, generation = 0;
         uint64_t frames = 0, uploads = 0, readbacks = 0;
+        // One completed frame in flight. Keep resource identities stable across
+        // frames: NGX can retain per-resource state until feature teardown.
+        ComPtr<ID3D11Texture2D> source, target, staging;
+        ComPtr<ID3D11UnorderedAccessView> view;
+        uint32_t input_width = 0, input_height = 0, output_scale = 0;
         while (receive(h)) {
             if (h[0] != request_magic || h[1] != 1) throw std::runtime_error("protocol: unsupported magic/version");
             if (h[2] == 2) {
@@ -143,10 +153,10 @@ int wmain(int argc, wchar_t** argv) {
             }
             if (h[2] != 1 || !h[3] || h[3] <= last_id || !h[4] || (generation && generation != h[4]))
                 throw std::runtime_error("protocol: invalid operation/id/generation");
-            if (!h[5] || h[5] > 192 || !h[6] || h[6] > 108 || (h[7] != 2 && h[7] != 4)
+            if (!h[5] || h[5] > max_source_width || !h[6] || h[6] > max_source_height || (h[7] != 2 && h[7] != 4)
                 || h[8] != color_sdr709_rgba8 || uint64_t(h[5])*h[6]*4 != h[9])
                 throw std::runtime_error("protocol: unsupported geometry/scale/color/length");
-            // Validate all sizes before allocation/read; at most 82,944 input bytes.
+            // Validate all sizes before allocation/read; <=3,686,400 input bytes.
             diagnostic_barrier("before-payload", frames);
             std::vector<uint8_t> input(h[9]);
             if (std::fread(input.data(), 1, input.size(), stdin) != input.size())
@@ -158,13 +168,19 @@ int wmain(int argc, wchar_t** argv) {
             desc.Width = h[5]; desc.Height = h[6]; desc.MipLevels = 1; desc.ArraySize = 1;
             desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; desc.SampleDesc.Count = 1;
             desc.Usage = D3D11_USAGE_DEFAULT; desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-            D3D11_SUBRESOURCE_DATA data{input.data(), h[5]*4, 0};
-            ComPtr<ID3D11Texture2D> source, target;
-            hr_check("create-input", device->CreateTexture2D(&desc, &data, &source));
-            desc.Width *= h[7]; desc.Height *= h[7]; desc.BindFlags |= D3D11_BIND_UNORDERED_ACCESS;
-            hr_check("create-output", device->CreateTexture2D(&desc, nullptr, &target));
-            ComPtr<ID3D11UnorderedAccessView> view;
-            hr_check("create-output-view", device->CreateUnorderedAccessView(target.Get(), nullptr, &view));
+            if (input_width != h[5] || input_height != h[6] || output_scale != h[7]) {
+                view.Reset(); staging.Reset(); target.Reset(); source.Reset();
+                hr_check("create-input", device->CreateTexture2D(&desc, nullptr, &source));
+                desc.Width *= h[7]; desc.Height *= h[7]; desc.BindFlags |= D3D11_BIND_UNORDERED_ACCESS;
+                hr_check("create-output", device->CreateTexture2D(&desc, nullptr, &target));
+                hr_check("create-output-view", device->CreateUnorderedAccessView(target.Get(), nullptr, &view));
+                desc.Usage = D3D11_USAGE_STAGING; desc.BindFlags = 0;
+                desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                hr_check("create-readback", device->CreateTexture2D(&desc, nullptr, &staging));
+                input_width = h[5]; input_height = h[6]; output_scale = h[7];
+            }
+            desc.Width = h[5] * h[7]; desc.Height = h[6] * h[7];
+            context->UpdateSubresource(source.Get(), 0, nullptr, input.data(), h[5] * 4, 0);
             const float clear[] = {0.f, 0.f, 0.f, 1.f};
             context->ClearUnorderedAccessViewFloat(view.Get(), clear);
 #ifdef RTX_SAMPLE_REFERENCE
@@ -179,13 +195,17 @@ int wmain(int argc, wchar_t** argv) {
             eval.QualityLevel = NVSDK_NGX_VSR_Quality_High;
             ngx_check("evaluate", NGX_D3D11_EVALUATE_VSR_EXT(context.Get(), state.feature, state.parameters, &eval));
 #endif
-            auto pixels = readback(device.Get(), context.Get(), target.Get());
+            if (!frames) record_runtime_modules(); // Include modules loaded lazily on first evaluation.
+            auto pixels = readback(device.Get(), context.Get(), target.Get(), staging.Get());
             admit();
             for (size_t i = 3; i < pixels.size(); i += 4)
                 if (pixels[i] != 255) throw std::runtime_error("SDK returned nonopaque output");
             diagnostic_barrier("before-response", frames);
             send({response_magic, 1, 1, h[3], h[4], desc.Width, desc.Height, h[7], h[8], uint32_t(pixels.size())}, pixels);
             last_id = h[3]; generation = h[4]; ++frames; uploads += input.size(); readbacks += pixels.size();
+            if (frames % 128 == 0)
+                std::cerr << "{\"stage\":\"progress\",\"frames\":" << frames
+                    << ",\"sampled_local_peak\":" << sampled_local_peak << "}" << std::endl;
         }
         context->ClearState(); context->Flush();
 #ifndef RTX_SAMPLE_REFERENCE
