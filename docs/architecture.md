@@ -1493,14 +1493,28 @@ See [AGENTS.md](../AGENTS.md). It makes the platform boundaries, copy accounting
 See [first-implementation-prompt.md](first-implementation-prompt.md). It requests M1 only and requires real-browser evidence before declaring the integration proven.
 
 
-### Native legacy inputs: ordinary-window continuation (2026-11-02)
+### Native legacy inputs: ordinary-window acceptance complete (2026-11-02)
 
-Desktop unlock enabled real Browse, inspection, preview/playback and five MP4
-exports for MPEG-1 and WMV3/WMA Pro, including shared NVIDIA RTX2x. Independent
-full AV decode/count/geometry checks pass. The non-square-SAR AI preview policy
-used coded dimensions in the UI; it now uses display dimensions consistently
-with processing. The fixed normal app builds and its tests/Clippy pass, but
-window input failed twice with `foreground window did not report a process id`
-after rebuilding. Corrected preview and the other six families still need UI
-acceptance. Task6.1 stays open (24/25 overall). Details and precise verification
-limits: `docs/evidence/native-legacy-inputs-20261101/window-acceptance.md`.
+The final Computer Use retry succeeded. All eight required video families now
+have ordinary native-window source inspection, visible preview and conversion
+coverage through software and NVIDIA codec choices. The non-square-SAR RTX
+preview UI fix was verified by seeking WMV3 and restoring its image after export.
+Source Browse exposes MP4/MPG/MPEG/WMV; Save As remains MP4-only. WMV metadata
+reports Windows audio decoding and bounded inferred final-frame durations.
+
+Thirteen additional window-driven RTX2x exports passed independent complete AV
+decode, every video PTS/end, PCM waveform/end, count/geometry/SAR and encoder
+checks: video error <=0.908ms and audio endpoint error <=16.259ms. Together with
+the earlier five exports this is18 window-driven outputs, separate from the
+120-case complete backend matrix. No new perceptual-quality or zero-copy claim.
+
+The same RTX3050LaptopGPU now has LUID0:78380 after restart. The stale saved
+identity correctly rejected; a direct helper handshake established the current
+identity, followed by normal UI configuration and runtime validation under the
+existing local SDK evaluation approval. No automatic identity refresh or consent
+policy change is implemented. That setup usability limitation remains separate.
+
+Native-legacy-inputs is25/25 complete; ai-upscale remains24/32 with its task file
+unchanged. Full evidence, profile/fixture limits and reproducibility:
+`docs/evidence/native-legacy-inputs-20261101/window-acceptance.md`. No automatic
+archive, spec synchronization, commit or push was performed.

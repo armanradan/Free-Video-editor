@@ -50,3 +50,27 @@ families remain pending after Computer Use input recovery failed twice with
 `foreground window did not report a process id`. See `window-acceptance.md` for
 the exact scope, observations, output evidence and remaining acceptance. Progress
 remains24/25; this partially successful window check does not complete task6.1.
+
+## 2026-11-02 successful desktop retry - final acceptance
+
+The later user-requested Computer Use retry succeeded. Corrected non-square-SAR
+RTX preview now displays a visible WMV3 frame after seeking and restores it after
+export. H.264, HEVC, MPEG-2, WMV1, WMV2 and VC-1 each passed ordinary source
+selection/inspection/visible RTX2x preview and Shared GPU software/NVIDIA exports.
+Together with the preceding MPEG-1/WMV3 window checks, all eight families have
+both software/NVIDIA window coverage. Output Browse remains MP4-only.
+
+All13continuation exports passed independent full AV decode, every video PTS/end,
+PCM waveform/end, count/geometry/SAR and encoder checks: <=0.908ms video error,
+<=16.259ms audio endpoint error and <=0.003301 waveform RMSE. The unchanged
+current-device gate correctly rejected stale LUID0:78387; independent helper
+handshake read0:78380 and ordinary UI configuration/test restored validation
+under the existing SDK evaluation approval. This does not implement automatic
+identity refresh. Details/remaining profile and setup limits are in
+`window-acceptance.md`; redacted machine-readable checks are in
+`window-continuation-independent.json`.
+
+Task6.1 is now complete:25/25. Prior formatting/native build/application tests
+and Clippy checks still apply; this continuation changes verification tools and
+evidence only. Strict OpenSpec validation and diff checks are rerun. The separate
+ai-upscale task file remains unchanged at24/32. Changes remain uncommitted.

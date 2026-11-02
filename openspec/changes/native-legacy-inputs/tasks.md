@@ -39,7 +39,7 @@
 
 ## 6. Native UI and integrated acceptance
 
-- [ ] 6.1 Extend native input Browse to MP4/MPG/MPEG/WMV and show concise timing/geometry normalization, actual decoder/encoder mode and precise capability errors; verify ordinary-window selection/preview/conversion for all target families through both route choices while output remains MP4 and AI/device consent policy remains unchanged.
+- [x] 6.1 Extend native input Browse to MP4/MPG/MPEG/WMV and show concise timing/geometry normalization, actual decoder/encoder mode and precise capability errors; verify ordinary-window selection/preview/conversion for all target families through both route choices while output remains MP4 and AI/device consent policy remains unchanged.
 - [x] 6.2 Exercise source replacement, cancellation during inspection/preparation/export, failure cleanup and healthy retry across preview-to-conversion handoff; verify no stale prepared audio, orphan child process or leaked owned scratch survives and record evidence.
 - [x] 6.3 Run formatting, relevant native tests and matching-target lint plus shared/build checks affected by final changes; validate this change strictly, document actual original-file results/remaining limitations and confirm ai-upscale progress was not altered by this change.
 

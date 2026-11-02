@@ -1,0 +1,279 @@
+{
+  "status": "passed",
+  "scope": "Already-created window outputs: complete AV decode, every video timestamp/end, independent PCM waveform/end, expected geometry/SAR/encoder. No new image-quality metric.",
+  "cases": [
+    {
+      "label": "wmv3-rtx2x-nvidia",
+      "status": "passed",
+      "frames": 48,
+      "size": [
+        1576,
+        1152
+      ],
+      "encoder": "h264_nvenc",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.009274473922902494,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.003300400042613038,
+      "quantized_chunk_overlap_max_samples": 74,
+      "source_sha256": "8c3bfcad9548b5d9c2b780d5487db398c8f24df2e248ac05275a14b81270fe17",
+      "output_sha256": "82a354cd996fc80b25faa3f8ef1b754c2b05f62c9314b7c686d49c81bc89d4b8",
+      "output_bytes": 1600482,
+      "audio_reference": "Windows Media Foundation"
+    },
+    {
+      "label": "wmv1-rtx2x-nvidia",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        384,
+        288
+      ],
+      "encoder": "h264_nvenc",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.016258572108843537,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.000900157179090038,
+      "quantized_chunk_overlap_max_samples": 22,
+      "source_sha256": "9a79a4108303264e5f8db51377d6f56717c51ae62eca1fdecfd9f38d0264b3b9",
+      "output_sha256": "f301bd718efd37d2e92047dbe463382e563e1544e6854ff4fb8a20ffc259a7e4",
+      "output_bytes": 84030,
+      "audio_reference": "Windows Media Foundation"
+    },
+    {
+      "label": "wmv1-rtx2x-software",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        384,
+        288
+      ],
+      "encoder": "libx264",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.016258572108843537,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.000900157179090038,
+      "quantized_chunk_overlap_max_samples": 22,
+      "source_sha256": "9a79a4108303264e5f8db51377d6f56717c51ae62eca1fdecfd9f38d0264b3b9",
+      "output_sha256": "02ffb0b0280b0990c1fb6168e27d9b63419a2d5f32d6d1d2fd9e49751252be97",
+      "output_bytes": 59565,
+      "audio_reference": "Windows Media Foundation"
+    },
+    {
+      "label": "wmv2-rtx2x-software",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        384,
+        288
+      ],
+      "encoder": "libx264",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.011904833333333333,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.0009370736968188506,
+      "quantized_chunk_overlap_max_samples": 22,
+      "source_sha256": "f33bdcfc8388678f6ec83a5c921da2bb0dc8a36dcbb0140e65aa6317b9267d85",
+      "output_sha256": "ee352505a07e3fc3233332bd50908a74ea2d6a97c197413803188b8bbf3e0ede",
+      "output_bytes": 60604,
+      "audio_reference": "Windows Media Foundation"
+    },
+    {
+      "label": "wmv2-rtx2x-nvidia",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        384,
+        288
+      ],
+      "encoder": "h264_nvenc",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.011904833333333333,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.0009370736968188506,
+      "quantized_chunk_overlap_max_samples": 22,
+      "source_sha256": "f33bdcfc8388678f6ec83a5c921da2bb0dc8a36dcbb0140e65aa6317b9267d85",
+      "output_sha256": "dba2bf7bd2118ead3594bddb6a5165a46b1f7cfdaff25a73ebb069ebf236b09c",
+      "output_bytes": 85879,
+      "audio_reference": "Windows Media Foundation"
+    },
+    {
+      "label": "vc1-rtx2x-nvidia",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        588,
+        480
+      ],
+      "encoder": "h264_nvenc",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 1.37e-05,
+      "video_end_error_seconds": 1.37e-05,
+      "audio_end_error_seconds": 0.011882033333333333,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.0002642979238782818,
+      "quantized_chunk_overlap_max_samples": 21,
+      "source_sha256": "096e3228532589a9b939d0b3be3bab230fdc9ea0375031c494ed4f20e18d4735",
+      "output_sha256": "7fb5b1d6d6e0d96269948e8ead9482b6a064f4c603dad00f36c907c5f3bf3e40",
+      "output_bytes": 111466,
+      "audio_reference": "Windows Media Foundation"
+    },
+    {
+      "label": "vc1-rtx2x-software",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        588,
+        480
+      ],
+      "encoder": "libx264",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 1.37e-05,
+      "video_end_error_seconds": 1.37e-05,
+      "audio_end_error_seconds": 0.011882033333333333,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.0002642979238782818,
+      "quantized_chunk_overlap_max_samples": 21,
+      "source_sha256": "096e3228532589a9b939d0b3be3bab230fdc9ea0375031c494ed4f20e18d4735",
+      "output_sha256": "f273ee289334643cd5238eff9d17bcbb94fb2c1ce1504c427065e51535296320",
+      "output_bytes": 50202,
+      "audio_reference": "Windows Media Foundation"
+    },
+    {
+      "label": "mpeg2-rtx2x-software",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        384,
+        288
+      ],
+      "encoder": "libx264",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0009070294784580499,
+      "video_end_error_seconds": 0.0009070294784580499,
+      "audio_end_error_seconds": 0.014353741496598639,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.001007941409648803,
+      "quantized_chunk_overlap_max_samples": 0,
+      "source_sha256": "063f8bec221e9e75e6afef39509aae258073ffa8e479a1b1c9b79956cc287c84",
+      "output_sha256": "b3aad8a2f46b4ec40f2ea333f2a202b76a1ac62c2c903713b9e253c50ed31822",
+      "output_bytes": 61743,
+      "audio_reference": "FFmpeg"
+    },
+    {
+      "label": "mpeg2-rtx2x-nvidia",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        384,
+        288
+      ],
+      "encoder": "h264_nvenc",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0009070294784580499,
+      "video_end_error_seconds": 0.0009070294784580499,
+      "audio_end_error_seconds": 0.014353741496598639,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.001007941409648803,
+      "quantized_chunk_overlap_max_samples": 0,
+      "source_sha256": "063f8bec221e9e75e6afef39509aae258073ffa8e479a1b1c9b79956cc287c84",
+      "output_sha256": "51c7e45cec6232555743c4dc71da5e6c38b18c393d7eacd9ac8aa2009e15d78d",
+      "output_bytes": 86509,
+      "audio_reference": "FFmpeg"
+    },
+    {
+      "label": "h264-rtx2x-nvidia",
+      "status": "passed",
+      "frames": 60,
+      "size": [
+        1280,
+        720
+      ],
+      "encoder": "h264_nvenc",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.0,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.00048151783325057535,
+      "quantized_chunk_overlap_max_samples": 0,
+      "source_sha256": "5a7802b764ad928056d2777e2d25a86ec7fdb2c69696d70258b3ae5702fcb54b",
+      "output_sha256": "9fa539064f0b202c5927b6112994ebbe09259479b393053ea7e061546a6735c4",
+      "output_bytes": 672228,
+      "audio_reference": "FFmpeg"
+    },
+    {
+      "label": "h264-rtx2x-software",
+      "status": "passed",
+      "frames": 60,
+      "size": [
+        1280,
+        720
+      ],
+      "encoder": "libx264",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.0,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.00048151783325057535,
+      "quantized_chunk_overlap_max_samples": 0,
+      "source_sha256": "5a7802b764ad928056d2777e2d25a86ec7fdb2c69696d70258b3ae5702fcb54b",
+      "output_sha256": "46543f3ca1d309c81c056b536751397898eb693ac4b2ae3cded509881909fa51",
+      "output_bytes": 518776,
+      "audio_reference": "FFmpeg"
+    },
+    {
+      "label": "hevc-rtx2x-software",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        640,
+        360
+      ],
+      "encoder": "libx264",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.0,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.00031662719921639456,
+      "quantized_chunk_overlap_max_samples": 0,
+      "source_sha256": "79a279e19330b910ff5886c31c9ab1999051cbd207836b28a710d71002cf5caa",
+      "output_sha256": "433d5580e9ba515e02e85c215de4ebc1c68761bfabe14a33867a95ea4c5f8a7b",
+      "output_bytes": 88663,
+      "audio_reference": "FFmpeg"
+    },
+    {
+      "label": "hevc-rtx2x-nvidia",
+      "status": "passed",
+      "frames": 30,
+      "size": [
+        640,
+        360
+      ],
+      "encoder": "h264_nvenc",
+      "full_av_decode": "passed",
+      "video_pts_max_error_seconds": 0.0,
+      "video_end_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.0,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.00031662719921639456,
+      "quantized_chunk_overlap_max_samples": 0,
+      "source_sha256": "79a279e19330b910ff5886c31c9ab1999051cbd207836b28a710d71002cf5caa",
+      "output_sha256": "a47f3f72a68065fae6f0a2b9d024161546d8a696712d4c3abad2872d1c55808b",
+      "output_bytes": 146356,
+      "audio_reference": "FFmpeg"
+    }
+  ]
+}
