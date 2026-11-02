@@ -1,0 +1,18 @@
+{
+  "coverage": {
+    "bits": 24,
+    "channels": 2,
+    "decoder": "Windows Media Foundation",
+    "end_us": 181581723,
+    "frame_count": 2402,
+    "sample_count": 8007825,
+    "sample_rate": 44100,
+    "scratch_bytes": 48274724,
+    "start_us": 0
+  },
+  "exact_pcm_and_100ns_pts_verified": true,
+  "preparation_ms": 2510,
+  "scratch_released": true,
+  "source_stamp_unchanged": true,
+  "status": "passed"
+}

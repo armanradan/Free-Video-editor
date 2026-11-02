@@ -1,0 +1,208 @@
+{
+  "status": "blocked-unverified-decoded-timing",
+  "codec": "wmapro",
+  "time_base": "1/44100",
+  "decoded_frames": 43,
+  "sample_count": 88064,
+  "frames": [
+    {
+      "pts": 0,
+      "duration": 2048
+    },
+    {
+      "pts": 2048,
+      "duration": 2048
+    },
+    {
+      "pts": 4096,
+      "duration": 2048
+    },
+    {
+      "pts": 6144,
+      "duration": 2048
+    },
+    {
+      "pts": 8192,
+      "duration": 2048
+    },
+    {
+      "pts": 13318,
+      "duration": 2048
+    },
+    {
+      "pts": 15366,
+      "duration": 2048
+    },
+    {
+      "pts": 17414,
+      "duration": 2048
+    },
+    {
+      "pts": 19462,
+      "duration": 2048
+    },
+    {
+      "pts": 21510,
+      "duration": 2048
+    },
+    {
+      "pts": 23990,
+      "duration": 2048
+    },
+    {
+      "pts": 26038,
+      "duration": 2048
+    },
+    {
+      "pts": 28086,
+      "duration": 2048
+    },
+    {
+      "pts": 30134,
+      "duration": 2048
+    },
+    {
+      "pts": 32182,
+      "duration": 2048
+    },
+    {
+      "pts": 34243,
+      "duration": 2048
+    },
+    {
+      "pts": 36291,
+      "duration": 2048
+    },
+    {
+      "pts": 38339,
+      "duration": 2048
+    },
+    {
+      "pts": 40387,
+      "duration": 2048
+    },
+    {
+      "pts": 42071,
+      "duration": 2048
+    },
+    {
+      "pts": 44119,
+      "duration": 2048
+    },
+    {
+      "pts": 46167,
+      "duration": 2048
+    },
+    {
+      "pts": 48215,
+      "duration": 2048
+    },
+    {
+      "pts": 50263,
+      "duration": 2048
+    },
+    {
+      "pts": 52311,
+      "duration": 2048
+    },
+    {
+      "pts": 54359,
+      "duration": 2048
+    },
+    {
+      "pts": 57330,
+      "duration": 2048
+    },
+    {
+      "pts": 59378,
+      "duration": 2048
+    },
+    {
+      "pts": 61426,
+      "duration": 2048
+    },
+    {
+      "pts": 63474,
+      "duration": 2048
+    },
+    {
+      "pts": 65522,
+      "duration": 2048
+    },
+    {
+      "pts": 67570,
+      "duration": 2048
+    },
+    {
+      "pts": 69618,
+      "duration": 2048
+    },
+    {
+      "pts": 71666,
+      "duration": 2048
+    },
+    {
+      "pts": 73714,
+      "duration": 2048
+    },
+    {
+      "pts": 75762,
+      "duration": 2048
+    },
+    {
+      "pts": 77810,
+      "duration": 2048
+    },
+    {
+      "pts": 78939,
+      "duration": 2048
+    },
+    {
+      "pts": 80987,
+      "duration": 2048
+    },
+    {
+      "pts": 83035,
+      "duration": 2048
+    },
+    {
+      "pts": 85083,
+      "duration": 2048
+    },
+    {
+      "pts": 87131,
+      "duration": 2048
+    },
+    {
+      "pts": 89179,
+      "duration": 2048
+    }
+  ],
+  "discontinuities": [
+    {
+      "frame": 5,
+      "delta_samples": 3078
+    },
+    {
+      "frame": 10,
+      "delta_samples": 432
+    },
+    {
+      "frame": 15,
+      "delta_samples": 13
+    },
+    {
+      "frame": 19,
+      "delta_samples": -364
+    },
+    {
+      "frame": 26,
+      "delta_samples": 923
+    },
+    {
+      "frame": 37,
+      "delta_samples": -919
+    }
+  ],
+  "scope": "Private2second stream-copy excerpt; no private media or titles included. ffprobe decoded frames omitPTS; FFmpeg ordinary PCM clock yields both gaps and overlaps. Current conservative admission rejects overlap beyond1ms; that does not establish source corruption."
+}

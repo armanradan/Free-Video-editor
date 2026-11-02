@@ -1,0 +1,10 @@
+{
+  "audio_scratch_bytes": 2034300,
+  "normalized_audio_endpoint_us": 128127709,
+  "original_unchanged": true,
+  "production_prepare_ms": 903,
+  "scope": "Isolated preparation timing, not normal-window phase telemetry or a throughput benchmark",
+  "scratch_released_after_drop": true,
+  "source": "private original; path excluded",
+  "status": "passed"
+}

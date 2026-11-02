@@ -1,0 +1,6 @@
+{
+  "fixture": "fixtures/native-aac/leading-pts.mp4",
+  "returncode": 1,
+  "error": "Source AAC presentation timestamps go backward or repeat at packet 1; repair the audio timestamps in a separate copy before conversion. No automatic timestamp repair or audio-sync tolerance change.",
+  "output_created": false
+}

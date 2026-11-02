@@ -118,8 +118,11 @@ fn reserve_cache_path(parent: &Path, tag: &str) -> NativeResult<PathBuf> {
 /// Conservative evaluated codec envelope, not a universal NVENC minimum.
 /// Preview and the software-codec route remain independent of this export gate.
 pub fn validate_nvidia_export(source_codec: &str, output: Size) -> NativeResult<()> {
-    if !matches!(source_codec, "h264" | "hevc") {
-        return Err("RTX with NVIDIA codecs is evaluated for H.264/HEVC input only. Select Shared GPU software codecs for this source; no automatic fallback.".into());
+    if !matches!(
+        source_codec,
+        "h264" | "hevc" | "mpeg1video" | "mpeg2video" | "wmv1" | "wmv2" | "wmv3" | "vc1"
+    ) {
+        return Err("Evaluated RTX NVIDIA input families are H.264/HEVC, MPEG-1/2 and WMV1/2/3/VC-1. Unsupported input family; no automatic route change.".into());
     }
     if output.width < 192 || output.height < 144 {
         return Err("Evaluated RTX with NVIDIA codecs requires output at least 192x144. Select Shared GPU software codecs for smaller output; no automatic route change.".into());

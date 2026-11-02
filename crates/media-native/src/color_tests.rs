@@ -2,6 +2,81 @@ use media_core::{ColorAdjustments, Rotation, Size, VideoSettings};
 use media_gpu::ResizePipeline;
 
 #[test]
+fn legacy_601_matrix_converts_pixels_before_working_srgb() {
+    use std::{
+        io::Write,
+        process::{Command, Stdio},
+    };
+    let input = crate::color::InputColor::from_source("wmv2", None, None, None);
+    assert!(input.assumed);
+    let mut child = Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pixel_format",
+            "yuv420p",
+            "-video_size",
+            "2x2",
+            "-i",
+            "pipe:0",
+            "-vf",
+            &format!("{},format=gbrp,format=rgba", input.to_srgb()),
+            "-frames:v",
+            "1",
+            "-f",
+            "rawvideo",
+            "pipe:1",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&[100, 100, 100, 100, 90, 180])
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success() && output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let y = (100.0_f64 - 16.0) / 219.0;
+    let cb = (90.0 - 128.0) / 224.0;
+    let cr = (180.0 - 128.0) / 224.0;
+    let expected = [
+        y + 1.402 * cr,
+        y - 0.344136 * cb - 0.714136 * cr,
+        y + 1.772 * cb,
+    ]
+    .map(|v| {
+        let v = v.clamp(0.0, 1.0);
+        // zscale's display-referred REC709 transfer uses BT.1886 EOTF,
+        // independently defined here rather than sampling another zscale call.
+        // zimg release-3.0.6 colorspace/gamma.cpp select_transfer_function.
+        let linear = v.powf(2.4);
+        let srgb = if linear <= 0.0031308 {
+            12.92 * linear
+        } else {
+            1.055 * linear.powf(1.0 / 2.4) - 0.055
+        };
+        (srgb * 255.0).round() as i32
+    });
+    assert_eq!(output.stdout.len(), 16);
+    for pixel in output.stdout.as_chunks::<4>().0 {
+        for (value, expected) in pixel[..3].iter().zip(expected) {
+            assert!((i32::from(*value) - expected).abs() <= 2);
+        }
+        assert_eq!(pixel[3], 255);
+    }
+}
+
+#[test]
 fn clahe_direct_routes_reject_before_inspection_or_output_creation() {
     let settings = media_core::equalization::Equalization::new(true, 50).unwrap();
     let unavailable = std::path::Path::new("nonexistent-clahe-input.mp4");

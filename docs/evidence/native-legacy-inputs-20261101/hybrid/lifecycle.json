@@ -1,0 +1,245 @@
+{
+  "cases": [
+    {
+      "active_cancel_no_partial": true,
+      "fresh_retry": {
+        "adapter": null,
+        "adapter_fallback": null,
+        "ai": {
+          "gpu_to_host_bytes": 0,
+          "helper_memory_sampling_available": false,
+          "host_to_gpu_bytes": 0,
+          "identity": null,
+          "memory_admission_bytes": 0,
+          "sampled_helper_local_peak": 0,
+          "source_frames": 0
+        },
+        "codec_cpu_to_gpu_bytes": 8294400,
+        "codec_gpu_to_cpu_bytes": 0,
+        "color": {
+          "brightness": 0,
+          "contrast": 100,
+          "saturation": 100
+        },
+        "elapsed_ms": 543,
+        "equalization": {
+          "enabled": false,
+          "strength": 50
+        },
+        "equalization_compute_passes": 0,
+        "equalization_gpu_scratch_bytes": 0,
+        "explicit_cpu_to_gpu_bytes": 0,
+        "explicit_gpu_to_cpu_bytes": 0,
+        "frame_rate": "Original",
+        "frames_processed": 50,
+        "gpu_wall_times": null,
+        "hardware_gpu": {
+          "device": 9634,
+          "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "uuid": "GPU-17655cfc-aba6-5572-bdec-274f531aefe1",
+          "vendor": 4318
+        },
+        "input": {
+          "audio_codec": "mp2",
+          "audio_duration_us": 2011433,
+          "audio_normalization": null,
+          "audio_start_us": 1239089,
+          "codec": "mpeg1video",
+          "codec_profile": null,
+          "codec_tag": "[0][0][0][0]",
+          "color_interpretation": {
+            "assumed": true,
+            "matrix": "smpte170m",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          },
+          "color_primaries": null,
+          "color_range": "tv",
+          "color_space": null,
+          "color_transfer": null,
+          "decoded_audio_coverage": null,
+          "display_height": 288,
+          "display_width": 384,
+          "encoder_metadata": null,
+          "frame_count": 50,
+          "frame_rate_den": 1,
+          "frame_rate_num": 25,
+          "has_display_matrix": false,
+          "height": 288,
+          "inferred_final_frame_duration_ticks": null,
+          "pixel_format": "yuv420p",
+          "preview_end": {
+            "created": {
+              "nanos_since_epoch": 590041800,
+              "secs_since_epoch": 1793565960
+            },
+            "file_length": 219136,
+            "modified": {
+              "nanos_since_epoch": 144736900,
+              "secs_since_epoch": 1793558626
+            },
+            "position_us": 1960000
+          },
+          "rotation_degrees": 0,
+          "sample_aspect_ratio": "178:163",
+          "variable_frame_rate": false,
+          "video_bitrate_bps": 1150000,
+          "video_duration_from_decoded": true,
+          "video_duration_ticks": 180000,
+          "video_duration_us": 2000000,
+          "video_start_us": 1250000,
+          "video_time_base": "1/90000",
+          "width": 352
+        },
+        "inspection_reused": false,
+        "output_bytes": 305513,
+        "output_frame_count": 50,
+        "output_height": 288,
+        "output_width": 384,
+        "preflight_ms": 1444,
+        "profile": "mp4-h264-aac",
+        "route": "nvidia-ffmpeg",
+        "total_ms": 2408,
+        "verification_ms": 419,
+        "video_bitrate_bps": null,
+        "video_decode": {
+          "decoder": "software",
+          "reason": "This source has no evaluated NVDEC path; software decoding is planned independently of NVENC"
+        },
+        "video_encoder": "h264_nvenc"
+      },
+      "nvenc_preflight_failure_no_partial": true,
+      "route": "direct"
+    },
+    {
+      "active_cancel_no_partial": true,
+      "fresh_retry": {
+        "adapter": {
+          "backend": "Vulkan",
+          "device": 9634,
+          "device_type": "DiscreteGpu",
+          "driver": "NVIDIA",
+          "key": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+          "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "vendor": 4318
+        },
+        "adapter_fallback": null,
+        "ai": {
+          "gpu_to_host_bytes": 0,
+          "helper_memory_sampling_available": false,
+          "host_to_gpu_bytes": 0,
+          "identity": null,
+          "memory_admission_bytes": 0,
+          "sampled_helper_local_peak": 0,
+          "source_frames": 0
+        },
+        "codec_cpu_to_gpu_bytes": 8294400,
+        "codec_gpu_to_cpu_bytes": 0,
+        "color": {
+          "brightness": 0,
+          "contrast": 100,
+          "saturation": 100
+        },
+        "elapsed_ms": 1343,
+        "equalization": {
+          "enabled": false,
+          "strength": 50
+        },
+        "equalization_compute_passes": 0,
+        "equalization_gpu_scratch_bytes": 0,
+        "explicit_cpu_to_gpu_bytes": 22118400,
+        "explicit_gpu_to_cpu_bytes": 22118400,
+        "frame_rate": "Original",
+        "frames_processed": 50,
+        "gpu_wall_times": {
+          "codec_drain_us": 112964,
+          "decode_pipe_wait_us": 114069,
+          "helper_shutdown_us": 0,
+          "helper_startup_us": 0,
+          "inference_roundtrip_us": 0,
+          "postprocess_and_encoder_pipe_us": 388779,
+          "processing_setup_us": 543146
+        },
+        "hardware_gpu": {
+          "device": 9634,
+          "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "uuid": "GPU-17655cfc-aba6-5572-bdec-274f531aefe1",
+          "vendor": 4318
+        },
+        "input": {
+          "audio_codec": "mp2",
+          "audio_duration_us": 2011433,
+          "audio_normalization": null,
+          "audio_start_us": 1239089,
+          "codec": "mpeg1video",
+          "codec_profile": null,
+          "codec_tag": "[0][0][0][0]",
+          "color_interpretation": {
+            "assumed": true,
+            "matrix": "smpte170m",
+            "primaries": "bt709",
+            "transfer": "bt709"
+          },
+          "color_primaries": null,
+          "color_range": "tv",
+          "color_space": null,
+          "color_transfer": null,
+          "decoded_audio_coverage": null,
+          "display_height": 288,
+          "display_width": 384,
+          "encoder_metadata": null,
+          "frame_count": 50,
+          "frame_rate_den": 1,
+          "frame_rate_num": 25,
+          "has_display_matrix": false,
+          "height": 288,
+          "inferred_final_frame_duration_ticks": null,
+          "pixel_format": "yuv420p",
+          "preview_end": {
+            "created": {
+              "nanos_since_epoch": 590041800,
+              "secs_since_epoch": 1793565960
+            },
+            "file_length": 219136,
+            "modified": {
+              "nanos_since_epoch": 144736900,
+              "secs_since_epoch": 1793558626
+            },
+            "position_us": 1960000
+          },
+          "rotation_degrees": 0,
+          "sample_aspect_ratio": "178:163",
+          "variable_frame_rate": false,
+          "video_bitrate_bps": 1150000,
+          "video_duration_from_decoded": true,
+          "video_duration_ticks": 180000,
+          "video_duration_us": 2000000,
+          "video_start_us": 1250000,
+          "video_time_base": "1/90000",
+          "width": 352
+        },
+        "inspection_reused": false,
+        "output_bytes": 272180,
+        "output_frame_count": 50,
+        "output_height": 288,
+        "output_width": 384,
+        "preflight_ms": 2048,
+        "profile": "mp4-h264-aac",
+        "route": "shared-wgpu-nvidia",
+        "total_ms": 3812,
+        "verification_ms": 420,
+        "video_bitrate_bps": null,
+        "video_decode": {
+          "decoder": "software",
+          "reason": "This source has no evaluated NVDEC path; software decoding is planned independently of NVENC"
+        },
+        "video_encoder": "h264_nvenc"
+      },
+      "nvenc_preflight_failure_no_partial": true,
+      "route": "shared"
+    }
+  ],
+  "missing_device_nvdec_failed_without_retry": true,
+  "owned_ffmpeg_children_remaining": 0,
+  "status": "passed"
+}

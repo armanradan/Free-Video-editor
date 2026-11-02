@@ -1,0 +1,222 @@
+{
+  "status": "passed",
+  "scope": "Generated WMV1/WMA1 and WMV2/WMA2, direct software Original FPS only",
+  "cases": [
+    {
+      "fixture": "wmv1-wmav1",
+      "native": {
+        "ai": {
+          "identity": null,
+          "source_frames": 0,
+          "host_to_gpu_bytes": 0,
+          "gpu_to_host_bytes": 0,
+          "sampled_helper_local_peak": 0,
+          "helper_memory_sampling_available": false,
+          "memory_admission_bytes": 0
+        },
+        "gpu_wall_times": null,
+        "color": {
+          "brightness": 0,
+          "contrast": 100,
+          "saturation": 100
+        },
+        "equalization": {
+          "enabled": false,
+          "strength": 50
+        },
+        "equalization_gpu_scratch_bytes": 0,
+        "equalization_compute_passes": 0,
+        "output_frame_count": 30,
+        "frame_rate": "Original",
+        "video_bitrate_bps": null,
+        "route": "direct-ffmpeg",
+        "profile": "mp4-h264-aac",
+        "input": {
+          "audio_normalization": null,
+          "preview_end": {
+            "position_us": 1160000,
+            "file_length": 151261,
+            "modified": {
+              "secs_since_epoch": 1793560115,
+              "nanos_since_epoch": 908827700
+            },
+            "created": {
+              "secs_since_epoch": 1793560146,
+              "nanos_since_epoch": 377277300
+            }
+          },
+          "video_bitrate_bps": null,
+          "codec": "wmv1",
+          "codec_tag": "WMV1",
+          "codec_profile": null,
+          "pixel_format": "yuv420p",
+          "width": 192,
+          "height": 144,
+          "display_width": 192,
+          "display_height": 144,
+          "sample_aspect_ratio": "1:1",
+          "rotation_degrees": 0,
+          "has_display_matrix": false,
+          "color_range": null,
+          "color_space": null,
+          "color_transfer": null,
+          "color_primaries": null,
+          "frame_rate_num": 25,
+          "frame_rate_den": 1,
+          "frame_count": 30,
+          "audio_codec": "wmav1",
+          "video_start_us": 1250000,
+          "audio_start_us": 1296009,
+          "video_duration_us": 1200000,
+          "video_duration_ticks": 1200,
+          "inferred_final_frame_duration_ticks": 40,
+          "video_time_base": "1/1000",
+          "audio_duration_us": 1161406,
+          "decoded_audio_coverage": {
+            "start_us": 1296009,
+            "end_us": 2457415,
+            "frame_count": 25,
+            "sample_count": 51200
+          },
+          "variable_frame_rate": false
+        },
+        "output_width": 192,
+        "output_height": 144,
+        "frames_processed": 30,
+        "output_bytes": 59367,
+        "elapsed_ms": 157,
+        "verification_ms": 227,
+        "adapter": null,
+        "explicit_cpu_to_gpu_bytes": 0,
+        "explicit_gpu_to_cpu_bytes": 0,
+        "adapter_fallback": null,
+        "hardware_gpu": null,
+        "video_encoder": "libx264",
+        "inspection_reused": false,
+        "preflight_ms": 225,
+        "total_ms": 610,
+        "codec_gpu_to_cpu_bytes": 0,
+        "codec_cpu_to_gpu_bytes": 0
+      },
+      "video_pts_max_error_seconds": 0.0,
+      "decoded_source_audio_start_seconds": 1.2960090702947846,
+      "decoded_source_audio_end_seconds": 2.4574149659863944,
+      "decoded_output_audio_start_seconds": 0.024,
+      "decoded_output_audio_end_seconds": 1.2190833333333333,
+      "expected_pcm_lag_samples": 1056,
+      "measured_pcm_lag_samples": 1024,
+      "aligned_float_pcm_rmse": 0.00019673396297536952,
+      "waveform_alignment_error_seconds": -0.0006666666666666666,
+      "decoded_audio_end_error_seconds": 0.011668367346938775,
+      "full_decode": "passed"
+    },
+    {
+      "fixture": "wmv2-wmav2",
+      "native": {
+        "ai": {
+          "identity": null,
+          "source_frames": 0,
+          "host_to_gpu_bytes": 0,
+          "gpu_to_host_bytes": 0,
+          "sampled_helper_local_peak": 0,
+          "helper_memory_sampling_available": false,
+          "memory_admission_bytes": 0
+        },
+        "gpu_wall_times": null,
+        "color": {
+          "brightness": 0,
+          "contrast": 100,
+          "saturation": 100
+        },
+        "equalization": {
+          "enabled": false,
+          "strength": 50
+        },
+        "equalization_gpu_scratch_bytes": 0,
+        "equalization_compute_passes": 0,
+        "output_frame_count": 30,
+        "frame_rate": "Original",
+        "video_bitrate_bps": null,
+        "route": "direct-ffmpeg",
+        "profile": "mp4-h264-aac",
+        "input": {
+          "audio_normalization": null,
+          "preview_end": {
+            "position_us": 1160000,
+            "file_length": 157705,
+            "modified": {
+              "secs_since_epoch": 1793560116,
+              "nanos_since_epoch": 250004200
+            },
+            "created": {
+              "secs_since_epoch": 1793560146,
+              "nanos_since_epoch": 378784700
+            }
+          },
+          "video_bitrate_bps": null,
+          "codec": "wmv2",
+          "codec_tag": "WMV2",
+          "codec_profile": null,
+          "pixel_format": "yuv420p",
+          "width": 192,
+          "height": 144,
+          "display_width": 192,
+          "display_height": 144,
+          "sample_aspect_ratio": "1:1",
+          "rotation_degrees": 0,
+          "has_display_matrix": false,
+          "color_range": null,
+          "color_space": null,
+          "color_transfer": null,
+          "color_primaries": null,
+          "frame_rate_num": 25,
+          "frame_rate_den": 1,
+          "frame_count": 30,
+          "audio_codec": "wmav2",
+          "video_start_us": 1250000,
+          "audio_start_us": 1296009,
+          "video_duration_us": 1200000,
+          "video_duration_ticks": 1200,
+          "inferred_final_frame_duration_ticks": 40,
+          "video_time_base": "1/1000",
+          "audio_duration_us": 1161406,
+          "decoded_audio_coverage": {
+            "start_us": 1296009,
+            "end_us": 2457415,
+            "frame_count": 25,
+            "sample_count": 51200
+          },
+          "variable_frame_rate": false
+        },
+        "output_width": 192,
+        "output_height": 144,
+        "frames_processed": 30,
+        "output_bytes": 59106,
+        "elapsed_ms": 148,
+        "verification_ms": 232,
+        "adapter": null,
+        "explicit_cpu_to_gpu_bytes": 0,
+        "explicit_gpu_to_cpu_bytes": 0,
+        "adapter_fallback": null,
+        "hardware_gpu": null,
+        "video_encoder": "libx264",
+        "inspection_reused": false,
+        "preflight_ms": 211,
+        "total_ms": 592,
+        "codec_gpu_to_cpu_bytes": 0,
+        "codec_cpu_to_gpu_bytes": 0
+      },
+      "video_pts_max_error_seconds": 0.0,
+      "decoded_source_audio_start_seconds": 1.2960090702947846,
+      "decoded_source_audio_end_seconds": 2.4574149659863944,
+      "decoded_output_audio_start_seconds": 0.024,
+      "decoded_output_audio_end_seconds": 1.2190833333333333,
+      "expected_pcm_lag_samples": 1056,
+      "measured_pcm_lag_samples": 1024,
+      "aligned_float_pcm_rmse": 0.00020400637378435938,
+      "waveform_alignment_error_seconds": -0.0006666666666666666,
+      "decoded_audio_end_error_seconds": 0.011668367346938775,
+      "full_decode": "passed"
+    }
+  ]
+}

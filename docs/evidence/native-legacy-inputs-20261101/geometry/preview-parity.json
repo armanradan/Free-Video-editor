@@ -1,0 +1,62 @@
+{
+  "cases": [
+    {
+      "display": [
+        480,
+        360
+      ],
+      "max_rgba_error_lsb": 0,
+      "normalized_input": [
+        384,
+        288
+      ],
+      "predecessors": 2,
+      "scale": 2,
+      "selected": [
+        768,
+        576
+      ],
+      "selected_us": 80000,
+      "transfers": {
+        "admission_bytes": 169400336,
+        "display_readback_bytes": 2764800,
+        "inference_readback_bytes": 5308416,
+        "inference_upload_bytes": 1327104,
+        "original_upload_bytes": 442368,
+        "processing_upload_bytes": 7077888,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    },
+    {
+      "display": [
+        480,
+        360
+      ],
+      "max_rgba_error_lsb": 0,
+      "normalized_input": [
+        384,
+        288
+      ],
+      "predecessors": 2,
+      "scale": 4,
+      "selected": [
+        1536,
+        1152
+      ],
+      "selected_us": 80000,
+      "transfers": {
+        "admission_bytes": 233101328,
+        "display_readback_bytes": 2764800,
+        "inference_readback_bytes": 21233664,
+        "inference_upload_bytes": 1327104,
+        "original_upload_bytes": 442368,
+        "processing_upload_bytes": 28311552,
+        "renderer_upload_bytes": 0,
+        "source_frames": 3
+      }
+    }
+  ],
+  "scope": "Actual RTX2x/4x normalized MPEG history preview versus independent chronological full-source decode and conversion processor; readbacks are diagnostic only",
+  "status": "passed"
+}

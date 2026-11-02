@@ -48,13 +48,57 @@ pub fn play(
     cancel: &CancellationToken,
     mut present: impl FnMut(PreviewFrame) -> NativeResult<()>,
 ) -> NativeResult<()> {
-    let info = preview::probe_info(path, cancel)?;
+    let mut info = preview::probe_info(path, cancel)?;
+    // Retain the same source-bound audio owner used by conversion until the
+    // audio worker has stopped. Healthy AAC needs no intermediate.
+    let prepared_audio = if info.has_aac {
+        crate::audio_timing::prepare(path, cancel)?
+    } else {
+        None
+    };
+    if let Some(audio) = &prepared_audio {
+        // A malformed leading PTS can inflate the original container duration.
+        // The corrected audio packet endpoint and video track coverage define
+        // the normalized preview endpoint, not that stale container header.
+        info.duration_us = info
+            .video_end_us
+            .ok_or("Normalized preview requires known video coverage")?
+            .max(audio.end_us);
+    }
+    let prepared_wma = if info.has_wma {
+        // WMA playback uses exactly the inspected Windows PCM owner and video
+        // endpoints, including the reported WMV terminal-duration policy.
+        let (source, _) = crate::inspect_source(path, false, true, cancel)?;
+        let video_end = source
+            .video_start_us
+            .checked_add(
+                source
+                    .video_duration_us
+                    .ok_or("Missing WMA preview video duration")?,
+            )
+            .ok_or("WMA preview endpoint overflow")?;
+        let audio = source
+            .prepared_wma
+            .ok_or("Missing Windows WMA audio plan")?;
+        let endpoint = video_end
+            .max(audio.coverage.end_us)
+            .checked_sub(i128::from(info.format_start_us))
+            .ok_or("WMA preview origin overflow")?;
+        info.duration_us = u64::try_from(endpoint)?;
+        Some(audio)
+    } else {
+        None
+    };
     let start_us = requested_us.min(info.duration_us.saturating_sub(1_000_000 / FPS));
     control
         .duration_us
         .store(info.duration_us, Ordering::Release);
     control.position_us.store(start_us, Ordering::Release);
     let remaining = seconds(info.duration_us - start_us);
+    let normalization = info
+        .normalization
+        .map(|(coded, normalized)| crate::display_geometry::normalization_filter(coded, normalized))
+        .unwrap_or_default();
     let seek = seconds(start_us);
     let mut command = Command::new("ffmpeg");
     command
@@ -76,8 +120,8 @@ pub fn play(
             "-dn",
             "-vf",
             &format!(
-                "fps={FPS}:start_time=0,{},tpad=stop_mode=clone:stop_duration={remaining}",
-                preview::FILTER
+                "{normalization}fps={FPS}:start_time=0,{},tpad=stop_mode=clone:stop_duration={remaining}",
+                preview::display_filter(info.input_color)
             ),
             "-t",
             &remaining,
@@ -91,7 +135,12 @@ pub fn play(
     let mut stdout = video.take_stdout()?;
     let audio = if info.has_audio && !control.muted.load(Ordering::Acquire) {
         Some(AudioOutput::open(
-            path.to_path_buf(),
+            prepared_wma
+                .as_ref()
+                .map(|audio| audio.path.clone())
+                .or_else(|| prepared_audio.as_ref().map(|audio| audio.path.clone()))
+                .unwrap_or_else(|| path.to_path_buf()),
+            prepared_wma.as_ref().map(|_| info.format_start_us),
             start_us,
             info.duration_us - start_us,
             control.clone(),
@@ -243,6 +292,7 @@ struct AudioOutput {
 impl AudioOutput {
     fn open(
         path: PathBuf,
+        timeline_origin_us: Option<u64>,
         start_us: u64,
         duration_us: u64,
         control: Arc<PlaybackControl>,
@@ -294,6 +344,7 @@ impl AudioOutput {
         let producer = thread::spawn(move || {
             let result = produce_audio(
                 &path,
+                timeline_origin_us,
                 start_us,
                 duration_us,
                 rate,
@@ -409,19 +460,23 @@ fn audio_stream<T: SizedSample + FromSample<f32>>(
     )?)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn produce_audio(
+fn audio_decode_command(
     path: &Path,
     start_us: u64,
     duration_us: u64,
     rate: u32,
     channels: usize,
-    capacity: usize,
-    shared: &AudioShared,
-    control: &PlaybackControl,
-    cancel: &CancellationToken,
-    stop: &CancellationToken,
-) -> NativeResult<()> {
+) -> Command {
+    // AAC overlap state needs decoded predecessors. An audio-only MP4 can seek
+    // much closer to the request than a video-keyframe-indexed MP4; discard a
+    // bounded 100 ms preroll after decoding so both have settled sample state.
+    let preroll_us = start_us.min(100_000);
+    let input_seek_us = start_us - preroll_us;
+    let filter = format!(
+        "atrim=start={},asetpts=PTS-{}/TB,aresample={rate}:async=1:first_pts=0,apad",
+        seconds(preroll_us),
+        seconds(preroll_us)
+    );
     let mut command = Command::new("ffmpeg");
     command
         .args([
@@ -430,7 +485,7 @@ fn produce_audio(
             "error",
             "-nostdin",
             "-ss",
-            &seconds(start_us),
+            &seconds(input_seek_us),
             "-i",
         ])
         .arg(path)
@@ -441,7 +496,7 @@ fn produce_audio(
             "-sn",
             "-dn",
             "-af",
-            &format!("aresample={rate}:async=1:first_pts=0,apad"),
+            &filter,
             "-t",
             &seconds(duration_us),
             "-ac",
@@ -453,6 +508,79 @@ fn produce_audio(
             "pipe:1",
         ])
         .stdout(Stdio::piped());
+    command
+}
+
+fn windows_audio_decode_command(
+    path: &Path,
+    origin: u64,
+    start: u64,
+    duration: u64,
+    rate: u32,
+    channels: usize,
+) -> NativeResult<Command> {
+    let absolute = origin
+        .checked_add(start)
+        .ok_or("Preview WMA seek overflow")?;
+    let mut command = Command::new("ffmpeg");
+    // The bounded PCM intermediate has no seek index. Demux linearly (at most
+    // 64MiB) and trim by absolute PTS, avoiding demux seek-origin rewriting.
+    // first_pts=0 pads a genuine initial offset instead of losing that silence.
+    command
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-copyts",
+            "-i",
+        ])
+        .arg(path)
+        .args([
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-sn",
+            "-dn",
+            "-af",
+            &format!(
+                "atrim=start={},asetpts=PTS-{}/TB,aresample={rate}:async=1:first_pts=0,apad",
+                seconds(absolute),
+                seconds(absolute)
+            ),
+            "-t",
+            &seconds(duration),
+            "-ac",
+            &channels.to_string(),
+            "-ar",
+            &rate.to_string(),
+            "-f",
+            "f32le",
+            "pipe:1",
+        ])
+        .stdout(Stdio::piped());
+    Ok(command)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn produce_audio(
+    path: &Path,
+    timeline_origin_us: Option<u64>,
+    start_us: u64,
+    duration_us: u64,
+    rate: u32,
+    channels: usize,
+    capacity: usize,
+    shared: &AudioShared,
+    control: &PlaybackControl,
+    cancel: &CancellationToken,
+    stop: &CancellationToken,
+) -> NativeResult<()> {
+    let mut command = if let Some(origin) = timeline_origin_us {
+        windows_audio_decode_command(path, origin, start_us, duration_us, rate, channels)?
+    } else {
+        audio_decode_command(path, start_us, duration_us, rate, channels)
+    };
     let mut child = ChildGuard::spawn(&mut command)?;
     let watch_cancel = CancellationWatch::new(cancel, &[&child]);
     let watch_stop = CancellationWatch::new(stop, &[&child]);
@@ -519,6 +647,104 @@ fn produce_audio(
 mod tests {
     use super::*;
 
+    #[test]
+    #[cfg(windows)]
+    fn windows_pcm_seek_preserves_offset_gap_and_tail() {
+        use std::io::Write;
+        let path =
+            std::env::temp_dir().join(format!("diaxus-wma-seek-clock-{}.mka", std::process::id()));
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        crate::frame_stream::audio_start(&mut file, 48000, 2, 16).unwrap();
+        // Known PCM markers:100ms initial silence,50ms sound,150ms real gap,
+        // then50ms sound. Independent sample-array expectations below detect
+        // lost source origin, missing gap, incorrect forward/back seeks or EOF.
+        for index in 0..10_i64 {
+            let relative_us = 100_000 + index * 10_000 + if index >= 5 { 150_000 } else { 0 };
+            crate::frame_stream::frame_header(
+                &mut file,
+                i128::from((1_250_000 + relative_us) * 10),
+                100_000,
+                1920,
+            )
+            .unwrap();
+            let value = ((index + 1) * 1000) as i16;
+            for _ in 0..960 {
+                file.write_all(&value.to_le_bytes()).unwrap();
+            }
+        }
+        drop(file);
+        for position in [0, 120_000, 300_000, 100_000, 340_000] {
+            let actual =
+                windows_audio_decode_command(&path, 1_250_000, position, 100_000, 48000, 2)
+                    .unwrap()
+                    .output()
+                    .unwrap();
+            assert!(
+                actual.status.success() && actual.stderr.is_empty(),
+                "{}",
+                String::from_utf8_lossy(&actual.stderr)
+            );
+            let mut expected = Vec::new();
+            for frame in 0..4800_u64 {
+                let sample = position * 48 / 1000 + frame;
+                let index = if (4800..7200).contains(&sample) {
+                    Some((sample - 4800) / 480)
+                } else if (14400..16800).contains(&sample) {
+                    Some(5 + (sample - 14400) / 480)
+                } else {
+                    None
+                };
+                let value = index.map_or(0.0, |n| ((n + 1) * 1000) as f32 / 32768.0);
+                for _ in 0..2 {
+                    expected.extend(value.to_le_bytes());
+                }
+            }
+            assert!(
+                actual.stdout == expected,
+                "Windows PCM seek lost offset/gap/tail at{position}; lengths={}/{}",
+                actual.stdout.len(),
+                expected.len()
+            );
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn normalized_audio_matches_reference_at_initial_seek_back_and_tail() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/native-aac");
+        let token = CancellationToken::default();
+        let prepared = crate::audio_timing::prepare(&root.join("leading-pts.mp4"), &token)
+            .unwrap()
+            .unwrap();
+        for (position, duration) in [
+            (0, 200_000),
+            (700_000, 200_000),
+            (100_000, 200_000),
+            (1_200_000, 223_220),
+        ] {
+            let expected =
+                audio_decode_command(&root.join("reference.m4a"), position, duration, 48000, 2)
+                    .output()
+                    .unwrap();
+            let actual = audio_decode_command(&prepared.path, position, duration, 48000, 2)
+                .output()
+                .unwrap();
+            assert!(expected.status.success() && expected.stderr.is_empty());
+            assert!(actual.status.success() && actual.stderr.is_empty());
+            assert!(!actual.stdout.is_empty());
+            assert!(
+                actual.stdout == expected.stdout,
+                "PCM differs at seek {position}"
+            );
+            assert!(actual.stdout.len() as u64 <= duration * 48000 * 2 * 4 / 1_000_000 + 8);
+        }
+    }
+
     fn fixture() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/m35-vfr-offset.mp4")
     }
@@ -536,6 +762,19 @@ mod tests {
 
     #[test]
     fn continuous_preview_pause_seek_end_and_cancel() {
+        continuous_preview_case(fixture(), 15);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn normalized_source_preview_pause_seek_end_and_cancel() {
+        continuous_preview_case(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/native-aac/leading-pts.mp4"),
+            8,
+        );
+    }
+
+    fn continuous_preview_case(input: PathBuf, minimum_frames: usize) {
         let control = Arc::new(PlaybackControl::default());
         control.muted.store(true, Ordering::Release);
         control.paused.store(true, Ordering::Release);
@@ -544,8 +783,9 @@ mod tests {
         let token = cancel.clone();
         let frames = Arc::new(Mutex::new(Vec::new()));
         let observed = frames.clone();
+        let first_input = input.clone();
         let worker = thread::spawn(move || {
-            play(&fixture(), 500_000, &c, &token, |frame| {
+            play(&first_input, 500_000, &c, &token, |frame| {
                 assert_eq!(frame.rgba.len(), preview::FRAME_BYTES);
                 observed.lock().unwrap().push(frame.requested_us);
                 Ok(())
@@ -572,7 +812,7 @@ mod tests {
             control.duration_us.load(Ordering::Acquire)
         );
         let frames = frames.lock().unwrap();
-        assert!(frames.len() >= 15);
+        assert!(frames.len() >= minimum_frames);
         assert!(frames.windows(2).all(|pair| pair[0] < pair[1]));
 
         let control = Arc::new(PlaybackControl::default());
@@ -581,7 +821,7 @@ mod tests {
         let c = control.clone();
         let token = cancel.clone();
         let worker = thread::spawn(move || {
-            play(&fixture(), u64::MAX, &c, &token, |_| Ok(())).map_err(|e| e.to_string())
+            play(&input, u64::MAX, &c, &token, |_| Ok(())).map_err(|e| e.to_string())
         });
         wait_until(|| control.ready.load(Ordering::Acquire) || worker.is_finished());
         assert!(control.ready.load(Ordering::Acquire));

@@ -49,6 +49,23 @@ pub(crate) fn start(
     if nominal_duration == 0 {
         return Err("RGBA bridge nominal frame duration is below one nanosecond".into());
     }
+    segment_start(writer, 1_000)?;
+    let mut video = Vec::new();
+    integer(&mut video, &[0xb0], u64::from(size.width))?;
+    integer(&mut video, &[0xba], u64::from(size.height))?;
+    element(&mut video, &[0x2e, 0xb5, 0x24], b"RGBA")?;
+    let mut track = Vec::new();
+    integer(&mut track, &[0xd7], 1)?;
+    integer(&mut track, &[0x73, 0xc5], 1)?;
+    integer(&mut track, &[0x83], 1)?;
+    integer(&mut track, &[0x9c], 0)?;
+    integer(&mut track, &[0x23, 0xe3, 0x83], nominal_duration)?;
+    element(&mut track, &[0x86], b"V_UNCOMPRESSED")?;
+    element(&mut track, &[0xe0], &video)?;
+    tracks(writer, &track)
+}
+
+fn segment_start(writer: &mut impl Write, scale_ns: u64) -> NativeResult<()> {
     let mut ebml = Vec::new();
     for (id, value) in [
         (&[0x42, 0x86][..], 1),
@@ -67,27 +84,38 @@ pub(crate) fn start(
         0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     ])?;
     let mut info = Vec::new();
-    integer(&mut info, &[0x2a, 0xd7, 0xb1], 1_000)?;
+    integer(&mut info, &[0x2a, 0xd7, 0xb1], scale_ns)?;
     element(&mut info, &[0x4d, 0x80], b"Diaxus")?;
     element(&mut info, &[0x57, 0x41], b"Diaxus")?;
     element(writer, &[0x15, 0x49, 0xa9, 0x66], &info)?;
-    let mut video = Vec::new();
-    integer(&mut video, &[0xb0], u64::from(size.width))?;
-    integer(&mut video, &[0xba], u64::from(size.height))?;
-    element(&mut video, &[0x2e, 0xb5, 0x24], b"RGBA")?;
+    Ok(())
+}
+
+/// Lossless PCM bridge. The Windows sample clock has 100ns ticks.
+pub(crate) fn audio_start(
+    writer: &mut impl Write,
+    rate: u32,
+    channels: u32,
+    bits: u32,
+) -> NativeResult<()> {
+    segment_start(writer, 100)?;
+    let mut audio = Vec::new();
+    element(&mut audio, &[0xb5], &f64::from(rate).to_be_bytes())?;
+    integer(&mut audio, &[0x9f], u64::from(channels))?;
+    integer(&mut audio, &[0x62, 0x64], u64::from(bits))?;
     let mut track = Vec::new();
     integer(&mut track, &[0xd7], 1)?;
     integer(&mut track, &[0x73, 0xc5], 1)?;
-    integer(&mut track, &[0x83], 1)?;
+    integer(&mut track, &[0x83], 2)?;
     integer(&mut track, &[0x9c], 0)?; // no lacing
-    // Rate-control hint only. Each cluster still carries its exact PTS and
-    // BlockDuration. Without this FFmpeg infers 1,000,000fps from the timebase
-    // and x264 average-bitrate mode can encode structured input as gray frames.
-    integer(&mut track, &[0x23, 0xe3, 0x83], nominal_duration)?;
-    element(&mut track, &[0x86], b"V_UNCOMPRESSED")?;
-    element(&mut track, &[0xe0], &video)?;
+    element(&mut track, &[0x86], b"A_PCM/INT/LIT")?;
+    element(&mut track, &[0xe1], &audio)?;
+    tracks(writer, &track)
+}
+
+fn tracks(writer: &mut impl Write, track: &[u8]) -> NativeResult<()> {
     let mut tracks = Vec::new();
-    element(&mut tracks, &[0xae], &track)?;
+    element(&mut tracks, &[0xae], track)?;
     element(writer, &[0x16, 0x54, 0xae, 0x6b], &tracks)
 }
 

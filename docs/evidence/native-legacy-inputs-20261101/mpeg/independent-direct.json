@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "video_frames": 50,
+  "video_pts_max_error_seconds": 0.0009111111111111111,
+  "audio_start_error_seconds": 0.0,
+  "audio_duration_error_seconds": 0.0004333333333333333,
+  "video_duration_seconds": 2.0,
+  "full_decode": "passed",
+  "sampled_rgb_rmse": 5.573095863624098,
+  "sampled_frames": [
+    0,
+    24,
+    49
+  ],
+  "display": [
+    384,
+    288
+  ],
+  "sar": "1:1",
+  "color_range": "tv",
+  "unknown_matrix_transfer_primaries_retained": true,
+  "output_bytes": 182079,
+  "output_sha256": "7aa368d62a651dfb21028b47cb4b9ff5a29846e860a8a44ffc7466c3550dd676",
+  "scope": "Neutral direct software MPEG-1/MP2 only; shared/RTX geometry and broader codecs pending"
+}

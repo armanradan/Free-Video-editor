@@ -33,6 +33,12 @@ Native inspection SHALL obtain an exact decoded frame count and presentation tim
 - **WHEN** inspection is cancelled or exceeds its declared limits
 - **THEN** child processes terminate and no successful inspection or partial export is published
 
+#### Scenario: Missing WMV final-frame duration
+- **WHEN** ASF WMV1/2/3 or VC-1 omits the final decoded duration but a positive declared rational rate agrees with at least three frames and the complete decoded timestamp grid within source time-base quantization
+- **THEN** inspection may infer only the final-frame duration using the documented bounded rounding policy
+- **AND** metadata and UI report that duration as inferred while retaining every observed timestamp and existing verification tolerances
+- **AND** missing-rate, ambiguous or VFR endings without explicit duration reject
+
 ### Requirement: Preserve legacy display geometry
 Native shared GPU processing SHALL normalize supported non-square pixel sources to square pixels using the source display aspect ratio before effects or AI. Preview and export MUST resolve the same geometry, and AI admission MUST use the actual normalized dimensions and unchanged resource limits.
 
@@ -68,6 +74,13 @@ The native source picker SHALL expose MP4, MPG, MPEG and WMV originals. Both sof
 
 ### Requirement: Consistent normalized timeline and ownership
 Preview, seeking, export and output verification SHALL use the same source-bound timing policy. The app MUST preserve valid A/V offsets and coverage, invalidate normalization when the source changes, bound internal scratch storage and clean owned temporary resources after failure or session retirement.
+
+#### Scenario: Windows WMA sample clock
+- **WHEN** an accepted Windows ASF/WMV source contains WMA1/2/Pro audio
+- **THEN** built-in Windows Media Foundation supplies PCM and observed sample timestamps for preview, seeking, export and output verification
+- **AND** a bounded cancellable source-bound audio-only intermediate preserves and verifies those payloads and timestamps before publication, without changing original video or source bytes
+- **AND** the embedded source-built helper needs no user configuration/import or runtime download; format changes, unsupported timing, resource exhaustion and decoder failures produce explicit errors and clean owned scratch
+- **AND** independent Windows decoder evidence, including offsets/gaps and endpoints, establishes acceptance rather than FFmpeg WMA-relative checks alone
 
 #### Scenario: Original source export and seek
 - **WHEN** an accepted anomalous AAC original is previewed, sought and exported through a supported direct or shared route

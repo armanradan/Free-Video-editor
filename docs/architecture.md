@@ -1,5 +1,104 @@
 # GPU video converter: architecture and development plan
 
+
+### Native AAC source compatibility - 2026-11-01
+
+Native input now classifies the complete AAC packet timeline before admitting
+a narrow leading-PTS correction. It compares edit-list-disabled evidence and
+preserves valid priming, offsets and gaps. Only classified sources need a
+verified audio-only MP4 intermediate; original video/source bytes stay intact.
+Packet hashes, integer PTS/DTS/durations and time base are checked before use.
+A source-stamped weak metadata cache lets preview/conversion share one owner;
+InspectionCache/source consumers retain it, and final retirement removes it.
+The Windows scratch admission is64MiB including4MiB container allowance with
+32MiB disk reserve. Metadata is bounded per line and total packet count.
+No general timestamp reconstruction or tolerance relaxation is added.
+Playback uses100ms bounded audio decoder preroll, trim and timestamp offset
+before its existing resampler. The actual original-file RTX2x/window export
+passes complete independent decode/timing and unchanged-source checks. MPEG-1
+missing-count inspection/direct software export also pass; WMV, shared legacy
+geometry and hybrid routing remain pending in native-legacy-inputs tasks.
+See docs/evidence/native-legacy-inputs-20261101/aac for actual scope/results.
+
+### Native compatibility acceptance checkpoint - 2026-11-02
+
+The full120-case legacy matrix passes independent complete A/V, rational
+Original/15fps timeline, endpoint and image checks:80ordinary route cases and
+40RTX2x shared software/NVIDIA cases across all eight required video families
+and AAC/MP2/WMA1/2/Pro. A separate packet audit checks every output's dimensions,
+NVENC identity, no RTX NVIDIA B reorder and actual logical codec transfer counts.
+Both original private AAC and MPG exports pass without user-created derivatives;
+original MPG hybrid RTX2x preserves6941frames and source hash/size/mtime.
+
+Active inspection/preparation/export cancellation, helper/encoder failure,
+source replacement, shared audio owner handoff and fresh retry checks pass.
+Native/app tests84+20, host/wasm shared checks, matching-target lint and strict
+OpenSpec validation pass. Native Browse now offers MP4/MPG/MPEG/WMV; metadata
+reports Windows WMA audio and completion reports actual decoder/encoder.
+Ordinary-window acceptance remains pending: desktop capture/activation recovery
+returned input-desktop access denied. No UI verification or ai-upscale checkbox
+completion is inferred. See evidence/native-legacy-inputs-20261101/verification.md.
+
+### Native hybrid decode/encode routes - 2026-11-02
+
+NVIDIA encoding is now independent of source decoding. Legacy MPEG/WMV/VC-1
+plans software video decode plus NVENC; H.264/HEVC420 configurations require a
+positive selected-device NVDEC probe. All NVIDIA jobs also perform a real NVENC
+probe at the output geometry before partial creation. Unexpected decoder errors
+stop without retry; NVENC is never silently replaced by software encoding. The
+output encoder tag must identify the requested NVENC codec. Reports/UI identify
+actual decoder/encoder; known transfer counters reflect actual bridges only.
+
+Rational SAR normalization applies before shared effects/RTX regardless of
+source decoder. Actual MPEG-1 NVIDIA exports at neutral/RTX2x/RTX4x and WMA Pro
+RTX2x pass independent A/V/timeline/geometry checks;12WMA hybrid and20AAC
+regression exports also pass. Active hybrid cancellation/failure/fresh retries
+pass. Broader fixed-FPS/image/original-file/window acceptance remains tracked in
+native-legacy-inputs. See evidence/native-legacy-inputs-20261101/hybrid/README.md.
+
+### Windows WMA audio acceptance - 2026-11-02
+
+Native WMA1/2/Pro audio uses an embedded source-built Windows Media Foundation
+helper and verified lossless audio-only PCM intermediate; FFmpeg handles video
+and MP4 output. This supersedes older FFmpeg-relative WMA timing claims. Every
+PCM payload/PTS/duration verifies at100ns resolution before publication. Scratch
+is64MiB including helper/framing, with32MiB free reserve and1MiB block limit.
+Weak source-stamped caches retain at most32live owners across source consumers;
+final retirement cleans owned files. No runtime download/configuration import.
+
+Twelve direct/shared software exports (WMV1/2/3, WMA1/2/Pro, VC-1 Advanced and
+positive-offset/gap controls) and one actual WMA Pro RTX2x excerpt pass complete
+independent A/V checks. Full private WMA Pro audio preparation also passes
+(48.3MB scratch,2.51s observed); that is not a full video-export claim. Playback
+uses bounded linear PCM demux with absolute-timestamp trimming; marker tests
+prove initial silence, gaps, forward/backward seeks and EOF padding. Windows
+x64 only; mono/stereo integer PCM, evaluated WMV3 Main/VC-1 Advanced profiles.
+Hybrid NVIDIA encoding and ordinary-window WMA acceptance remain pending.
+See evidence/native-legacy-inputs-20261101/codecs/windows-wma.md.
+
+### Native WMV timing and display geometry - 2026-11-01
+
+ASF WMV-family video may infer only a missing terminal interval when a positive
+existing declared rate matches the complete decoded grid within source-tick
+quantization. At least three frames and two ticks per period are required;
+round nearest tick with half ties upward. Observed PTS remain unchanged and
+reports/UI metadata label the estimate. Ambiguous/VFR endings still reject.
+Windows WMA audio uses an embedded source-built Media Foundation helper to
+supply integer PCM and observed100ns timestamps. A bounded64MiB owned audio-only
+Matroska intermediate is verified block-for-block before preview/export use.
+Original video still decodes through FFmpeg. Source-stamped weak owners share
+preparation and release scratch on retirement;32MiB free reserve,1MiB block and
+2million record bounds apply. No runtime download or user configuration import.
+Earlier FFmpeg-relative WMA checks are superseded: matching PCM did not establish
+matching sample timing. Full acceptance and hybrid routes remain pending.
+
+Native display width is resolved once using checked rational SAR arithmetic,
+rounding to the nearest multiple of two, with half ties upward. Coded height
+stays fixed; equivalent square SAR preserves coded dimensions. Invalid/overflowing
+or zero-result geometry rejects. Thus352x288 at178:163 resolves384x288. Preview
+and shared ingress integration are separate pending gates, not established by
+this geometry helper alone. See native-legacy-inputs codec evidence.
+
 Status: design researched 2026-09-15; M3.1 through M3.6 pass their acceptance gates in the available Firefox/Chromium environments as of 2026-09-25. Configurable output, bounded streaming, named sizes, source metadata, capability-gated HEVC, controlled recovery, storage fallback/cleanup, explicit limit checks, and long-run stress are implemented. See [interop-report.md](interop-report.md) for milestone-specific evidence and limitations. Safari, non-Windows systems, other GPUs/drivers, spontaneous process/driver loss, and HEVC output on a supporting browser remain untested compatibility coverage rather than claims of support.
 
 ### Native RTX hardware codecs enabled - 2026-10-30
@@ -1392,3 +1491,16 @@ See [AGENTS.md](../AGENTS.md). It makes the platform boundaries, copy accounting
 ## 8. First Codex implementation prompt
 
 See [first-implementation-prompt.md](first-implementation-prompt.md). It requests M1 only and requires real-browser evidence before declaring the integration proven.
+
+
+### Native legacy inputs: ordinary-window continuation (2026-11-02)
+
+Desktop unlock enabled real Browse, inspection, preview/playback and five MP4
+exports for MPEG-1 and WMV3/WMA Pro, including shared NVIDIA RTX2x. Independent
+full AV decode/count/geometry checks pass. The non-square-SAR AI preview policy
+used coded dimensions in the UI; it now uses display dimensions consistently
+with processing. The fixed normal app builds and its tests/Clippy pass, but
+window input failed twice with `foreground window did not report a process id`
+after rebuilding. Corrected preview and the other six families still need UI
+acceptance. Task6.1 stays open (24/25 overall). Details and precise verification
+limits: `docs/evidence/native-legacy-inputs-20261101/window-acceptance.md`.

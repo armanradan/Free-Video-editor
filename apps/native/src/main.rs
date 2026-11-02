@@ -454,7 +454,7 @@ fn app() -> Element {
                             let (mut policy, selected) = config
                                 .preview_policy(
                                     ai(),
-                                    Size::new(source.width, source.height)
+                                    Size::new(source.display_width, source.display_height)
                                         .map_err(|e| e.to_string())?,
                                     choices.capability(ai())?,
                                 )
@@ -532,7 +532,10 @@ fn app() -> Element {
             let (send, receive) = oneshot::channel();
             std::thread::spawn(move || {
                 let chosen = rfd::FileDialog::new()
-                    .add_filter("MP4 video", &["mp4"])
+                    .add_filter(
+                        "Video input (MP4, MPEG, WMV)",
+                        &["mp4", "mpg", "mpeg", "wmv"],
+                    )
                     .pick_file();
                 let _ = send.send(chosen);
             });
@@ -563,40 +566,49 @@ fn app() -> Element {
     };
 
     let inspect_session = session.clone();
-    let inspect =
-        move |_| {
-            let source = PathBuf::from(input());
-            if source.as_os_str().is_empty() {
-                status.set("Enter a source path first.".into());
+    let inspect = move |_| {
+        let source = PathBuf::from(input());
+        if source.as_os_str().is_empty() {
+            status.set("Enter a source path first.".into());
+            return;
+        }
+        running.set(true);
+        job_stage.set(JobStage::Inspecting);
+        let cancel = CancellationToken::default();
+        job_cancel.set(cancel.clone());
+        status.set(stage_label(JobStage::Inspecting).into());
+        let session = inspect_session.clone();
+        let inspected_path = source.clone();
+        spawn(async move {
+            let (send, receive) = oneshot::channel();
+            std::thread::spawn(move || {
+                let _ = send.send(
+                    session
+                        .inspect(&source, &cancel)
+                        .map_err(|error| error.to_string()),
+                );
+            });
+            let result = receive.await;
+            running.set(false);
+            if input() != inspected_path.display().to_string() {
                 return;
             }
-            running.set(true);
-            job_stage.set(JobStage::Inspecting);
-            let cancel = CancellationToken::default();
-            job_cancel.set(cancel.clone());
-            status.set(stage_label(JobStage::Inspecting).into());
-            let session = inspect_session.clone();
-            let inspected_path = source.clone();
-            spawn(async move {
-                let (send, receive) = oneshot::channel();
-                std::thread::spawn(move || {
-                    let _ = send.send(
-                        session
-                            .inspect(&source, &cancel)
-                            .map_err(|error| error.to_string()),
-                    );
-                });
-                let result = receive.await;
-                running.set(false);
-                if input() != inspected_path.display().to_string() {
-                    return;
-                }
-                match result {
-                    Ok(Ok(info)) => {
-                        estimate_source.set(Some(info.clone()));
-                        gpu_limitation.set(info.shared_gpu_limitation());
-                        source_metadata.set(format!(
-                        "{} × {} (display {} × {}), {}, {}, {:.3} fps ({}), {} frames, audio: {}",
+            match result {
+                Ok(Ok(info)) => {
+                    estimate_source.set(Some(info.clone()));
+                    gpu_limitation.set(info.shared_gpu_limitation());
+                    let endpoint_note = if info.inferred_final_frame_duration_ticks.is_some() {
+                        "; final frame duration estimated from declared rate"
+                    } else {
+                        ""
+                    };
+                    let audio_note = if info.decoded_audio_coverage.is_some() {
+                        " (Windows decoder)"
+                    } else {
+                        ""
+                    };
+                    source_metadata.set(format!(
+                        "{} × {} (display {} × {}), {}, {}, {:.3} fps ({}), {} frames, audio: {}{}{}",
                         info.width,
                         info.height,
                         info.display_width,
@@ -607,14 +619,16 @@ fn app() -> Element {
                         if info.variable_frame_rate { "VFR average" } else { "CFR" },
                         info.frame_count,
                         info.audio_codec.as_deref().unwrap_or("none"),
+                        audio_note,
+                        endpoint_note,
                     ));
-                        status.set("Source inspected. Choose settings and convert.".into());
-                    }
-                    Ok(Err(error)) => status.set(format!("Source inspection failed: {error}")),
-                    Err(_) => status.set("Source inspection worker stopped.".into()),
+                    status.set("Source inspected. Choose settings and convert.".into());
                 }
-            });
-        };
+                Ok(Err(error)) => status.set(format!("Source inspection failed: {error}")),
+                Err(_) => status.set("Source inspection worker stopped.".into()),
+            }
+        });
+    };
 
     let convert_session = session.clone();
     let convert = move |_| {
@@ -777,13 +791,23 @@ fn app() -> Element {
                         || {
                             result.hardware_gpu.as_ref().map_or_else(
                                 || "Direct FFmpeg · CPU".to_string(),
-                                |gpu| format!("{} · CUDA / {}", gpu.name, result.video_encoder),
+                                |gpu| {
+                                    format!(
+                                        "{} · {} decode / {}",
+                                        gpu.name,
+                                        result.video_decode.decoder.label(),
+                                        result.video_encoder
+                                    )
+                                },
                             )
                         },
                         |adapter| {
                             format!(
-                                "{} ({}) · {}",
-                                adapter.name, adapter.backend, result.video_encoder
+                                "{} ({}) · {} decode / {}",
+                                adapter.name,
+                                adapter.backend,
+                                result.video_decode.decoder.label(),
+                                result.video_encoder
                             )
                         },
                     ));
@@ -992,13 +1016,13 @@ fn app() -> Element {
             section { class: "panel processing-panel",
                 h2 { "Processing" }
                 div { class: "route-options",
-                    Choice { label: "Direct FFmpeg · NVIDIA".to_string(), hint: "CUDA decode / resize · NVENC video · AAC on CPU".to_string(),
+                    Choice { label: "Direct FFmpeg · NVIDIA".to_string(), hint: "NVDEC when supported · NVENC video · AAC on CPU".to_string(),
                         selected: route() == ProcessingRoute::NvidiaFfmpeg, disabled: busy || !nvidia_available,
                         on_select: move |_| route.set(ProcessingRoute::NvidiaFfmpeg) }
                     Choice { label: "Direct FFmpeg · CPU".to_string(), hint: "Software codecs and resizing".to_string(),
                         selected: route() == ProcessingRoute::DirectFfmpeg, disabled: busy,
                         on_select: move |_| route.set(ProcessingRoute::DirectFfmpeg) }
-                    Choice { label: "Shared GPU · NVIDIA".to_string(), hint: "NVDEC / wgpu / NVENC · CPU-staged bridge · 8-bit".to_string(),
+                    Choice { label: "Shared GPU · NVIDIA".to_string(), hint: "NVDEC or CPU decode · wgpu / NVENC · CPU staging · 8-bit".to_string(),
                         selected: route() == ProcessingRoute::SharedWgpuNvidia,
                         disabled: busy || !nvidia_available || profile() == OutputProfileId::Mp4H265Main10Aac || gpu_limitation().is_some(),
                         on_select: move |_| route.set(ProcessingRoute::SharedWgpuNvidia) }

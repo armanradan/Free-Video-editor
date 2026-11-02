@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "private_original_selected_in_normal_ui": true,
+  "source_frames": 3202,
+  "output_frames": 3202,
+  "output_width": 2560,
+  "output_height": 1440,
+  "sar": "1:1",
+  "video_pts_max_error_seconds": 0.0,
+  "audio_start_error_seconds": 0.0,
+  "audio_duration_error_seconds": 0.00029,
+  "full_audio_video_decode": "passed",
+  "original_sha_length_mtime_unchanged": true,
+  "output_bytes": 70253292,
+  "output_sha256": "ce882e0348f86cc66775ecca3ad128a8c484e18529e36d6e52d8004ae414d4ce",
+  "matches_prior_explicit_repaired_source_hardware_export_bytes": true,
+  "normal_window": {
+    "route": "Shared GPU NVIDIA",
+    "ai": "RTX Video SDK High3 2x",
+    "encoder_displayed": "h264_nvenc",
+    "total_ms": 345639,
+    "manual_source_derivative": false,
+    "inference_telemetry": null
+  },
+  "limitations": "One original file on the evaluated RTX3050Laptop/Vulkan. UI total includes concurrent development activity; not a controlled speed comparison. Private filenames, media and screenshots excluded."
+}

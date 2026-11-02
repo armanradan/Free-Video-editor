@@ -1011,14 +1011,8 @@ fn source_size(path: &Path, ai: AiSettings, cancel: &CancellationToken) -> Nativ
         .ok_or("Missing AI preview video")?;
     let color_metadata: crate::ProbeStream = serde_json::from_value(source.clone())?;
     crate::validate_native_sdr(&color_metadata, false)?;
-    if source["sample_aspect_ratio"]
-        .as_str()
-        .is_some_and(|ratio| ratio != "1:1" && ratio != "N/A")
-        || source["side_data_list"]
-            .as_array()
-            .is_some_and(|v| !v.is_empty())
-    {
-        return Err("Native AI preview requires square pixels without display transforms".into());
+    if crate::display_geometry::has_display_transform(source) {
+        return Err("Native AI preview requires no display transforms".into());
     }
     ai.validate_format(
         if source["pix_fmt"].as_str() == Some("yuv420p") {
@@ -1029,12 +1023,5 @@ fn source_size(path: &Path, ai: AiSettings, cancel: &CancellationToken) -> Nativ
         true,
         OutputProfileId::Mp4H264Aac,
     )?;
-    Ok(Size::new(
-        u32::try_from(source["width"].as_u64().ok_or("Missing AI preview width")?)?,
-        u32::try_from(
-            source["height"]
-                .as_u64()
-                .ok_or("Missing AI preview height")?,
-        )?,
-    )?)
+    crate::display_geometry::metadata_size(source)
 }

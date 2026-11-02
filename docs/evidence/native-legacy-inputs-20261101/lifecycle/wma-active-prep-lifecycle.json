@@ -1,0 +1,19 @@
+{
+  "cancel_and_helper_failure_scratch_clean": true,
+  "cancelled_after_pcm_exceeded_one_mib": true,
+  "fresh_verified_retry": {
+    "bits": 24,
+    "channels": 2,
+    "decoder": "Windows Media Foundation",
+    "end_us": 181581723,
+    "frame_count": 2402,
+    "sample_count": 8007825,
+    "sample_rate": 44100,
+    "scratch_bytes": 48274724,
+    "start_us": 0
+  },
+  "owned_decoder_processes_remaining": 0,
+  "retired_scratch_directories": 0,
+  "source_stamp_unchanged": true,
+  "status": "passed"
+}

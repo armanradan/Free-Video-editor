@@ -1,0 +1,41 @@
+{
+  "status": "passed",
+  "case_count": 120,
+  "ordinary_case_count": 80,
+  "rtx2x_case_count": 40,
+  "video_families": [
+    "h264",
+    "hevc",
+    "mpeg1video",
+    "mpeg2video",
+    "vc1",
+    "wmv1",
+    "wmv2",
+    "wmv3"
+  ],
+  "audio_families": [
+    "aac",
+    "mp2",
+    "wmapro",
+    "wmav1",
+    "wmav2"
+  ],
+  "routes": [
+    "direct",
+    "nvidia",
+    "wgpu",
+    "wgpu-nvidia"
+  ],
+  "frame_rates": [
+    "15",
+    "original"
+  ],
+  "max_video_pts_error_ms": 0.9070294784580499,
+  "max_video_packet_end_error_ms": 1.0,
+  "max_audio_end_error_ms": 18.503475510204083,
+  "max_waveform_rmse": 0.005844958141232886,
+  "max_image_rgb_rmse": 11.238157937024885,
+  "all_original_source_hash_size_mtime_checks_passed": true,
+  "nvidia_actual_encoder_and_logical_bridge_contracts": "passed",
+  "rtx_nvidia_no_b_reorder": "passed"
+}

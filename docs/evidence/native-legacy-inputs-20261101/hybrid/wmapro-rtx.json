@@ -1,0 +1,171 @@
+{
+  "status": "passed",
+  "reference": "Windows Media Foundation observed PCM/timestamps",
+  "helper_sha256": "fc94e19e2a7072635fff1b86bb99b6f9d3be99494a07ca70c668cfd3bb1d66cf",
+  "waveform_reference": "Contiguous decoded PCM within2ms observed ASF chunk jitter; larger gaps retain silence. Production PCM/PTS remain unchanged.",
+  "cases": [
+    {
+      "label": "private-pro",
+      "route": "wgpu-nvidia",
+      "status": "passed",
+      "source_sha256": "8c3bfcad9548b5d9c2b780d5487db398c8f24df2e248ac05275a14b81270fe17",
+      "source_unchanged": true,
+      "sample_rate": 44100,
+      "bits": 24,
+      "windows_chunk_count": 28,
+      "quantized_chunk_overlap_max_samples": 74,
+      "native": {
+        "ai": {
+          "identity": {
+            "protocol": 1,
+            "pid": 31268,
+            "runtime": "RTX Video SDK 1.1.0",
+            "model_sha256": "",
+            "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+            "dxgi_index": 1,
+            "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+            "vendor_id": 4318,
+            "device_id": 9634,
+            "luid_high": 0,
+            "luid_low": 78387,
+            "cpu_fallback": false,
+            "tile_interior": 0,
+            "halo": 0
+          },
+          "source_frames": 48,
+          "host_to_gpu_bytes": 87146496,
+          "gpu_to_host_bytes": 348585984,
+          "sampled_helper_local_peak": 136986624,
+          "helper_memory_sampling_available": true,
+          "memory_admission_bytes": 206261248
+        },
+        "gpu_wall_times": {
+          "processing_setup_us": 643387,
+          "helper_startup_us": 4752559,
+          "decode_pipe_wait_us": 237313,
+          "inference_roundtrip_us": 1589556,
+          "postprocess_and_encoder_pipe_us": 691915,
+          "codec_drain_us": 123523,
+          "helper_shutdown_us": 123340
+        },
+        "color": {
+          "brightness": 0,
+          "contrast": 100,
+          "saturation": 100
+        },
+        "equalization": {
+          "enabled": false,
+          "strength": 50
+        },
+        "equalization_gpu_scratch_bytes": 0,
+        "equalization_compute_passes": 0,
+        "output_frame_count": 48,
+        "frame_rate": "Original",
+        "video_bitrate_bps": 4357325,
+        "route": "shared-wgpu-nvidia",
+        "profile": "mp4-h264-aac",
+        "input": {
+          "encoder_metadata": null,
+          "audio_normalization": null,
+          "preview_end": {
+            "position_us": 1958000,
+            "file_length": 215882,
+            "modified": {
+              "secs_since_epoch": 1793560116,
+              "nanos_since_epoch": 956138600
+            },
+            "created": {
+              "secs_since_epoch": 1793560116,
+              "nanos_since_epoch": 954617400
+            }
+          },
+          "video_bitrate_bps": null,
+          "codec": "wmv3",
+          "codec_tag": "WMV3",
+          "codec_profile": "Main",
+          "pixel_format": "yuv420p",
+          "width": 720,
+          "height": 576,
+          "display_width": 788,
+          "display_height": 576,
+          "sample_aspect_ratio": "128:117",
+          "rotation_degrees": 0,
+          "has_display_matrix": false,
+          "color_range": null,
+          "color_space": null,
+          "color_transfer": null,
+          "color_primaries": null,
+          "color_interpretation": {
+            "matrix": "smpte170m",
+            "transfer": "bt709",
+            "primaries": "bt709",
+            "assumed": true
+          },
+          "frame_rate_num": 24,
+          "frame_rate_den": 1,
+          "frame_count": 48,
+          "audio_codec": "wmapro",
+          "video_start_us": 0,
+          "audio_start_us": 0,
+          "video_duration_us": 1999000,
+          "video_duration_ticks": 1999,
+          "video_duration_from_decoded": true,
+          "inferred_final_frame_duration_ticks": null,
+          "video_time_base": "1/1000",
+          "audio_duration_us": 1996077,
+          "decoded_audio_coverage": {
+            "decoder": "Windows Media Foundation",
+            "start_us": 0,
+            "end_us": 1996077,
+            "frame_count": 28,
+            "sample_count": 88064,
+            "sample_rate": 44100,
+            "channels": 2,
+            "bits": 24,
+            "scratch_bytes": 687062
+          },
+          "variable_frame_rate": true
+        },
+        "output_width": 1576,
+        "output_height": 1152,
+        "frames_processed": 48,
+        "output_bytes": 1600482,
+        "elapsed_ms": 8377,
+        "verification_ms": 878,
+        "adapter": {
+          "key": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+          "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "vendor": 4318,
+          "device": 9634,
+          "device_type": "DiscreteGpu",
+          "backend": "Vulkan",
+          "driver": "NVIDIA"
+        },
+        "explicit_cpu_to_gpu_bytes": 348585984,
+        "explicit_gpu_to_cpu_bytes": 348585984,
+        "adapter_fallback": null,
+        "hardware_gpu": {
+          "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+          "uuid": "GPU-17655cfc-aba6-5572-bdec-274f531aefe1",
+          "vendor": 4318,
+          "device": 9634
+        },
+        "video_encoder": "h264_nvenc",
+        "video_decode": {
+          "decoder": "software",
+          "reason": "This source has no evaluated NVDEC path; software decoding is planned independently of NVENC"
+        },
+        "inspection_reused": false,
+        "preflight_ms": 2579,
+        "total_ms": 11835,
+        "codec_gpu_to_cpu_bytes": 0,
+        "codec_cpu_to_gpu_bytes": 130719744
+      },
+      "video_pts_max_error_seconds": 0.0,
+      "audio_end_error_seconds": 0.009274473922902494,
+      "waveform_lag_samples": 0,
+      "waveform_rmse": 0.003300400042613038,
+      "full_av_decode": "passed"
+    }
+  ]
+}

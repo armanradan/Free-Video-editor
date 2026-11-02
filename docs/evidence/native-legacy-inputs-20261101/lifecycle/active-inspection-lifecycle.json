@@ -1,0 +1,10 @@
+{
+  "cancel_delay_ms": 100,
+  "cancelled_cache_not_published": true,
+  "cancelled_inspection_return_ms": 341,
+  "fresh_retry_frame_count": 6941,
+  "matching_ffprobe_children_remaining": 0,
+  "retry_reused_cancelled_cache": false,
+  "source_stamp_unchanged": true,
+  "status": "passed"
+}

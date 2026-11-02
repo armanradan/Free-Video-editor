@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "scope": "Original FPS, complete decode/timeline/audio, sampled image geometry; diagnostic readbacks excluded from native throughput",
+  "frames": 50,
+  "output_size": [
+    1536,
+    1152
+  ],
+  "sar": "1:1",
+  "scale": 4,
+  "video_pts_max_error_seconds": 0.0009111111111111111,
+  "video_end_error_seconds": -0.0009111111111111111,
+  "audio_start_error_seconds": 0.0,
+  "audio_end_error_seconds": -0.0004333333333333333,
+  "full_decode": "passed",
+  "image_samples": [
+    {
+      "index": 0,
+      "rgb_rmse_vs_independent_bilinear": 5.255481869819709
+    },
+    {
+      "index": 25,
+      "rgb_rmse_vs_independent_bilinear": 5.6840741266913755
+    },
+    {
+      "index": 49,
+      "rgb_rmse_vs_independent_bilinear": 5.663320912499765
+    }
+  ],
+  "source_sha256": "9d711d82bd67533d4636e3760771b82f2166a783448fffe92db6d533cf413829",
+  "output_sha256": "3dca8b99c582e8af71e0e7e8517b3224fcff76e72faf1ceb89309157a0b93a8e",
+  "output_bytes": 1357519
+}

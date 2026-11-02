@@ -1,0 +1,1118 @@
+{
+  "license": "CC0-1.0",
+  "provenance": "Original FFmpeg testsrc2 and sine; no third-party media",
+  "command": [
+    "ffmpeg",
+    "-hide_banner",
+    "-v",
+    "error",
+    "-n",
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc2=size=352x288:rate=25:duration=2",
+    "-f",
+    "lavfi",
+    "-i",
+    "sine=frequency=659:sample_rate=44100:duration=2",
+    "-vf",
+    "setsar=178/163",
+    "-c:v",
+    "mpeg1video",
+    "-threads",
+    "1",
+    "-q:v",
+    "8",
+    "-maxrate",
+    "1150k",
+    "-bufsize",
+    "327680",
+    "-bf",
+    "0",
+    "-c:a",
+    "mp2",
+    "-b:a",
+    "128k",
+    "-output_ts_offset",
+    "1.25",
+    "-f",
+    "mpeg",
+    "fixtures\\native-mpeg1.mpg"
+  ],
+  "ffmpeg": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "sha256": "9d711d82bd67533d4636e3760771b82f2166a783448fffe92db6d533cf413829",
+  "bytes": 219136,
+  "metadata": {
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "mpeg1video",
+        "codec_long_name": "MPEG-1 video",
+        "codec_type": "video",
+        "codec_tag_string": "[0][0][0][0]",
+        "codec_tag": "0x0000",
+        "width": 352,
+        "height": 288,
+        "coded_width": 0,
+        "coded_height": 0,
+        "has_b_frames": 1,
+        "sample_aspect_ratio": "178:163",
+        "display_aspect_ratio": "1958:1467",
+        "pix_fmt": "yuv420p",
+        "level": -99,
+        "color_range": "tv",
+        "chroma_location": "center",
+        "field_order": "progressive",
+        "refs": 1,
+        "id": "0x1e0",
+        "r_frame_rate": "50/1",
+        "avg_frame_rate": "25/1",
+        "time_base": "1/90000",
+        "start_pts": 112500,
+        "start_time": "1.250000",
+        "duration_ts": 178200,
+        "duration": "1.980000",
+        "bit_rate": "1150000",
+        "extradata_size": 12,
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "side_data_list": [
+          {
+            "side_data_type": "CPB properties",
+            "max_bitrate": 0,
+            "min_bitrate": 0,
+            "avg_bitrate": 0,
+            "buffer_size": 327680,
+            "vbv_delay": -1
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "codec_name": "mp2",
+        "codec_long_name": "MP2 (MPEG audio layer 2)",
+        "codec_type": "audio",
+        "codec_tag_string": "[0][0][0][0]",
+        "codec_tag": "0x0000",
+        "sample_fmt": "s16p",
+        "sample_rate": "44100",
+        "channels": 1,
+        "channel_layout": "mono",
+        "bits_per_sample": 0,
+        "initial_padding": 0,
+        "id": "0x1c0",
+        "r_frame_rate": "0/0",
+        "avg_frame_rate": "0/0",
+        "time_base": "1/90000",
+        "start_pts": 111518,
+        "start_time": "1.239089",
+        "duration_ts": 173976,
+        "duration": "1.933067",
+        "bit_rate": "128000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "filename": "fixtures\\native-mpeg1.mpg",
+      "nb_streams": 2,
+      "nb_programs": 0,
+      "nb_stream_groups": 0,
+      "format_name": "mpeg",
+      "format_long_name": "MPEG-PS (MPEG-2 Program Stream)",
+      "start_time": "1.239089",
+      "duration": "1.990911",
+      "size": "219136",
+      "bit_rate": "880545",
+      "probe_score": 26
+    }
+  },
+  "decoded_video_frames": [
+    {
+      "best_effort_timestamp": 112500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "tags": {
+        "timecode": "00:00:00:00"
+      },
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        },
+        {
+          "side_data_type": "GOP timecode",
+          "timecode": "00:00:00:00"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 116100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 119700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 123300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 126900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 130500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 134100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 137700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 141300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 144900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 148500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 152100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "tags": {
+        "timecode": "00:00:00:12"
+      },
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        },
+        {
+          "side_data_type": "GOP timecode",
+          "timecode": "00:00:00:12"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 155700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 159300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 162900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 166500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 170100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 173700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 177300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 180900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 184500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 188100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 191700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 195300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "tags": {
+        "timecode": "00:00:00:24"
+      },
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        },
+        {
+          "side_data_type": "GOP timecode",
+          "timecode": "00:00:00:24"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 198900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 202500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 206100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 209700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 213300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 216900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 220500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 224100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 227700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 231300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 234900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 238500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "tags": {
+        "timecode": "00:00:01:11"
+      },
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        },
+        {
+          "side_data_type": "GOP timecode",
+          "timecode": "00:00:01:11"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 242100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 245700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 249300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 252900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 256500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 260100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 263700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 267300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 270900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 274500,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 278100,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 281700,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "tags": {
+        "timecode": "00:00:01:23"
+      },
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        },
+        {
+          "side_data_type": "GOP timecode",
+          "timecode": "00:00:01:23"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 285300,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    },
+    {
+      "best_effort_timestamp": 288900,
+      "duration": 3600,
+      "width": 352,
+      "height": 288,
+      "interlaced_frame": 0,
+      "side_data_list": [
+        {
+          "side_data_type": "AVPanScan"
+        }
+      ]
+    }
+  ],
+  "audio_packets": [
+    {
+      "pts": 111518,
+      "duration": 2351
+    },
+    {
+      "pts": 113869,
+      "duration": 2351
+    },
+    {
+      "pts": 116220,
+      "duration": 2351
+    },
+    {
+      "pts": 118571,
+      "duration": 2351
+    },
+    {
+      "pts": 120922,
+      "duration": 2351
+    },
+    {
+      "pts": 123273,
+      "duration": 2351
+    },
+    {
+      "pts": 125624,
+      "duration": 2351
+    },
+    {
+      "pts": 127975,
+      "duration": 2351
+    },
+    {
+      "pts": 130326,
+      "duration": 2351
+    },
+    {
+      "pts": 132677,
+      "duration": 2351
+    },
+    {
+      "pts": 135029,
+      "duration": 2351
+    },
+    {
+      "pts": 137380,
+      "duration": 2351
+    },
+    {
+      "pts": 139731,
+      "duration": 2351
+    },
+    {
+      "pts": 142082,
+      "duration": 2351
+    },
+    {
+      "pts": 144433,
+      "duration": 2351
+    },
+    {
+      "pts": 146784,
+      "duration": 2351
+    },
+    {
+      "pts": 149135,
+      "duration": 2351
+    },
+    {
+      "pts": 151486,
+      "duration": 2351
+    },
+    {
+      "pts": 153837,
+      "duration": 2351
+    },
+    {
+      "pts": 156188,
+      "duration": 2351
+    },
+    {
+      "pts": 158539,
+      "duration": 2351
+    },
+    {
+      "pts": 160890,
+      "duration": 2351
+    },
+    {
+      "pts": 163241,
+      "duration": 2351
+    },
+    {
+      "pts": 165592,
+      "duration": 2351
+    },
+    {
+      "pts": 167943,
+      "duration": 2351
+    },
+    {
+      "pts": 170294,
+      "duration": 2351
+    },
+    {
+      "pts": 172645,
+      "duration": 2351
+    },
+    {
+      "pts": 174996,
+      "duration": 2351
+    },
+    {
+      "pts": 177347,
+      "duration": 2351
+    },
+    {
+      "pts": 179698,
+      "duration": 2351
+    },
+    {
+      "pts": 182049,
+      "duration": 2351
+    },
+    {
+      "pts": 184400,
+      "duration": 2351
+    },
+    {
+      "pts": 186751,
+      "duration": 2351
+    },
+    {
+      "pts": 189102,
+      "duration": 2351
+    },
+    {
+      "pts": 191453,
+      "duration": 2351
+    },
+    {
+      "pts": 193804,
+      "duration": 2351
+    },
+    {
+      "pts": 196155,
+      "duration": 2351
+    },
+    {
+      "pts": 198506,
+      "duration": 2351
+    },
+    {
+      "pts": 200857,
+      "duration": 2351
+    },
+    {
+      "pts": 203208,
+      "duration": 2351
+    },
+    {
+      "pts": 205559,
+      "duration": 2351
+    },
+    {
+      "pts": 207910,
+      "duration": 2351
+    },
+    {
+      "pts": 210261,
+      "duration": 2351
+    },
+    {
+      "pts": 212612,
+      "duration": 2351
+    },
+    {
+      "pts": 214963,
+      "duration": 2351
+    },
+    {
+      "pts": 217314,
+      "duration": 2351
+    },
+    {
+      "pts": 219665,
+      "duration": 2351
+    },
+    {
+      "pts": 222016,
+      "duration": 2351
+    },
+    {
+      "pts": 224367,
+      "duration": 2351
+    },
+    {
+      "pts": 226718,
+      "duration": 2351
+    },
+    {
+      "pts": 229069,
+      "duration": 2351
+    },
+    {
+      "pts": 231420,
+      "duration": 2351
+    },
+    {
+      "pts": 233771,
+      "duration": 2351
+    },
+    {
+      "pts": 236122,
+      "duration": 2351
+    },
+    {
+      "pts": 238473,
+      "duration": 2351
+    },
+    {
+      "pts": 240824,
+      "duration": 2351
+    },
+    {
+      "pts": 243175,
+      "duration": 2351
+    },
+    {
+      "pts": 245526,
+      "duration": 2351
+    },
+    {
+      "pts": 247877,
+      "duration": 2351
+    },
+    {
+      "pts": 250229,
+      "duration": 2351
+    },
+    {
+      "pts": 252580,
+      "duration": 2351
+    },
+    {
+      "pts": 254931,
+      "duration": 2351
+    },
+    {
+      "pts": 257282,
+      "duration": 2351
+    },
+    {
+      "pts": 259633,
+      "duration": 2351
+    },
+    {
+      "pts": 261984,
+      "duration": 2351
+    },
+    {
+      "pts": 264335,
+      "duration": 2351
+    },
+    {
+      "pts": 266686,
+      "duration": 2351
+    },
+    {
+      "pts": 269037,
+      "duration": 2351
+    },
+    {
+      "pts": 271388,
+      "duration": 2351
+    },
+    {
+      "pts": 273739,
+      "duration": 2351
+    },
+    {
+      "pts": 276090,
+      "duration": 2351
+    },
+    {
+      "pts": 278441,
+      "duration": 2351
+    },
+    {
+      "pts": 280792,
+      "duration": 2351
+    },
+    {
+      "pts": 283143,
+      "duration": 2351
+    },
+    {
+      "pts": 285494,
+      "duration": 2351
+    },
+    {
+      "pts": 287845,
+      "duration": 2351
+    },
+    {
+      "pts": 290196,
+      "duration": 2351
+    }
+  ],
+  "exact_video_duration_ticks": 180000,
+  "exact_audio_duration_ticks": 181029,
+  "known_metadata_discrepancy": "Container estimates 1.98s video and 1.933067s audio; decoded frames cover2s and audio packets cover2.011433s. r_frame_rate50 is not decoded25fps."
+}

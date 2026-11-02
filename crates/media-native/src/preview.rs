@@ -14,10 +14,20 @@ pub const HEIGHT: u32 = 360;
 pub const FRAME_BYTES: usize = (WIDTH * HEIGHT * 4) as usize;
 pub const FILTER: &str = "zscale=matrixin=709:transferin=709:primariesin=709:rangein=limited:matrix=gbr:transfer=iec61966-2-1:primaries=709:range=full,format=gbrp,scale=640:360:force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black,format=rgba";
 
+pub(crate) fn display_filter(input: crate::color::InputColor) -> String {
+    FILTER.replacen(crate::color::TO_SRGB, &input.to_srgb(), 1)
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct PreviewInfo {
     pub duration_us: u64,
     pub has_audio: bool,
+    pub has_aac: bool,
+    pub(crate) has_wma: bool,
+    pub(crate) format_start_us: u64,
+    pub(crate) video_end_us: Option<u64>,
+    pub(crate) normalization: Option<(media_core::Size, media_core::Size)>,
+    pub(crate) input_color: crate::color::InputColor,
 }
 
 #[derive(Debug)]
@@ -40,9 +50,65 @@ pub fn probe_info(path: &Path, cancel: &CancellationToken) -> NativeResult<Previ
     let has_audio = metadata["streams"]
         .as_array()
         .is_some_and(|streams| streams.iter().any(|stream| stream["codec_type"] == "audio"));
+    let video = metadata["streams"]
+        .as_array()
+        .and_then(|streams| streams.iter().find(|video| video["codec_type"] == "video"))
+        .ok_or("Missing preview video")?;
+    let coded = media_core::Size::new(
+        u32::try_from(video["width"].as_u64().ok_or("Missing preview width")?)?,
+        u32::try_from(video["height"].as_u64().ok_or("Missing preview height")?)?,
+    )?;
+    let normalized = crate::display_geometry::metadata_size(video)?;
+    let normalization = if crate::display_geometry::has_display_transform(video) {
+        None
+    } else {
+        (coded != normalized).then_some((coded, normalized))
+    };
     Ok(PreviewInfo {
+        input_color: crate::color::InputColor::from_metadata(video),
+        normalization,
         duration_us,
         has_audio,
+        has_wma: metadata["streams"].as_array().is_some_and(|streams| {
+            streams.iter().any(|stream| {
+                stream["codec_type"] == "audio"
+                    && matches!(
+                        stream["codec_name"].as_str(),
+                        Some("wmav1" | "wmav2" | "wmapro")
+                    )
+            })
+        }),
+        format_start_us: u64::try_from(
+            metadata["format"]["start_time"]
+                .as_str()
+                .map(crate::parse_decimal_us)
+                .transpose()?
+                .unwrap_or(0),
+        )?,
+        has_aac: metadata["streams"].as_array().is_some_and(|streams| {
+            streams
+                .iter()
+                .any(|stream| stream["codec_type"] == "audio" && stream["codec_name"] == "aac")
+        }),
+        video_end_us: metadata["streams"].as_array().and_then(|streams| {
+            let video = streams
+                .iter()
+                .find(|stream| stream["codec_type"] == "video")?;
+            let duration = crate::parse_decimal_us(video["duration"].as_str()?).ok()?;
+            let start = video["start_time"]
+                .as_str()
+                .map(crate::parse_decimal_us)
+                .transpose()
+                .ok()?
+                .unwrap_or(0);
+            let origin = metadata["format"]["start_time"]
+                .as_str()
+                .map(crate::parse_decimal_us)
+                .transpose()
+                .ok()?
+                .unwrap_or(0);
+            u64::try_from(start.checked_add(duration)?.checked_sub(origin)?).ok()
+        }),
     })
 }
 
@@ -60,7 +126,7 @@ pub(crate) fn probe_metadata(
             "-v",
             "error",
             "-show_entries",
-            "format=duration:stream=codec_type,codec_name,pix_fmt,width,height,start_pts,time_base,sample_aspect_ratio,color_space,color_transfer,color_primaries,color_range:stream_side_data=rotation",
+            "format=duration,start_time:stream=codec_type,codec_name,pix_fmt,width,height,start_pts,start_time,duration,time_base,sample_aspect_ratio,color_space,color_transfer,color_primaries,color_range:stream_side_data=side_data_type,rotation",
             "-of",
             "json",
         ])
@@ -87,19 +153,8 @@ pub(crate) fn probe_metadata(
         .as_array()
         .and_then(|v| v.iter().find(|stream| stream["codec_type"] == "video"))
         .ok_or("preview input has no video")?;
-    for (field, accepted) in [
-        ("color_space", "bt709"),
-        ("color_transfer", "bt709"),
-        ("color_primaries", "bt709"),
-        ("color_range", "tv"),
-    ] {
-        if video[field]
-            .as_str()
-            .is_some_and(|v| v != accepted && v != "unknown")
-        {
-            return Err("frame preview supports limited-range BT.709 SDR only; HDR/wide/full-range preview is not implemented".into());
-        }
-    }
+    let color_metadata: crate::ProbeStream = serde_json::from_value(video.clone())?;
+    crate::validate_native_sdr(&color_metadata, true)?;
     Ok(metadata)
 }
 
@@ -110,7 +165,11 @@ pub fn decode_frame(
     position_us: u64,
     cancel: &CancellationToken,
 ) -> NativeResult<PreviewFrame> {
-    let _ = probe_info(path, cancel)?;
+    let info = probe_info(path, cancel)?;
+    let normalization = info
+        .normalization
+        .map(|(coded, normalized)| crate::display_geometry::normalization_filter(coded, normalized))
+        .unwrap_or_default();
     cancel.check()?;
     let seek = format!("{}.{:06}", position_us / 1_000_000, position_us % 1_000_000);
     let mut command = Command::new("ffmpeg");
@@ -134,7 +193,7 @@ pub fn decode_frame(
             "-frames:v",
             "1",
             "-vf",
-            FILTER,
+            &format!("{normalization}{}", display_filter(info.input_color)),
             "-f",
             "rawvideo",
             "pipe:1",

@@ -8,9 +8,12 @@ pub mod ai_preview;
 pub mod ai_runtime;
 #[cfg(test)]
 mod ai_video_tests;
+pub mod audio_timing;
+pub mod codec_plan;
 pub mod color;
 #[cfg(test)]
 mod color_tests;
+pub mod legacy_audio;
 pub mod rtx_inference;
 #[cfg(test)]
 mod rtx_tests;
@@ -37,8 +40,11 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub type NativeResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+mod display_geometry;
 mod frame_stream;
 mod inspection;
+mod video_timing;
+use video_timing::{FrameScanSpec, scan_video_timestamps};
 #[cfg(not(target_arch = "wasm32"))]
 pub mod playback;
 pub mod preview;
@@ -304,6 +310,13 @@ pub struct NativeJob<'a> {
 #[derive(Debug, Deserialize)]
 struct Probe {
     streams: Vec<ProbeStream>,
+    format: Option<ProbeFormat>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProbeFormat {
+    format_name: String,
+    tags: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -330,6 +343,7 @@ struct ProbeStream {
     color_transfer: Option<String>,
     color_primaries: Option<String>,
     side_data_list: Option<Vec<SideData>>,
+    tags: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -340,6 +354,13 @@ struct SideData {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SourceInfo {
+    pub encoder_metadata: Option<String>,
+    /// Verified source-bound correction; absent for healthy audio timelines.
+    pub audio_normalization: Option<audio_timing::Decision>,
+    #[serde(skip)]
+    prepared_audio: Option<Arc<audio_timing::PreparedAudio>>,
+    #[serde(skip)]
+    prepared_wma: Option<Arc<legacy_audio::PreparedAudio>>,
     /// Exact last decoded video position and the inspected file identity.
     /// Preview can retain this image through the final interval/audio tail.
     pub preview_end: Option<PreviewSourceEnd>,
@@ -359,6 +380,7 @@ pub struct SourceInfo {
     pub color_space: Option<String>,
     pub color_transfer: Option<String>,
     pub color_primaries: Option<String>,
+    pub color_interpretation: color::InputColor,
     pub frame_rate_num: u32,
     pub frame_rate_den: u32,
     pub frame_count: u64,
@@ -366,10 +388,14 @@ pub struct SourceInfo {
     pub video_start_us: i128,
     pub audio_start_us: Option<i128>,
     pub video_duration_us: Option<i128>,
-    /// Exact stream duration for CFR endpoint planning, not rounded decimal seconds.
+    /// Stream duration for CFR endpoint planning, not rounded decimal seconds.
+    /// An inferred WMV terminal interval is explicitly identified below.
     pub video_duration_ticks: Option<i64>,
+    pub video_duration_from_decoded: bool,
+    pub inferred_final_frame_duration_ticks: Option<i64>,
     pub video_time_base: Option<String>,
     pub audio_duration_us: Option<i128>,
+    pub decoded_audio_coverage: Option<legacy_audio::DecodedAudioCoverage>,
     pub variable_frame_rate: bool,
 }
 
@@ -396,6 +422,14 @@ impl PreviewSourceEnd {
 }
 
 impl SourceInfo {
+    pub(crate) fn audio_input<'a>(&'a self, original: &'a Path) -> &'a Path {
+        if let Some(audio) = &self.prepared_wma {
+            return &audio.path;
+        }
+        self.prepared_audio
+            .as_ref()
+            .map_or(original, |audio| audio.path.as_path())
+    }
     pub fn resolve_bitrate(
         &self,
         size: Size,
@@ -489,8 +523,8 @@ impl SourceInfo {
     pub fn shared_gpu_limitation(&self) -> Option<String> {
         if self.pixel_format != "yuv420p" {
             Some("Shared GPU currently requires 8-bit yuv420p input. Use Direct FFmpeg for this source.".into())
-        } else if self.sample_aspect_ratio != "1:1" || self.has_display_matrix {
-            Some("Shared GPU currently requires square pixels and no display transform. Use Direct FFmpeg for this source.".into())
+        } else if self.has_display_matrix {
+            Some("Shared GPU currently requires no display transform. Use Direct FFmpeg for this source.".into())
         } else {
             None
         }
@@ -554,6 +588,7 @@ pub struct ConversionReport {
     pub adapter_fallback: Option<String>,
     pub hardware_gpu: Option<NvidiaGpu>,
     pub video_encoder: String,
+    pub video_decode: codec_plan::DecodePlan,
     pub inspection_reused: bool,
     pub preflight_ms: u128,
     pub total_ms: u128,
@@ -722,6 +757,7 @@ impl NativeSession {
         while state.active.is_some() || state.switching {
             state = self.idle.wait(state).unwrap_or_else(|e| e.into_inner());
         }
+        self.inspection.clear();
     }
 
     pub fn switch_adapter(&self, adapter_key: Option<&str>) -> NativeResult<u64> {
@@ -1045,19 +1081,34 @@ fn inspect_source(
     if !path.is_file() {
         return Err(format!("input is not a file: {}", path.display()).into());
     }
-    let output = run_capture(
-        "ffprobe",
-        &[
-            OsStr::new("-v"),
-            OsStr::new("error"),
-            OsStr::new("-show_streams"),
-            OsStr::new("-of"),
-            OsStr::new("json"),
-            path.as_os_str(),
-        ],
-    )?;
+    let mut command = Command::new("ffprobe");
+    command
+        .args([
+            "-v",
+            "error",
+            "-show_streams",
+            "-show_format",
+            "-of",
+            "json",
+        ])
+        .arg(path)
+        .stdout(Stdio::piped());
+    let mut child = ChildGuard::spawn(&mut command)?;
+    let _watch = CancellationWatch::new(cancel, &[&child]);
+    let mut output = Vec::new();
+    child.take_stdout()?.take(65537).read_to_end(&mut output)?;
+    if output.len() > 65536 {
+        return Err("Native source metadata exceeds64KiB inspection limit".into());
+    }
+    let status = child.wait_cancellable(cancel)?;
+    if !status.success() || !child.diagnostic().trim().is_empty() {
+        return Err(child
+            .failure("Native source metadata inspection", status)
+            .into());
+    }
     cancel.check()?;
     let parsed: Probe = serde_json::from_slice(&output)?;
+    reject_encrypted(&parsed)?;
     let video_tracks: Vec<_> = parsed
         .streams
         .iter()
@@ -1067,6 +1118,7 @@ fn inspect_source(
         return Err("native M4 harness requires exactly one video track".into());
     }
     let video = video_tracks[0];
+    validate_legacy_profile(video)?;
     let audio_tracks: Vec<_> = parsed
         .streams
         .iter()
@@ -1098,9 +1150,6 @@ fn inspect_source(
         .unwrap_or_default()
         .iter()
         .any(|side| side.side_data_type.as_deref() == Some("Display Matrix"));
-    if require_plain_geometry && (sar_num, sar_den) != (1, 1) {
-        return Err("native M4 harness currently requires square-pixel input".into());
-    }
     if require_plain_geometry && has_display_matrix {
         return Err(
             "native M4 shared-wgpu route does not yet implement source display matrices".into(),
@@ -1108,17 +1157,11 @@ fn inspect_source(
     }
     let angle = rotation_degrees.unsigned_abs() % 360;
     let rotation = Rotation::from_degrees(angle)?;
-    let square_width = u32::try_from(
-        i128::from(width)
-            .checked_mul(sar_num)
-            .and_then(|value| value.checked_add(sar_den / 2))
-            .ok_or("sample aspect ratio overflow")?
-            / sar_den,
-    )?;
+    let square_pixels = display_geometry::square_pixel_size(coded, sar_num, sar_den)?;
     let geometry = FrameGeometry::new(
         coded,
         Rect::new(0, 0, width, height)?,
-        Size::new(square_width, height)?,
+        square_pixels,
         rotation,
         false,
     )?;
@@ -1145,49 +1188,121 @@ fn inspect_source(
         .and_then(|stream| stream.duration.as_deref())
         .map(parse_decimal_us)
         .transpose()?;
-    if video_start_us < 0 || audio_start_us.is_some_and(|start| start < 0) {
+    let windows_wma = audio_tracks
+        .first()
+        .is_some_and(|audio| matches!(audio.codec_name.as_str(), "wmav1" | "wmav2" | "wmapro"));
+    if video_start_us < 0 || (!windows_wma && audio_start_us.is_some_and(|start| start < 0)) {
         return Err("native M4 harness does not yet support negative stream origins".into());
     }
-    if !audio_tracks.is_empty() && audio_start_us.is_none() {
+    if !audio_tracks.is_empty() && !windows_wma && audio_start_us.is_none() {
         return Err("direct native timeline requires a known audio start time".into());
     }
-    if audio_tracks
+    let prepared_audio = if audio_tracks
         .first()
         .is_some_and(|audio| audio.codec_name == "aac")
     {
-        validate_aac_start_timestamps(path, cancel)?;
-    }
+        audio_timing::prepare(path, cancel)?
+    } else {
+        None
+    };
+    let audio_normalization = prepared_audio.as_ref().map(|audio| audio.decision);
+    let prepared_wma = if windows_wma {
+        Some(legacy_audio::prepare(path, cancel)?)
+    } else {
+        None
+    };
+    let decoded_audio_coverage = prepared_wma.as_ref().map(|audio| audio.coverage.clone());
+    let audio_start_us = if let Some(coverage) = &decoded_audio_coverage {
+        Some(coverage.start_us)
+    } else if prepared_audio.is_some() {
+        Some(0)
+    } else {
+        audio_start_us
+    };
+    let is_asf_wmv = parsed
+        .format
+        .as_ref()
+        .is_some_and(|format| format.format_name.split(',').any(|name| name == "asf"))
+        && matches!(video.codec_name.as_str(), "wmv1" | "wmv2" | "wmv3" | "vc1");
     let rate = video
         .avg_frame_rate
         .as_deref()
-        .ok_or("ffprobe omitted frame rate")?;
+        .filter(|rate| parse_rational(rate).is_ok())
+        .or_else(|| {
+            is_asf_wmv
+                .then_some(video.r_frame_rate.as_deref())
+                .flatten()
+                .filter(|rate| parse_rational(rate).is_ok())
+        })
+        .ok_or("Native video requires a positive declared frame rate")?;
     let (num, den) = rate.split_once('/').ok_or("invalid rational frame rate")?;
     let (num, den) = (num.parse::<u32>()?, den.parse::<u32>()?);
     if num == 0 || den == 0 {
         return Err("invalid zero frame rate".into());
     }
-    let frame_count = video
+    let declared_frame_count = video
         .nb_frames
         .as_deref()
-        .ok_or("native M4 harness requires a known frame count")?
-        .parse::<u64>()?;
-    if frame_count == 0 {
+        .filter(|count| *count != "N/A")
+        .map(str::parse::<u64>)
+        .transpose()?;
+    if declared_frame_count == Some(0) {
         return Err("video has no frames".into());
     }
-    let (timeline, last_position_us) = scan_video_timestamps(
+    let scanned = scan_video_timestamps(
         path,
         FrameScanSpec {
             time_base: video
                 .time_base
                 .as_deref()
                 .ok_or("ffprobe omitted video time base")?,
-            frame_count,
+            frame_count: declared_frame_count,
             origin: video.start_pts,
             size: require_plain_geometry.then_some(coded),
+            missing_duration_rate: is_asf_wmv.then_some((num, den)),
         },
         cancel,
     )?;
-    let preview_end = if let Some(position_us) = last_position_us {
+    let video_start_us = if declared_frame_count.is_none() {
+        *scanned
+            .timeline
+            .first()
+            .ok_or("Missing first decoded timestamp")?
+    } else {
+        video_start_us
+    };
+    let duration_ticks = if declared_frame_count.is_none()
+        || scanned.inferred_final_frame_duration_ticks.is_some()
+    {
+        scanned.duration_ticks
+    } else {
+        video.duration_ts
+    };
+    let video_duration_us = if declared_frame_count.is_none()
+        || scanned.inferred_final_frame_duration_ticks.is_some()
+    {
+        let (time_num, time_den) = parse_rational(
+            video
+                .time_base
+                .as_deref()
+                .ok_or("Missing video time base")?,
+        )?;
+        duration_ticks
+            .map(|ticks| -> NativeResult<i128> {
+                Ok(i128::from(ticks)
+                    .checked_mul(time_num)
+                    .and_then(|n| n.checked_mul(1_000_000))
+                    .and_then(|n| n.checked_add(time_den / 2))
+                    .ok_or("Video duration overflow")?
+                    / time_den)
+            })
+            .transpose()?
+    } else {
+        video_duration_us
+    };
+    let frame_count = u64::try_from(scanned.timeline.len())?;
+    let timeline = scanned.timeline;
+    let preview_end = if let Some(position_us) = scanned.last_position_us {
         let metadata = std::fs::metadata(path)?;
         metadata.modified().ok().map(|modified| PreviewSourceEnd {
             position_us,
@@ -1202,7 +1317,10 @@ fn inspect_source(
         .checked_mul(1_000_000)
         .ok_or("frame period overflow")?;
     let period_den = i128::from(num);
-    let mut variable_frame_rate = video.r_frame_rate.as_deref() != Some(rate);
+    // MPEG-1's r_frame_rate can describe fields (50) while decoded frames are25.
+    // Unknown-count sources use the complete decoded presentation grid.
+    let mut variable_frame_rate =
+        declared_frame_count.is_some() && video.r_frame_rate.as_deref() != Some(rate);
     for (index, pts) in timeline.iter().enumerate() {
         let offset = i128::try_from(index)?
             .checked_mul(period_num)
@@ -1218,8 +1336,39 @@ fn inspect_source(
             .unsigned_abs()
             > 150;
     }
+    let audio_duration_us = if let Some(coverage) = &decoded_audio_coverage {
+        Some(
+            coverage
+                .end_us
+                .checked_sub(coverage.start_us)
+                .ok_or("Decoded audio duration overflow")?,
+        )
+    } else if declared_frame_count.is_none()
+        && audio_tracks
+            .first()
+            .is_some_and(|stream| stream.codec_name == "mp2")
+    {
+        Some(audio_timing::packet_duration_us(
+            path,
+            audio_tracks[0]
+                .time_base
+                .as_deref()
+                .ok_or("Missing MP2 time base")?,
+            cancel,
+        )?)
+    } else {
+        audio_duration_us
+    };
     Ok((
         SourceInfo {
+            encoder_metadata: video
+                .tags
+                .as_ref()
+                .and_then(|tags| tags.get("encoder"))
+                .cloned(),
+            audio_normalization,
+            prepared_audio,
+            prepared_wma,
             preview_end,
             video_bitrate_bps: video
                 .bit_rate
@@ -1244,6 +1393,12 @@ fn inspect_source(
             color_space: video.color_space.clone(),
             color_transfer: video.color_transfer.clone(),
             color_primaries: video.color_primaries.clone(),
+            color_interpretation: color::InputColor::from_source(
+                &video.codec_name,
+                video.color_space.as_deref(),
+                video.color_transfer.as_deref(),
+                video.color_primaries.as_deref(),
+            ),
             frame_rate_num: num,
             frame_rate_den: den,
             frame_count,
@@ -1251,25 +1406,78 @@ fn inspect_source(
             video_start_us,
             audio_start_us,
             video_duration_us,
-            video_duration_ticks: video.duration_ts,
+            video_duration_ticks: duration_ticks,
+            video_duration_from_decoded: declared_frame_count.is_none()
+                || scanned.inferred_final_frame_duration_ticks.is_some(),
+            inferred_final_frame_duration_ticks: scanned.inferred_final_frame_duration_ticks,
             video_time_base: video.time_base.clone(),
             audio_duration_us,
+            decoded_audio_coverage,
             variable_frame_rate,
         },
         timeline,
     ))
 }
 
+fn reject_encrypted(probe: &Probe) -> NativeResult<()> {
+    // FFmpeg8.0.1 ASF demuxer publishes these specific protection keys:
+    // https://github.com/FFmpeg/FFmpeg/blob/n8.0.1/libavformat/asfdec_f.c
+    if probe
+        .format
+        .as_ref()
+        .and_then(|format| format.tags.as_ref())
+        .is_some_and(|tags| {
+            tags.keys().any(|key| {
+                matches!(
+                    key.as_str(),
+                    "encryption" | "ASF_Protection_Type" | "ASF_Key_ID" | "ASF_License_URL"
+                )
+            })
+        })
+        || probe
+            .streams
+            .iter()
+            .any(|stream| matches!(stream.codec_tag_string.as_deref(), Some("encv" | "enca")))
+    {
+        return Err("Encrypted/DRM-protected native inputs are unsupported".into());
+    }
+    Ok(())
+}
+
+fn validate_legacy_profile(video: &ProbeStream) -> NativeResult<()> {
+    let accepted = match video.codec_name.as_str() {
+        "wmv3" => video.profile.as_deref() == Some("Main"),
+        "vc1" => video.profile.as_deref() == Some("Advanced"),
+        _ => true,
+    };
+    if !accepted {
+        return Err(format!("Unevaluated {} input profile: {}; evaluated profiles are WMV3 Main and progressive VC-1 Advanced", video.codec_name, video.profile.as_deref().unwrap_or("missing")).into());
+    }
+    Ok(())
+}
+
 fn validate_native_sdr(video: &ProbeStream, allow_10bit: bool) -> NativeResult<()> {
     for (label, value, accepted) in [
-        ("range", video.color_range.as_deref(), "tv"),
-        ("matrix", video.color_space.as_deref(), "bt709"),
-        ("transfer", video.color_transfer.as_deref(), "bt709"),
-        ("primaries", video.color_primaries.as_deref(), "bt709"),
+        ("range", video.color_range.as_deref(), &["tv"][..]),
+        (
+            "matrix",
+            video.color_space.as_deref(),
+            &["bt709", "smpte170m", "bt470bg"][..],
+        ),
+        (
+            "transfer",
+            video.color_transfer.as_deref(),
+            &["bt709", "smpte170m", "gamma28"][..],
+        ),
+        (
+            "primaries",
+            video.color_primaries.as_deref(),
+            &["bt709", "smpte170m", "bt470bg"][..],
+        ),
     ] {
-        if value.is_some_and(|tag| tag != accepted && tag != "unknown") {
+        if value.is_some_and(|tag| !accepted.contains(&tag) && tag != "unknown") {
             return Err(format!(
-                "native M4 supports only BT.709 limited-range SDR; unsupported {label}: {}",
+                "Native input supports limited-range BT.601/BT.709 SDR only; unsupported {label}: {}",
                 value.unwrap_or_default()
             )
             .into());
@@ -1330,182 +1538,6 @@ fn parse_decimal_us(value: &str) -> NativeResult<i128> {
     } else {
         microseconds
     })
-}
-
-// AAC frames do not reorder. Catch malformed leading packet PTS before an
-// expensive GPU job; encoder timestamp repair would otherwise shift the audio.
-// This bounded prefix check is not a claim to validate the entire audio track.
-fn validate_aac_start_timestamps(path: &Path, cancel: &CancellationToken) -> NativeResult<()> {
-    cancel.check()?;
-    let mut command = Command::new("ffprobe");
-    command
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-read_intervals",
-            "%+#32",
-            "-show_packets",
-            "-show_entries",
-            "packet=pts",
-            "-of",
-            "json",
-        ])
-        .arg(path)
-        .stdout(Stdio::piped());
-    let mut child = ChildGuard::spawn(&mut command)?;
-    let _watch = CancellationWatch::new(cancel, &[&child]);
-    let mut bytes = Vec::new();
-    child.take_stdout()?.take(8193).read_to_end(&mut bytes)?;
-    cancel.check()?;
-    if bytes.len() > 8192 {
-        return Err("AAC timestamp preflight exceeded its metadata bound".into());
-    }
-    let exit = child.wait_cancellable(cancel)?;
-    if !exit.success() {
-        return Err(child.failure("AAC timestamp preflight", exit).into());
-    }
-    let metadata: serde_json::Value = serde_json::from_slice(&bytes)?;
-    let packets = metadata["packets"]
-        .as_array()
-        .ok_or("AAC timestamp preflight omitted packets")?;
-    validate_aac_packet_pts(packets)
-}
-
-fn validate_aac_packet_pts(packets: &[serde_json::Value]) -> NativeResult<()> {
-    let mut previous = None;
-    for (index, packet) in packets.iter().enumerate() {
-        let pts = packet["pts"]
-            .as_i64()
-            .ok_or("AAC packet is missing its presentation timestamp")?;
-        if previous.is_some_and(|before| pts <= before) {
-            return Err(format!(
-                "Source AAC presentation timestamps go backward or repeat at packet {index}; repair the audio timestamps in a separate copy before conversion. No automatic timestamp repair or audio-sync tolerance change."
-            ).into());
-        }
-        previous = Some(pts);
-    }
-    Ok(())
-}
-
-struct FrameScanSpec<'a> {
-    time_base: &'a str,
-    frame_count: u64,
-    origin: Option<i64>,
-    size: Option<Size>,
-}
-
-fn scan_video_timestamps(
-    path: &Path,
-    spec: FrameScanSpec<'_>,
-    cancel: &CancellationToken,
-) -> NativeResult<(Vec<i128>, Option<u64>)> {
-    let FrameScanSpec {
-        time_base,
-        frame_count,
-        origin,
-        size,
-    } = spec;
-    let (time_num, time_den) = parse_rational(time_base)?;
-    let mut command = Command::new("ffprobe");
-    command
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "frame=best_effort_timestamp,width,height",
-            "-of",
-            "csv=p=0",
-        ])
-        .arg(path)
-        .stdout(Stdio::piped());
-    let mut child = ChildGuard::spawn(&mut command)?;
-    let _watch = CancellationWatch::new(cancel, &[&child]);
-    let mut timeline = Vec::new();
-    let mut last_pts = None;
-    let mut decoded_size = size;
-    let result = (|| -> NativeResult<()> {
-        let stdout = child.take_stdout()?;
-        for line in BufReader::new(stdout).lines() {
-            cancel.check()?;
-            let line = line?;
-            if line.trim().is_empty() {
-                continue;
-            }
-            let mut fields = line.split(',');
-            let pts = fields
-                .next()
-                .ok_or("missing frame timestamp")?
-                .parse::<i128>()?;
-            last_pts = Some(pts);
-            if pts < 0 {
-                return Err(
-                    "native M4 harness does not yet support negative frame timestamps".into(),
-                );
-            }
-            let width = fields.next().ok_or("missing frame width")?.parse::<u32>()?;
-            let height = fields
-                .next()
-                .ok_or("missing frame height")?
-                .parse::<u32>()?;
-            let current_size = Size::new(width, height)?;
-            if decoded_size.is_some_and(|expected| expected != current_size) {
-                return Err(format!(
-                    "mid-stream video geometry changed at frame {}",
-                    timeline.len()
-                )
-                .into());
-            }
-            decoded_size = Some(current_size);
-            let micros = pts
-                .checked_mul(time_num)
-                .and_then(|v| v.checked_mul(1_000_000))
-                .ok_or("frame timestamp overflow")?;
-            let micros = micros
-                .checked_add(time_den / 2)
-                .ok_or("frame timestamp overflow")?
-                / time_den;
-            if timeline.last().is_some_and(|previous| micros <= *previous) {
-                return Err("video frame timestamps are not strictly increasing".into());
-            }
-            timeline.push(micros);
-            if u64::try_from(timeline.len())? > frame_count {
-                return Err("ffprobe decoded more frames than reported".into());
-            }
-        }
-        if u64::try_from(timeline.len())? != frame_count {
-            return Err(format!(
-                "ffprobe decoded {} frames, expected {frame_count}",
-                timeline.len()
-            )
-            .into());
-        }
-        Ok(())
-    })();
-    cancel.check()?;
-    result?;
-    if !child.wait_cancellable(cancel)?.success() {
-        return Err("ffprobe frame timeline inspection failed".into());
-    }
-    let position = origin
-        .map(|origin| -> NativeResult<u64> {
-            let ticks = last_pts
-                .ok_or("Missing final decoded video timestamp")?
-                .checked_sub(i128::from(origin))
-                .ok_or("Final frame timestamp overflow")?;
-            let micros = ticks
-                .checked_mul(time_num)
-                .and_then(|n| n.checked_mul(1_000_000))
-                .and_then(|n| n.checked_add(time_den / 2))
-                .ok_or("Final frame position overflow")?
-                / time_den;
-            Ok(u64::try_from(micros)?)
-        })
-        .transpose()?;
-    Ok((timeline, position))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1696,6 +1728,9 @@ fn use_presentation_coverage(
     source: &mut SourceInfo,
     cancel: &CancellationToken,
 ) -> NativeResult<()> {
+    if source.video_duration_from_decoded {
+        return Ok(());
+    }
     let ticks = scan_presentation_duration(path, source, cancel)?;
     let (num, den) = parse_rational(
         source
@@ -2050,6 +2085,7 @@ struct NativeRunOptions<'a> {
     inspection: Option<&'a InspectionCache>,
     on_stage: Option<&'a dyn Fn(JobStage)>,
     hardware_gpu: Option<&'a NvidiaGpu>,
+    decoder: codec_plan::Decoder,
 }
 
 impl NativeRunOptions<'_> {
@@ -2152,8 +2188,10 @@ fn convert_with_control_inner(
         return Err(reason.into());
     }
     let hardware_gpu = if route.uses_nvidia() {
-        if source.sample_aspect_ratio != "1:1" || source.has_display_matrix {
-            return Err("NVIDIA CUDA route currently requires square pixels and no display transform; use software FFmpeg".into());
+        if source.has_display_matrix || source.rotation_degrees != 0 {
+            return Err(
+                "NVIDIA route currently requires no display transform; use software FFmpeg".into(),
+            );
         }
         Some(select_nvidia_gpu(options.adapter_key)?)
     } else {
@@ -2176,11 +2214,7 @@ fn convert_with_control_inner(
         None
     };
     cancel.check()?;
-    let input_size = if !route.uses_wgpu() {
-        Size::new(source.display_width, source.display_height)?
-    } else {
-        Size::new(source.width, source.height)?
-    };
+    let input_size = Size::new(source.display_width, source.display_height)?;
     let output_size = if let Some(capability) = options.ai_capability {
         options.ai.output_size(input_size, resize, capability)?
     } else {
@@ -2219,6 +2253,22 @@ fn convert_with_control_inner(
         .bitrate
         .map(|bitrate| source.resolve_bitrate(output_size, profile, bitrate, options.frame_rate))
         .transpose()?;
+    let mut decode_plan = codec_plan::choose(&source, hardware_gpu.is_some());
+    if let Some(gpu) = &hardware_gpu {
+        codec_plan::preflight(
+            decode_plan,
+            input,
+            &source,
+            output_size,
+            profile,
+            gpu,
+            cancel,
+        )?;
+        if decode_plan.decoder == codec_plan::Decoder::Nvdec {
+            decode_plan.reason = "Selected-device NVDEC probe passed for this source configuration";
+        }
+    }
+    inspected.check_unchanged(input)?;
     let mut partial = create_partial(output)?;
     let preflight_ms = total_started.elapsed().as_millis();
     options.stage(JobStage::Converting);
@@ -2248,6 +2298,7 @@ fn convert_with_control_inner(
                 cfr_plan,
                 video_bitrate_bps,
                 hardware_gpu: hardware_gpu.as_ref(),
+                decoder: decode_plan.decoder,
                 ..options
             },
             cancel,
@@ -2267,6 +2318,7 @@ fn convert_with_control_inner(
                     .map(|adapter| adapter.key.as_str())
                     .or(options.adapter_key),
                 hardware_gpu: hardware_gpu.as_ref(),
+                decoder: decode_plan.decoder,
                 ..options
             },
             cancel,
@@ -2319,6 +2371,21 @@ fn convert_with_control_inner(
             "native output stream metadata does not match expected size/frame/audio counts".into(),
         );
     }
+    if hardware_gpu.is_some() {
+        let expected = if allow_10bit {
+            "hevc_nvenc"
+        } else {
+            "h264_nvenc"
+        };
+        if verified
+            .encoder_metadata
+            .as_deref()
+            .and_then(|text| text.split_whitespace().last())
+            != Some(expected)
+        {
+            return Err("Native output does not identify the requested NVENC encoder; no substitution accepted".into());
+        }
+    }
     if let Some(plan) = cfr_plan {
         plan.verify(&output_timeline)?;
         verify_track_coverage(
@@ -2334,17 +2401,16 @@ fn convert_with_control_inner(
     } else {
         verify_output_timeline(&source, input_timeline, &verified, &output_timeline)?;
     }
-    for (label, input_tag, output_tag) in [
-        ("range", &source.color_range, &verified.color_range),
-        ("space", &source.color_space, &verified.color_space),
-        ("transfer", &source.color_transfer, &verified.color_transfer),
-        (
-            "primaries",
-            &source.color_primaries,
-            &verified.color_primaries,
-        ),
-    ] {
-        if input_tag.as_deref().is_some_and(|tag| tag != "unknown") && input_tag != output_tag {
+    for ((label, output_tag), input_tag) in [
+        ("range", verified.color_range.as_deref()),
+        ("space", verified.color_space.as_deref()),
+        ("transfer", verified.color_transfer.as_deref()),
+        ("primaries", verified.color_primaries.as_deref()),
+    ]
+    .into_iter()
+    .zip(output_color(&source, options.color_active()))
+    {
+        if input_tag.is_some_and(|tag| tag != "unknown") && input_tag != output_tag {
             return Err(format!(
                 "native output color {label} changed from {input_tag:?} to {output_tag:?}"
             )
@@ -2400,10 +2466,13 @@ fn convert_with_control_inner(
         }
         .into(),
         hardware_gpu,
+        video_decode: decode_plan,
         inspection_reused,
         preflight_ms,
         total_ms: total_started.elapsed().as_millis(),
-        codec_gpu_to_cpu_bytes: if route == ProcessingRoute::SharedWgpuNvidia {
+        codec_gpu_to_cpu_bytes: if route == ProcessingRoute::SharedWgpuNvidia
+            && decode_plan.decoder == codec_plan::Decoder::Nvdec
+        {
             u64::from(source.width) * u64::from(source.height) * 3 / 2 * source.frame_count
         } else {
             0
@@ -2411,10 +2480,40 @@ fn convert_with_control_inner(
         codec_cpu_to_gpu_bytes: if route == ProcessingRoute::SharedWgpuNvidia {
             u64::from(output_size.width) * u64::from(output_size.height) * 3 / 2
                 * source.frame_count
+        } else if route == ProcessingRoute::NvidiaFfmpeg
+            && decode_plan.decoder == codec_plan::Decoder::Software
+        {
+            u64::from(output_size.width) * u64::from(output_size.height) * 3 * verified.frame_count
+                / if allow_10bit { 1 } else { 2 }
         } else {
             0
         },
     })
+}
+
+fn output_color(source: &SourceInfo, processed: bool) -> [Option<&str>; 4] {
+    if processed {
+        [Some("tv"), Some("bt709"), Some("bt709"), Some("bt709")]
+    } else {
+        [
+            source.color_range.as_deref(),
+            source.color_space.as_deref(),
+            source.color_transfer.as_deref(),
+            source.color_primaries.as_deref(),
+        ]
+    }
+}
+
+fn mp4_color_flags(tags: [Option<&str>; 4]) -> &'static str {
+    if tags[0] == Some("tv")
+        && tags[1..]
+            .iter()
+            .all(|value| value.is_none_or(|v| v == "unknown"))
+    {
+        "+faststart+write_colr"
+    } else {
+        "+faststart"
+    }
 }
 
 fn convert_direct(
@@ -2428,24 +2527,56 @@ fn convert_direct(
 ) -> NativeResult<()> {
     cancel.check()?;
     let hardware_gpu = options.hardware_gpu;
+    let color_tags = output_color(source, options.color_active());
     let mut cmd = ffmpeg_base();
-    cmd.args(["-copyts", "-start_at_zero"]);
+    let origin = source
+        .audio_start_us
+        .map_or(source.video_start_us, |audio| {
+            audio.min(source.video_start_us)
+        });
+    cmd.args(["-copyts", "-itsoffset"]).arg(format!(
+        "-{}.{:06}",
+        origin / 1_000_000,
+        origin % 1_000_000
+    ));
     if let Some(gpu) = hardware_gpu {
         // CUDA ordinal 0 is scoped to this UUID, not a wgpu enumeration index.
-        cmd.env("CUDA_VISIBLE_DEVICES", &gpu.uuid).args([
-            "-hwaccel",
-            "cuda",
-            "-hwaccel_device",
-            "0",
-            "-hwaccel_output_format",
-            "cuda",
-        ]);
+        cmd.env("CUDA_VISIBLE_DEVICES", &gpu.uuid);
+        if options.decoder == codec_plan::Decoder::Nvdec {
+            cmd.args([
+                "-hwaccel",
+                "cuda",
+                "-hwaccel_device",
+                "0",
+                "-hwaccel_output_format",
+                "cuda",
+            ]);
+        } else {
+            cmd.args([
+                "-init_hw_device",
+                "cuda=codec:0",
+                "-filter_hw_device",
+                "codec",
+            ]);
+        }
     }
-    cmd.arg("-i").arg(input).args(["-map", "0:v:0"]);
+    cmd.arg("-i").arg(input);
+    if source.prepared_audio.is_some() || source.prepared_wma.is_some() {
+        if source.prepared_wma.is_some() {
+            cmd.arg("-itsoffset")
+                .arg(format!("-{}.{:06}", origin / 1_000_000, origin % 1_000_000));
+        }
+        cmd.arg("-i").arg(source.audio_input(input));
+    }
+    cmd.args(["-map", "0:v:0"]);
     if source.audio_codec.is_some() {
-        cmd.args(["-map", "0:a:0"]);
+        if source.prepared_audio.is_some() || source.prepared_wma.is_some() {
+            cmd.args(["-map", "1:a:0"]);
+        } else {
+            cmd.args(["-map", "0:a:0"]);
+        }
     }
-    let mut filter = if hardware_gpu.is_some() {
+    let mut filter = if options.decoder == codec_plan::Decoder::Nvdec {
         format!(
             "scale_cuda={}:{}:format={}:interp_algo=bilinear,setsar=1",
             output.width,
@@ -2461,7 +2592,11 @@ fn convert_direct(
             "scale={}:{}:flags=bilinear,format={},setsar=1",
             output.width,
             output.height,
-            if profile.video_bit_depth() == 10 {
+            if hardware_gpu.is_some() && profile.video_bit_depth() == 10 {
+                "p010le"
+            } else if hardware_gpu.is_some() {
+                "nv12"
+            } else if profile.video_bit_depth() == 10 {
                 "yuv420p10le"
             } else {
                 "yuv420p"
@@ -2469,9 +2604,17 @@ fn convert_direct(
         )
     };
     if !options.color.is_neutral() {
-        filter = color::direct_filter(options.color, output, profile.video_bit_depth());
+        filter = color::direct_filter_with_input(
+            options.color,
+            output,
+            profile.video_bit_depth(),
+            source.color_interpretation,
+        );
     }
     append_fps_filter(&mut filter, options.cfr_plan)?;
+    if hardware_gpu.is_some() && options.decoder == codec_plan::Decoder::Software {
+        filter.push_str(",hwupload_cuda");
+    }
     cmd.args([
         "-vf",
         &filter,
@@ -2518,15 +2661,13 @@ fn convert_direct(
         for (key, value) in [
             (
                 "range",
-                source
-                    .color_range
-                    .as_deref()
+                color_tags[0]
                     .filter(|tag| *tag != "unknown")
                     .map(|_| "limited"),
             ),
-            ("colormatrix", source.color_space.as_deref()),
-            ("transfer", source.color_transfer.as_deref()),
-            ("colorprim", source.color_primaries.as_deref()),
+            ("colormatrix", color_tags[1]),
+            ("transfer", color_tags[2]),
+            ("colorprim", color_tags[3]),
         ] {
             if let Some(value) = value.filter(|value| *value != "unknown") {
                 x265_color.push(format!("{key}={value}"));
@@ -2539,7 +2680,23 @@ fn convert_direct(
     if source.audio_codec.is_some() {
         cmd.args(["-c:a", "aac", "-b:a", "192k", "-ar", "48000"]);
     }
-    cmd.args(["-movflags", "+faststart", "-f", "mp4"])
+    for (flag, value) in [
+        "-color_range",
+        "-colorspace",
+        "-color_trc",
+        "-color_primaries",
+    ]
+    .into_iter()
+    .zip(color_tags)
+    {
+        if let Some(value) = value.filter(|v| *v != "unknown") {
+            cmd.args([flag, value]);
+        }
+    }
+    // A range-only MPEG source has no matrix/transfer/primaries to put into
+    // x264's VUI. FFmpeg8.0.1's evaluated write_colr flag retains the known
+    // range in MP4 while leaving those unknown fields unspecified.
+    cmd.args(["-movflags", mp4_color_flags(color_tags), "-f", "mp4"])
         .arg(partial);
     let mut child = ChildGuard::spawn(&mut cmd)?;
     let status = child.wait_cancellable(cancel)?;
@@ -2604,7 +2761,8 @@ fn convert_gpu(
     cancel: &CancellationToken,
 ) -> NativeResult<GpuConversionStats> {
     cancel.check()?;
-    let source_size = Size::new(source.width, source.height)?;
+    let source_size = Size::new(source.display_width, source.display_height)?;
+    let color_tags = output_color(source, options.color_active());
     let ai_on = options.ai != AiSettings::Off;
     let processing_input = if ai_on {
         let factor = match options.ai {
@@ -2612,11 +2770,11 @@ fn convert_gpu(
             _ => 4,
         };
         Size::new(
-            source
+            source_size
                 .width
                 .checked_mul(factor)
                 .ok_or("AI width overflow")?,
-            source
+            source_size
                 .height
                 .checked_mul(factor)
                 .ok_or("AI height overflow")?,
@@ -2638,7 +2796,7 @@ fn convert_gpu(
             } else {
                 0
             };
-        let retention = x4_bytes + u64::from(source.width) * u64::from(source.height) * 4;
+        let retention = x4_bytes + u64::from(source_size.width) * u64::from(source_size.height) * 4;
         #[cfg(test)]
         let budget = options.ai_test_budget_bytes.unwrap_or(384 << 20);
         #[cfg(not(test))]
@@ -2723,29 +2881,44 @@ fn convert_gpu(
         {
             return Err("wgpu/codec GPU identity mismatch; no hardware fallback".into());
         }
-        decoder.env("CUDA_VISIBLE_DEVICES", &device.uuid).args([
-            "-hwaccel",
-            "cuda",
-            "-hwaccel_device",
-            "0",
-            "-hwaccel_output_format",
-            "cuda",
-        ]);
+        decoder.env("CUDA_VISIBLE_DEVICES", &device.uuid);
+        if options.decoder == codec_plan::Decoder::Nvdec {
+            decoder.args([
+                "-hwaccel",
+                "cuda",
+                "-hwaccel_device",
+                "0",
+                "-hwaccel_output_format",
+                "cuda",
+            ]);
+        }
     }
     decoder.arg("-i").arg(input);
+    let normalization = display_geometry::normalization_filter(
+        Size::new(source.width, source.height)?,
+        source_size,
+    );
     if options.color_active() {
-        let prefix = if options.hardware_gpu.is_some() {
+        let prefix = if options.decoder == codec_plan::Decoder::Nvdec {
             "hwdownload,format=nv12,"
         } else {
             ""
         };
         decoder.args([
             "-vf",
-            &format!("{prefix}{},format=gbrp,format=rgba", color::TO_SRGB),
+            &format!(
+                "{prefix}{normalization}{},format=gbrp,format=rgba",
+                source.color_interpretation.to_srgb()
+            ),
         ]);
-    } else if options.hardware_gpu.is_some() {
+    } else if options.decoder == codec_plan::Decoder::Nvdec {
         // Explicit NVDEC download; CPU converts NV12 to RGBA for the wgpu bridge.
-        decoder.args(["-vf", "hwdownload,format=nv12,format=rgba"]);
+        decoder.args([
+            "-vf",
+            &format!("hwdownload,format=nv12,{normalization}format=rgba"),
+        ]);
+    } else if !normalization.is_empty() {
+        decoder.args(["-vf", &format!("{normalization}format=rgba")]);
     }
     decoder
         .args([
@@ -2773,7 +2946,7 @@ fn convert_gpu(
             .arg("-itsoffset")
             .arg(format!("-{}.{:06}", origin / 1_000_000, origin % 1_000_000))
             .arg("-i")
-            .arg(input);
+            .arg(source.audio_input(input));
     }
     encoder.args(["-map", "0:v:0"]);
     if source.audio_codec.is_some() {
@@ -2795,20 +2968,15 @@ fn convert_gpu(
         }
         filter.push_str(",format=nv12,hwupload_cuda");
         append_fps_filter(&mut filter, options.cfr_plan)?;
-        let colors: Vec<_> = [
-            ("range", &source.color_range),
-            ("colorspace", &source.color_space),
-            ("color_trc", &source.color_transfer),
-            ("color_primaries", &source.color_primaries),
-        ]
-        .into_iter()
-        .filter_map(|(name, value)| {
-            value
-                .as_deref()
-                .filter(|value| *value != "unknown")
-                .map(|value| format!("{name}={}", if value == "tv" { "limited" } else { value }))
-        })
-        .collect();
+        let colors: Vec<_> = ["range", "colorspace", "color_trc", "color_primaries"]
+            .into_iter()
+            .zip(color_tags)
+            .filter_map(|(name, value)| {
+                value.filter(|value| *value != "unknown").map(|value| {
+                    format!("{name}={}", if value == "tv" { "limited" } else { value })
+                })
+            })
+            .collect();
         if !colors.is_empty() {
             filter.push_str(&format!(",setparams={}", colors.join(":")));
         }
@@ -2831,7 +2999,11 @@ fn convert_gpu(
         }
     } else {
         let mut filter = if !options.color_active() {
-            String::new()
+            if source.color_space.as_deref() == Some("bt709") {
+                "scale=in_range=full:out_range=limited:out_color_matrix=bt709,format=yuv420p".into()
+            } else {
+                String::new()
+            }
         } else {
             format!("format=gbrp,{},format=yuv420p", color::FROM_SRGB)
         };
@@ -2850,29 +3022,27 @@ fn convert_gpu(
     );
     encoder.args(["-fps_mode", "passthrough", "-enc_time_base:v", "1:90000"]);
     for (flag, value) in [
-        ("-color_range", &source.color_range),
-        ("-colorspace", &source.color_space),
-        ("-color_trc", &source.color_transfer),
-        ("-color_primaries", &source.color_primaries),
-    ] {
-        if let Some(value) = value.as_deref().filter(|value| *value != "unknown") {
+        "-color_range",
+        "-colorspace",
+        "-color_trc",
+        "-color_primaries",
+    ]
+    .into_iter()
+    .zip(color_tags)
+    {
+        if let Some(value) = value.filter(|value| *value != "unknown") {
             encoder.arg(flag).arg(value);
         }
     }
-    let x264_color: Vec<_> = [
-        ("range", &source.color_range),
-        ("colormatrix", &source.color_space),
-        ("transfer", &source.color_transfer),
-        ("colorprim", &source.color_primaries),
-    ]
-    .into_iter()
-    .filter_map(|(key, value)| {
-        value
-            .as_deref()
-            .filter(|value| *value != "unknown")
-            .map(|value| format!("{key}={value}"))
-    })
-    .collect();
+    let x264_color: Vec<_> = ["range", "colormatrix", "transfer", "colorprim"]
+        .into_iter()
+        .zip(color_tags)
+        .filter_map(|(key, value)| {
+            value
+                .filter(|value| *value != "unknown")
+                .map(|value| format!("{key}={value}"))
+        })
+        .collect();
     if options.hardware_gpu.is_none() && !x264_color.is_empty() {
         encoder.arg("-x264-params").arg(x264_color.join(":"));
     }
@@ -2880,7 +3050,7 @@ fn convert_gpu(
         encoder.args(["-c:a", "aac", "-b:a", "192k", "-ar", "48000"]);
     }
     encoder
-        .args(["-movflags", "+faststart", "-f", "mp4"])
+        .args(["-movflags", mp4_color_flags(color_tags), "-f", "mp4"])
         .arg(partial)
         .stdin(Stdio::piped());
     let mut encoder = ChildGuard::spawn(&mut encoder)?;
@@ -2891,7 +3061,8 @@ fn convert_gpu(
         &[&decoder, &encoder],
         Some(gpu.device_lost_signal.clone()),
     );
-    let frame_len = usize::try_from(u64::from(source.width) * u64::from(source.height) * 4)?;
+    let frame_len =
+        usize::try_from(u64::from(source_size.width) * u64::from(source_size.height) * 4)?;
     let mut frame = vec![0_u8; frame_len];
     let result = (|| -> NativeResult<u64> {
         let mut reader = decoder.take_stdout()?;
@@ -3877,6 +4048,128 @@ mod tests {
     }
 
     #[test]
+    fn legacy_profiles_and_protection_metadata_do_not_grant_broad_container_support() {
+        for (codec, profile, accepted) in [
+            ("wmv3", Some("Main"), true),
+            ("wmv3", Some("Simple"), false),
+            ("wmv3", None, false),
+            ("vc1", Some("Advanced"), true),
+            ("vc1", Some("Main"), false),
+            ("wmv2", None, true),
+        ] {
+            let stream: ProbeStream = serde_json::from_value(serde_json::json!({
+                "codec_type":"video", "codec_name":codec, "profile":profile
+            }))
+            .unwrap();
+            assert_eq!(validate_legacy_profile(&stream).is_ok(), accepted);
+        }
+        for key in [
+            "encryption",
+            "ASF_Protection_Type",
+            "ASF_Key_ID",
+            "ASF_License_URL",
+        ] {
+            let probe: Probe = serde_json::from_value(serde_json::json!({
+                "streams":[{"codec_type":"video","codec_name":"wmv3","profile":"Main"}],
+                "format":{"format_name":"asf","tags":{key:"present"}}
+            }))
+            .unwrap();
+            assert!(
+                reject_encrypted(&probe)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("DRM")
+            );
+        }
+        for tag in ["encv", "enca"] {
+            let probe: Probe = serde_json::from_value(serde_json::json!({"streams":[{
+                "codec_type":"video", "codec_name":"h264", "codec_tag_string":tag
+            }]}))
+            .unwrap();
+            assert!(reject_encrypted(&probe).is_err());
+        }
+    }
+
+    #[test]
+    fn actual_legacy_interlaced_video_is_rejected_by_decoded_evidence() {
+        let directory =
+            std::env::temp_dir().join(format!("diaxus-legacy-interlace-{}", std::process::id()));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("interlaced.mpg");
+        let result = Command::new("ffmpeg")
+            .args([
+                "-v",
+                "error",
+                "-n",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=192x144:rate=25:duration=0.2",
+                "-c:v",
+                "mpeg2video",
+                "-flags",
+                "+ilme+ildct",
+                "-top",
+                "1",
+                "-f",
+                "mpeg",
+            ])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert!(result.status.success() && result.stderr.is_empty());
+        let error = probe_source_direct(&path).unwrap_err().to_string();
+        assert!(error.contains("progressive"), "{error}");
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn missing_count_mpeg_uses_decoded_video_and_complete_mp2_coverage() {
+        let (source, timeline) = inspect_source(
+            &fixture("native-mpeg1.mpg"),
+            false,
+            false,
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert_eq!(source.frame_count, 50);
+        assert_eq!(source.video_duration_ticks, Some(180000));
+        assert_eq!(source.video_duration_us, Some(2_000_000));
+        assert_eq!(source.audio_duration_us, Some(2_011_433));
+        assert_eq!(
+            (source.video_start_us, source.audio_start_us),
+            (1_250_000, Some(1_239_089))
+        );
+        assert_eq!((source.display_width, source.display_height), (384, 288));
+        assert!(!source.variable_frame_rate);
+        assert_eq!(timeline.len(), 50);
+        assert!(source.shared_gpu_limitation().is_none());
+        let directory =
+            std::env::temp_dir().join(format!("diaxus-mpeg-export-{}", std::process::id()));
+        fs::create_dir(&directory).unwrap();
+        let output = directory.join("converted.mp4");
+        let report = convert_with_control(
+            &fixture("native-mpeg1.mpg"),
+            &output,
+            ResizeSpec::Original,
+            OutputProfileId::Mp4H264Aac,
+            ProcessingRoute::DirectFfmpeg,
+            None,
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert_eq!(report.output_frame_count, 50);
+        assert_eq!((report.output_width, report.output_height), (384, 288));
+        let decoded = probe_source_direct(&output).unwrap();
+        assert_eq!(decoded.color_range.as_deref(), Some("tv"));
+        assert!(decoded.color_space.is_none());
+        assert_eq!(decoded.video_duration_us, Some(2_000_000));
+        fs::remove_file(output).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
     fn inspected_sources_explain_known_gpu_restrictions() {
         let cfr = probe_source_direct(&fixture("m2-h264-aac.mp4")).unwrap();
         assert!(cfr.shared_gpu_limitation().is_none());
@@ -4168,28 +4461,6 @@ mod tests {
     }
 
     #[test]
-    fn aac_preflight_rejects_backward_pts_but_retains_priming_and_offsets() {
-        let packets = |pts: &[i64]| {
-            pts.iter()
-                .map(|pts| serde_json::json!({"pts":pts}))
-                .collect::<Vec<_>>()
-        };
-        // Negative priming and a genuine positive track origin remain valid.
-        for pts in [&[-1024, 0, 1024][..], &[54000, 55024, 56048]] {
-            validate_aac_packet_pts(&packets(pts)).unwrap();
-        }
-        // Regression: the first AAC frame advertised 3600 ticks while the next
-        // frame resumed at 1024. FFmpeg encoded a delayed audio track.
-        for pts in [&[3600, 1024, 2048][..], &[0, 1024, 1024]] {
-            let error = validate_aac_packet_pts(&packets(pts))
-                .unwrap_err()
-                .to_string();
-            assert!(error.contains("Source AAC presentation timestamps go backward or repeat"));
-        }
-        assert!(validate_aac_packet_pts(&[serde_json::json!({"dts":0})]).is_err());
-    }
-
-    #[test]
     fn probes_real_hevc_input_for_avc_output_route() {
         let input = probe_source(&fixture("m36-h265-aac.mp4")).unwrap();
         assert_eq!(input.codec, "hevc");
@@ -4225,7 +4496,7 @@ mod tests {
         let transformed = probe_source_direct(&fixture("m35-geometry-color.mp4")).unwrap();
         assert_eq!(
             (transformed.display_width, transformed.display_height),
-            (180, 421)
+            (180, 422)
         );
         assert!(transformed.has_display_matrix);
     }
@@ -4273,7 +4544,7 @@ mod tests {
         let error = probe_source(&fixture("m35-geometry-color.mp4"))
             .unwrap_err()
             .to_string();
-        assert!(error.contains("square-pixel"), "{error}");
+        assert!(error.contains("display matrices"), "{error}");
         let (source, timeline) = inspect_source(
             &fixture("m35-geometry-color.mp4"),
             false,
@@ -4282,7 +4553,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!((source.width, source.height), (316, 180));
-        assert_eq!((source.display_width, source.display_height), (180, 421));
+        assert_eq!((source.display_width, source.display_height), (180, 422));
         assert_eq!(source.rotation_degrees, -90);
         assert_eq!(source.sample_aspect_ratio, "4:3");
         assert_eq!(timeline.len(), 24);

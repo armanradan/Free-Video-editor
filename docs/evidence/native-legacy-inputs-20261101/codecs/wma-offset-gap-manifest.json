@@ -1,0 +1,188 @@
+{
+  "license": "CC0-1.0",
+  "provenance": "Original FFmpeg testsrc2/sine, positive audio offset and150ms interior gap",
+  "ffmpeg": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "command": [
+    "ffmpeg",
+    "-v",
+    "error",
+    "-n",
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc2=size=192x144:rate=25:duration=1.4",
+    "-f",
+    "lavfi",
+    "-i",
+    "sine=frequency=659:sample_rate=44100:duration=1.1",
+    "-af",
+    "asetpts=PTS+0.1/TB+if(gte(T\\,0.5)\\,0.15/TB\\,0)",
+    "-c:v",
+    "wmv2",
+    "-threads",
+    "1",
+    "-b:v",
+    "500k",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "wmav2",
+    "-b:a",
+    "128k",
+    "-ar",
+    "44100",
+    "-ac",
+    "2",
+    "-output_ts_offset",
+    "1.25",
+    "tmp\\native-legacy-inputs\\wma-timing-fixture\\wmv2-wma2-offset-gap.wmv"
+  ],
+  "bytes": 167305,
+  "sha256": "c89ea421895d7b946166334ffc3aeab8c0b4ddd8c78463b5a825804b3a86b0ab",
+  "windows_reference": {
+    "rate": 44100,
+    "channels": 2,
+    "bits": 16,
+    "sample_count": 47104,
+    "frames": [
+      {
+        "pts100ns": 13500000,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "f7495d9d9df92dbfdc74986a41f0696723a63a85e28385fec051ea325dc191fe"
+      },
+      {
+        "pts100ns": 13959863,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "6716c1f0b26fad726c9b85ffea13a9b824bd4f3b7789755356d8691a979f0502"
+      },
+      {
+        "pts100ns": 14429931,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "271febfc2255a42bdcef2029a6c82495ce199c8f5e92c12b4af236c7f22fb197"
+      },
+      {
+        "pts100ns": 14889795,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "cd076a7fbef8371793a99b449ae317406de8978d223ee2004dd5cdf7ed47fe14"
+      },
+      {
+        "pts100ns": 15359863,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "0753e59ffc1b841772a2b11ac2ca107d34e2ab1724766d2ead97c83e442dbcb3"
+      },
+      {
+        "pts100ns": 15819954,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "eb40e8a9f067ed2889f2d746352bb4cb9c27edc43cf08f7c87cf4ecac94ed8f8"
+      },
+      {
+        "pts100ns": 16289795,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "f414ac8b4535d6bfa3165f839cfcaa812bfda1ab5f2121b1832d324d760af9c4"
+      },
+      {
+        "pts100ns": 16749886,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "00a3e5c89c64150b8c85dcdb019b804f75eaf1b4e00343841bb0b38dc6047714"
+      },
+      {
+        "pts100ns": 17219954,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "296fabebcc9f2bebc6d9bafd1c9732b5e511697955fc31cea62040f4580f17b5"
+      },
+      {
+        "pts100ns": 17679818,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "9d2a54de05046bc90b91beab65131cf509c9fc4fb0e8cbeb48c30c4f401d9e02"
+      },
+      {
+        "pts100ns": 19639909,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "7a2424e4bb4a9ac1c3d86a05035ab0d2336f307abdaf36b571af5505ee98947a"
+      },
+      {
+        "pts100ns": 20109977,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "154bc92edadfa0fe52a8d72fe67101ced7b9b9fed62f13cc0c9d31aff7c7c8e2"
+      },
+      {
+        "pts100ns": 20569841,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "08352641ec0878cecc80038e00c7b1ab793bcda5db45bd44a7230acc9604dcbd"
+      },
+      {
+        "pts100ns": 21039909,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "846c1ed9ad01c6c845ea9158d0dd02a5799b3657e807cff4763cc8ff6fae560f"
+      },
+      {
+        "pts100ns": 21500000,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "4f8cd2ce87b7a04086da70813081285d760a10771a9d0ad577a17dc0a1a1f93b"
+      },
+      {
+        "pts100ns": 21969841,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "da7cd8d9db810eab8c0aa5a0694b9999533ea7b76af8320511280f92e602192f"
+      },
+      {
+        "pts100ns": 22429931,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "fc0d4421994dcecf7264187a424eae8ae5b308fc2bbd2e1da7b841a1ec19d744"
+      },
+      {
+        "pts100ns": 22889795,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "e37a355a2913684a8d3576ce89f68853f0c23ba6dbebc0a784be9d69a1d2dafa"
+      },
+      {
+        "pts100ns": 23359863,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "e81a6942f6fb4c65ebe43e21ead5305b2444a25f867198ad944d2622398f06ef"
+      },
+      {
+        "pts100ns": 23819954,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "b2882de15d479c09494e75ed9e8f302cfbb254daeaadab2d0f028592147c3f7e"
+      },
+      {
+        "pts100ns": 24289795,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "3739ba12e4311a88f829b2d7636d777aa701180de56f640047051606174201aa"
+      },
+      {
+        "pts100ns": 24749886,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "333d273c32436796b441a95cb3d6fb2a061c9bbf9051f1d28f499fa9475a3be0"
+      },
+      {
+        "pts100ns": 25219954,
+        "duration100ns": 464399,
+        "bytes": 8192,
+        "pcm_sha256": "188cd2fb5e6215dd89d5a2379d2960799297f4130dfdb7e5c3b5d5b0bc02423b"
+      }
+    ]
+  }
+}

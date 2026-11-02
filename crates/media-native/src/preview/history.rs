@@ -49,21 +49,15 @@ pub fn stream_history(
                 .find(|stream| stream["codec_type"] == "video")
         })
         .ok_or("preview input has no video")?;
-    if video["sample_aspect_ratio"]
-        .as_str()
-        .is_some_and(|v| v != "1:1" && v != "N/A")
-        || video["side_data_list"]
-            .as_array()
-            .is_some_and(|v| !v.is_empty())
-    {
-        return Err(
-            "history preview currently requires square pixels without display rotation".into(),
-        );
+    if crate::display_geometry::has_display_transform(video) {
+        return Err("history preview currently requires no display rotation".into());
     }
-    let size = Size::new(
+    let coded = Size::new(
         u32::try_from(video["width"].as_u64().ok_or("missing preview width")?)?,
         u32::try_from(video["height"].as_u64().ok_or("missing preview height")?)?,
     )?;
+    let size = crate::display_geometry::metadata_size(video)?;
+    let normalization = crate::display_geometry::normalization_filter(coded, size);
     let frame_bytes = usize::try_from(
         u64::from(size.width)
             .checked_mul(u64::from(size.height))
@@ -101,8 +95,8 @@ pub fn stream_history(
     // showinfo observes the very same output frames as the raw pipe. Integer
     // ticks/time base and geometry are checked; decimal pts_time is never used.
     let filter = format!(
-        "trim=start_pts={first_tick},{},format=gbrp,format=rgba,trim=end_frame={MAX_FRAMES},showinfo",
-        color::TO_SRGB
+        "trim=start_pts={first_tick},{normalization}{},format=gbrp,format=rgba,trim=end_frame={MAX_FRAMES},showinfo",
+        color::InputColor::from_metadata(video).to_srgb()
     );
     let mut command = Command::new("ffmpeg");
     command
@@ -365,7 +359,7 @@ mod tests {
             )
             .unwrap_err()
             .to_string()
-            .contains("square pixels")
+            .contains("display rotation")
         );
         // An aborted stream must not poison the next explicit request.
         assert_eq!(

@@ -47,6 +47,81 @@ fn directory(label: &str) -> PathBuf {
 }
 
 #[test]
+#[ignore = "actual licensed RTX SDK and NVIDIA GPU; normalized MPEG preview versus chronological conversion pixels"]
+fn actual_legacy_sar_preview_matches_normalized_conversion_at_both_scales() {
+    use crate::ai_preview::{AiPreview, PreviewHelper, PreviewPolicy};
+    let helper = config(false);
+    let adapter = adapter(&helper);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/native-mpeg1.mpg");
+    let token = CancellationToken::default();
+    let source = probe_source_direct(&path).unwrap();
+    let input = Size::new(384, 288).unwrap();
+    assert_eq!((source.width, source.height), (352, 288));
+    let full = Command::new("ffmpeg").args(["-v", "error", "-i"]).arg(&path)
+        .args(["-an", "-vf", "scale=384:288:flags=bilinear,setsar=1,zscale=matrixin=smpte170m:transferin=709:primariesin=709:rangein=limited:matrix=gbr:transfer=iec61966-2-1:primaries=709:range=full,format=gbrp,format=rgba", "-frames:v", "3", "-fps_mode", "passthrough", "-f", "rawvideo", "pipe:1"]).output().unwrap();
+    assert!(
+        full.status.success(),
+        "{}",
+        String::from_utf8_lossy(&full.stderr)
+    );
+    let bytes = (input.width * input.height * 4) as usize;
+    assert_eq!(full.stdout.len(), bytes * 3);
+    let mut cases = vec![];
+    for scale in [AiScale::Two, AiScale::Four] {
+        let ai = settings(scale);
+        let selected = ai
+            .requested_output_size(input, ResizeSpec::Original)
+            .unwrap();
+        let policy = PreviewPolicy {
+            ai,
+            helper: PreviewHelper::Rtx(helper.clone()),
+            processing_adapter: adapter.key.clone(),
+            source_end: source.preview_end.clone(),
+        };
+        let (mut preview, summary) = AiPreview::prepare(&path, 80000, &policy, 11, &token).unwrap();
+        assert_eq!((summary.selected_us, summary.predecessors), (80000, 2));
+        assert_eq!(preview.selected_size(), selected);
+        let image = preview
+            .render(
+                Equalization::default(),
+                ColorAdjustments::default(),
+                11,
+                &token,
+            )
+            .unwrap();
+        let mut gpu = GpuProcessor::new(selected, selected, Some(&adapter.key)).unwrap();
+        gpu.prepare_ai_postscale(true);
+        gpu.prepare_preview_display(image.size).unwrap();
+        let mut inference = policy.helper.processor(ai, input, 11, &token).unwrap();
+        let mut expected = vec![];
+        for (frame, pts) in full.stdout.chunks_exact(bytes).zip([0, 40000, 80000]) {
+            let enhanced = inference.process_frame(frame.to_vec(), 11, &token).unwrap();
+            expected.clear();
+            gpu.process(&enhanced.rgba, pts, &mut expected, &token)
+                .unwrap();
+        }
+        inference.close().unwrap();
+        assert_eq!(image.rgba.len(), expected.len());
+        let maximum = image
+            .rgba
+            .iter()
+            .zip(&expected)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max()
+            .unwrap();
+        assert!(
+            maximum <= 1,
+            "Normalized {scale:?} preview differs: {maximum}LSB"
+        );
+        cases.push(serde_json::json!({"scale":scale.factor(),"normalized_input":[384,288],"selected":[selected.width,selected.height],"selected_us":summary.selected_us,"predecessors":summary.predecessors,"display":[image.size.width,image.size.height],"max_rgba_error_lsb":maximum,"transfers":image.transfers}));
+    }
+    let output = PathBuf::from(
+        std::env::var_os("DIAXUS_TEST_LEGACY_PREVIEW_REPORT").expect("explicit report destination"),
+    );
+    fs::write(output, serde_json::to_vec_pretty(&serde_json::json!({"status":"passed","scope":"Actual RTX2x/4x normalized MPEG history preview versus independent chronological full-source decode and conversion processor; readbacks are diagnostic only","cases":cases})).unwrap()).unwrap();
+}
+
+#[test]
 #[ignore = "actual NVIDIA shared-wgpu bilinear pixels versus independent scalar sampling; no helper"]
 fn actual_native_bilinear_reference_pixels() {
     let adapter = enumerate_adapters()

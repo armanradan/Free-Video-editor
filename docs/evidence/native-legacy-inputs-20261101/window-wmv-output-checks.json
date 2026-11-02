@@ -1,0 +1,54 @@
+{
+  "status": "passed",
+  "scope": "Full AV decode, frame count, dimensions, square SAR, encoder tag and monotonic video PTS. No new independent WMA waveform comparison in this window check.",
+  "cases": [
+    {
+      "case": "wmv3-software",
+      "full_av_decode": "passed",
+      "frames": 48,
+      "size": [
+        788,
+        576
+      ],
+      "encoder": "libx264",
+      "audio_codec": "aac",
+      "strictly_increasing_video_pts": true,
+      "first_video_pts_seconds": 0.0,
+      "last_video_pts_seconds": 1.958,
+      "output_bytes": 283797,
+      "output_sha256": "7a29b7e9774c2edb790593c2425c42e58be3927f0626d08aa5920a7559aa76c5"
+    },
+    {
+      "case": "wmv3-nvidia",
+      "full_av_decode": "passed",
+      "frames": 48,
+      "size": [
+        788,
+        576
+      ],
+      "encoder": "h264_nvenc",
+      "audio_codec": "aac",
+      "strictly_increasing_video_pts": true,
+      "first_video_pts_seconds": 0.0,
+      "last_video_pts_seconds": 1.958,
+      "output_bytes": 390691,
+      "output_sha256": "1f4ee6e0e2680b026fd0911157445d01e8420c2d1ed0b0c5c2999677f8e50ee1"
+    },
+    {
+      "case": "wmv3-rtx2x-nvidia",
+      "full_av_decode": "passed",
+      "frames": 48,
+      "size": [
+        1576,
+        1152
+      ],
+      "encoder": "h264_nvenc",
+      "audio_codec": "aac",
+      "strictly_increasing_video_pts": true,
+      "first_video_pts_seconds": 0.0,
+      "last_video_pts_seconds": 1.958,
+      "output_bytes": 1600482,
+      "output_sha256": "82a354cd996fc80b25faa3f8ef1b754c2b05f62c9314b7c686d49c81bc89d4b8"
+    }
+  ]
+}

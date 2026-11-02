@@ -1,0 +1,132 @@
+{
+  "ai": {
+    "identity": {
+      "protocol": 1,
+      "pid": 28472,
+      "runtime": "RTX Video SDK 1.1.0",
+      "model_sha256": "",
+      "sdk_configuration": "sdk-1.1-sdr-v1/high3",
+      "dxgi_index": 1,
+      "adapter_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+      "vendor_id": 4318,
+      "device_id": 9634,
+      "luid_high": 0,
+      "luid_low": 78387,
+      "cpu_fallback": false,
+      "tile_interior": 0,
+      "halo": 0
+    },
+    "source_frames": 30,
+    "host_to_gpu_bytes": 8467200,
+    "gpu_to_host_bytes": 33868800,
+    "sampled_helper_local_peak": 51789824,
+    "helper_memory_sampling_available": true,
+    "memory_admission_bytes": 152584576
+  },
+  "gpu_wall_times": {
+    "processing_setup_us": 394873,
+    "helper_startup_us": 5100241,
+    "decode_pipe_wait_us": 94942,
+    "inference_roundtrip_us": 451691,
+    "postprocess_and_encoder_pipe_us": 206160,
+    "codec_drain_us": 42010,
+    "helper_shutdown_us": 146140
+  },
+  "color": {
+    "brightness": 0,
+    "contrast": 100,
+    "saturation": 100
+  },
+  "equalization": {
+    "enabled": false,
+    "strength": 50
+  },
+  "equalization_gpu_scratch_bytes": 0,
+  "equalization_compute_passes": 0,
+  "output_frame_count": 30,
+  "frame_rate": "Original",
+  "video_bitrate_bps": 1411200,
+  "route": "shared-wgpu",
+  "profile": "mp4-h264-aac",
+  "input": {
+    "audio_normalization": null,
+    "preview_end": {
+      "position_us": 580000,
+      "file_length": 656919,
+      "modified": {
+        "secs_since_epoch": 1793560116,
+        "nanos_since_epoch": 593390300
+      },
+      "created": {
+        "secs_since_epoch": 1793560116,
+        "nanos_since_epoch": 589769900
+      }
+    },
+    "video_bitrate_bps": null,
+    "codec": "vc1",
+    "codec_tag": "WVC1",
+    "codec_profile": "Advanced",
+    "pixel_format": "yuv420p",
+    "width": 320,
+    "height": 240,
+    "display_width": 294,
+    "display_height": 240,
+    "sample_aspect_ratio": "11:12",
+    "rotation_degrees": 0,
+    "has_display_matrix": false,
+    "color_range": null,
+    "color_space": null,
+    "color_transfer": null,
+    "color_primaries": null,
+    "color_interpretation": {
+      "matrix": "smpte170m",
+      "transfer": "bt709",
+      "primaries": "bt709",
+      "assumed": true
+    },
+    "frame_rate_num": 50,
+    "frame_rate_den": 1,
+    "frame_count": 30,
+    "audio_codec": "wmav2",
+    "video_start_us": 66000,
+    "audio_start_us": 91995,
+    "video_duration_us": 600000,
+    "video_duration_ticks": 600,
+    "video_duration_from_decoded": true,
+    "inferred_final_frame_duration_ticks": 20,
+    "video_time_base": "1/1000",
+    "audio_duration_us": 1161406,
+    "decoded_audio_coverage": {
+      "start_us": 91995,
+      "end_us": 1253401,
+      "frame_count": 25,
+      "sample_count": 51200
+    },
+    "variable_frame_rate": false
+  },
+  "output_width": 588,
+  "output_height": 480,
+  "frames_processed": 30,
+  "output_bytes": 47579,
+  "elapsed_ms": 6525,
+  "verification_ms": 437,
+  "adapter": {
+    "key": "Vulkan:10de:25a2:NVIDIA GeForce RTX 3050 Laptop GPU",
+    "name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "vendor": 4318,
+    "device": 9634,
+    "device_type": "DiscreteGpu",
+    "backend": "Vulkan",
+    "driver": "NVIDIA"
+  },
+  "explicit_cpu_to_gpu_bytes": 33868800,
+  "explicit_gpu_to_cpu_bytes": 33868800,
+  "adapter_fallback": null,
+  "hardware_gpu": null,
+  "video_encoder": "libx264",
+  "inspection_reused": false,
+  "preflight_ms": 398,
+  "total_ms": 7361,
+  "codec_gpu_to_cpu_bytes": 0,
+  "codec_cpu_to_gpu_bytes": 0
+}

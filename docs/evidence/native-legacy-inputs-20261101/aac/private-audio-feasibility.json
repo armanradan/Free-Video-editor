@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "source": "private original; path and media excluded",
+  "ffmpeg": "ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
+  "arguments": [
+    "-copyts",
+    "-i",
+    "<original>",
+    "-map",
+    "0:a:0",
+    "-c:a",
+    "copy",
+    "-bsf:a",
+    "setts=pts=if(eq(N\\,0)\\,DTS\\,PTS)",
+    "<owned-audio.m4a>"
+  ],
+  "packets": 5518,
+  "time_base": "1/44100",
+  "changes": [
+    {
+      "index": 0,
+      "before": 3600,
+      "after": 0
+    }
+  ],
+  "all_payload_hashes_dts_durations_sizes_preserved": true,
+  "original_unchanged": true,
+  "prepared_audio_bytes": 2034300
+}

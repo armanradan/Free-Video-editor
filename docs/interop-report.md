@@ -1,6 +1,65 @@
 # M1 browser interoperability report
 
 
+## Native legacy complete codec matrix - 2026-11-02
+
+All120independent codec/route/FPS cases pass:80without AI and40RTX2x shared
+software/NVIDIA cases, Original and15fps. H.264/HEVC, MPEG-1/2, WMV1/2/3 and
+VC-1 inputs, with AAC/MP2/WMA1/2/Pro, pass complete A/V decode, every original
+PTS or full rational fixed-FPS grid, endpoints and middle-frame image checks.
+Maximum video PTS error0.9071ms, packet endpoint1ms, audio endpoint18.5035ms,
+waveform RMSE0.005845 and RGB image RMSE11.2382, under unchanged timing gates.
+All120outputs separately pass dimensions/encoder/packet/copy-contract checks;
+RTX NVIDIA output has zero reorder depth and PTS=DTS. Private source identities
+are unchanged. See evidence/native-legacy-inputs-20261101/matrix.
+
+Active inspection, Windows audio preparation and hybrid export cancellation,
+helper/encoder failure, source replacement and preview/conversion owner handoff
+pass with fresh retries and no remaining owned resources. Native/app tests84+20,
+host/wasm shared checks and strict lint pass. Browser runtime scope is unchanged.
+The new native input picker and status compile; ordinary-window acceptance is
+blocked by desktop-access failure, not claimed from these CLI checks. See
+[evidence/native-legacy-inputs-20261101/verification.md](evidence/native-legacy-inputs-20261101/verification.md).
+
+
+## Native legacy hybrid NVIDIA route - 2026-11-02
+
+NVIDIA encoding now uses independently planned NVDEC or software decoding after
+actual selected-device preflights, preserving NVENC and exact GPU identity.
+MPEG/WMV/VC-1 software-decode/NVENC routes no longer reject solely for absent
+NVDEC or non-square SAR. Actual MPEG-1 RTX2x/4x and WMA Pro RTX2x exports pass
+independent A/V/timing/image checks;12WMA hybrid and20AAC regression exports pass.
+The actual original MPG completes6941frames at768x576 through RTX2x/NVENC;
+full independent decode/timing/audio/aspect passes and original SHA/size/mtime
+are unchanged. Video PTS/end error<=0.778ms, audio origin0/end0.245ms, sampled
+RGB RMSE<=3.923. Total163245ms included other concurrent validation; no controlled
+performance claim. Software video decode, zero NVDEC download and4,605,714,432
+NVENC upload bytes are reported. Real preflight failure/active cancel/fresh retry
+checks pass both hybrid routes. Full fixed-FPS/image matrix and new native-window
+acceptance remain pending. See evidence/native-legacy-inputs-20261101/hybrid.
+
+
+## Native Windows WMA audio path - 2026-11-02
+
+Media Foundation now supplies WMA1/2/Pro PCM and100ns sample timing through an
+embedded project-source-built helper. Exact PCM/PTS/duration verification and
+bounded owned audio-only preparation precede preview/export. FFmpeg retains
+video and MP4 encoding. Earlier FFmpeg-relative WMA clock claims are superseded.
+
+Twelve direct/shared software exports across WMV1/2/3, WMA1/2/Pro, VC-1 Advanced
+and offset/gap controls pass complete independent A/V checks; maximum video PTS
+error0.014ms, audio endpoint18.503ms under unchanged25ms gate, waveform RMSE
+<=0.005845. One48-frame WMA Pro excerpt also passes actual RTX2x at1576x1152
+(libx264 software codecs), total12023ms on the evaluated RTX3050Laptop/Vulkan/
+SDK1.1 High3/driver621.01 setup. Full private WMA Pro audio-only preparation
+passes:8,007,825stereo24bit samples,48,274,724scratch bytes,2510ms measured,
+unchanged source stamp and released owned scratch. Full original video export
+is not claimed. Native/app tests82+20pass; new ordinary-window WMA interaction,
+hybrid NVIDIA and full fixed-FPS/lifecycle matrix remain pending. No browser
+or additional RTX envelope acceptance is implied. Detailed evidence and limits:
+[evidence/native-legacy-inputs-20261101/codecs/windows-wma.md](evidence/native-legacy-inputs-20261101/codecs/windows-wma.md).
+
+
 ## Native RTX with NVDEC/NVENC accepted - 2026-10-30
 
 The normal native app now accepts explicit Shared GPU NVIDIA plus RTX2x/4x
@@ -4798,3 +4857,46 @@ availability reasons. Native tests61 passed/18 ignored; native all-target Clippy
 with-D warnings and formatting pass. Initial compiler file-map/executable locks
 required sequential retries, which succeeded. Larger legacy-format/audio-repair
 support remains a separate decision; no AI task checkbox advances (24/32).
+
+### Native legacy inputs: AAC original and MPEG direct software, 2026-11-01
+
+The newer native-legacy-inputs implementation supersedes the preceding AAC
+prefix-only rejection. Complete bounded packet classification now admits only the
+verified isolated leading fault and shares owned, packet-verified audio preparation
+between inspection, playback and export. All20 synthetic fixture/route exports pass
+independent decode/timing/audio checks, with valid priming, offsets and gaps retained.
+Seek/start/tail samples match an equivalent audio-only reference exactly.
+
+The ordinary native app directly exported the original private AAC input with
+RTX2x/Shared GPU NVIDIA on RTX3050Laptop, Vulkan/SDK1.1:3202frames in/out,
+2560x1440,70253292bytes,345639ms total, h264_nvenc. Independent complete decoding,
+all video timestamps, audio alignment/endpoints and unchanged original identity pass.
+Output bytes match the previously verified repaired-source export. Isolated automatic
+audio preparation cost903ms/2034300bytes; final owner retirement removed scratch.
+UI timing overlapped development work and is not a performance benchmark.
+
+A new original CC0 MPEG-1/MP2 fixture proves missing-count inspection and direct
+software export:50frames,384x288,2s video; complete packet evidence establishes
+MP2 coverage despite inaccurate container estimates. Independent full decode,
+timeline, audio coverage and sampled aspect/image checks pass unchanged tolerances.
+Known limited range is preserved with FFmpeg8.0.1's experimental `write_colr` mux
+option when other color tags are unknown; matrix/transfer/primaries are not invented.
+
+Native tests71passed/20ignored and native app tests20passed/6ignored; formatting
+and native all-target Clippy with-D warnings pass. MPEG shared/RTX geometry,
+WMV/WMA policy, hybrid NVIDIA routing and full family/UI acceptance remain pending.
+Evidence: `docs/evidence/native-legacy-inputs-20261101/{aac,mpeg}`. The separate
+ai-upscale task progress remains24/32; no browser runtime claim is added.
+
+
+### Native legacy inputs: ordinary-window continuation (2026-11-02)
+
+Desktop unlock enabled real Browse, inspection, preview/playback and five MP4
+exports for MPEG-1 and WMV3/WMA Pro, including shared NVIDIA RTX2x. Independent
+full AV decode/count/geometry checks pass. The non-square-SAR AI preview policy
+used coded dimensions in the UI; it now uses display dimensions consistently
+with processing. The fixed normal app builds and its tests/Clippy pass, but
+window input failed twice with `foreground window did not report a process id`
+after rebuilding. Corrected preview and the other six families still need UI
+acceptance. Task6.1 stays open (24/25 overall). Details and precise verification
+limits: `docs/evidence/native-legacy-inputs-20261101/window-acceptance.md`.

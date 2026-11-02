@@ -10,6 +10,7 @@ Native conversion currently rejects usable original files: a verified isolated f
 - Derive an exact decoded frame count when container metadata omits it, using bounded, cancellable inspection.
 - Accept progressive 8-bit SDR MP4 (H.264/HEVC), MPEG-PS (MPEG-1/2 with MP2 audio), and ASF/WMV (WMV1/2/3 or VC-1 with WMA audio) in both software and NVIDIA routes, including rational non-square pixel aspect normalization and matching preview.
 - Expose accepted MP4/MPG/MPEG/WMV inputs in native Browse and show applied normalization or precise unsupported-case reasons.
+- Use the built-in Windows Media Foundation decoder for WMA1/2/Pro audio and its sample timing, through an embedded source-built helper and verified bounded audio-only preparation shared by preview/export. FFmpeg retains video and MP4 output responsibilities.
 - Separate decoder selection from encoder selection: the NVIDIA route retains NVIDIA encoding while choosing verified NVDEC or software decoding for the source. Expose the actual decoder/encoder combination; never silently substitute software encoding after a NVIDIA encoder failure.
 
 ## Capabilities

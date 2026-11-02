@@ -1,0 +1,26 @@
+{
+  "negative-priming": {
+    "packet_count": 62,
+    "time_base_equal": true,
+    "packet_differences": [],
+    "pcm_equal": true,
+    "pcm_bytes": 249856,
+    "pcm_sha256": "008c0d84a53ad3af23e56d52589bc768cc1cc2f4910a49763ee39e89938dccab"
+  },
+  "positive-offset": {
+    "packet_count": 62,
+    "time_base_equal": true,
+    "packet_differences": [],
+    "pcm_equal": true,
+    "pcm_bytes": 253952,
+    "pcm_sha256": "9292bdb91fec6e1eee0f5a9d9e94ad3060fee06a5ab228e8198a506a7a862dba"
+  },
+  "intentional-gap": {
+    "packet_count": 62,
+    "time_base_equal": true,
+    "packet_differences": [],
+    "pcm_equal": true,
+    "pcm_bytes": 253952,
+    "pcm_sha256": "9292bdb91fec6e1eee0f5a9d9e94ad3060fee06a5ab228e8198a506a7a862dba"
+  }
+}

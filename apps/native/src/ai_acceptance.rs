@@ -93,7 +93,7 @@ pub fn choices(
             return Err(reason);
         }
         media_native::rtx_inference::validate_source(
-            Size::new(source.width, source.height).map_err(|e| e.to_string())?,
+            Size::new(source.display_width, source.display_height).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())?;
         Ok(())
@@ -113,7 +113,7 @@ pub fn choices(
                     AiScale::Four => Size::new(640, 360).unwrap(),
                 };
                 let source = source.unwrap();
-                if source.width > maximum.width || source.height > maximum.height {
+                if source.display_width > maximum.width || source.display_height > maximum.height {
                     return AiCapability::Unavailable {
                         reason: format!(
                             "Evaluated RTX {}× input limit is {}×{}; reduce scale or source size. The 384 MiB staging and CLAHE scratch limits remain enforced.",
@@ -306,10 +306,14 @@ mod tests {
         let mut changed = source.clone();
         changed.width = 1280;
         changed.height = 720;
+        changed.display_width = 1280;
+        changed.display_height = 720;
         let large = choices(Some(&config), Some(&report), adapter, Some(&changed));
         assert!(large.select(two).is_ok());
         assert!(large.select(four).is_err());
-        changed.width = 1281;
+        // Coded size alone fits; the actual normalized input exceeds the gate.
+        changed.width = 640;
+        changed.display_width = 1282;
         assert!(
             choices(Some(&config), Some(&report), adapter, Some(&changed))
                 .select(two)
